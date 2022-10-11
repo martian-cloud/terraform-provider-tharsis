@@ -1,0 +1,54 @@
+// Place your settings in this file to overwrite the default settings
+{
+    "cSpell.userWords": [
+        "Tharsis",
+        "tharsis"
+    ],
+    "cSpell.enableFiletypes": [
+        "terraform"
+    ],
+    "editor.formatOnSave": true,
+    "files.eol": "\n",
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "files.trimTrailingWhitespace": true,
+    "go.autocompleteUnimportedPackages": true,
+    "go.lintOnSave": "package",
+    "go.lintTool": "golangci-lint",
+    "go.lintFlags": [
+        "-E",
+        "revive,gosec"
+    ],
+    "go.toolsManagement.autoUpdate": true,
+    "go.useLanguageServer": true,
+    "gopls": {
+        "ui.completion.usePlaceholders": true, // add parameter placeholders when completing a function
+        "ui.diagnostic.staticcheck": true,
+        "ui.codelenses": {
+            "gc_details": true
+        },
+        "ui.diagnostic.analyses": {
+            "fieldalignment": true,
+            "nilness": true,
+            "shadow": true,
+            "unusedparams": true,
+            "unusedwrite": true,
+            "unusedvariable": true,
+        }
+    },
+    "[go]": {
+        "editor.insertSpaces": false,
+        "files.insertFinalNewline": true,
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": true,
+            "source.fixAll": true
+        }
+    },
+    "[typescript]": {
+        "editor.insertSpaces": true
+    },
+    "[typescriptreact]": {
+        "editor.insertSpaces": true
+    }
+}

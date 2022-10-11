@@ -1,0 +1,328 @@
+# Various .gitignore templates have been added here to cover our common usecase
+# Please add any unique project specific files to be ignore after this header
+# under the custom heading.
+#
+# The following are a list of adapted .gitignore files used to create this list:
+#  * https://github.com/github/gitignore/blob/master/Go.gitignore
+#  * https://github.com/github/gitignore/blob/master/Terraform.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/Archives.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/Backup.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/Diff.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/Images.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/Linux.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/Patch.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/PuTTY.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/Vim.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/VisualStudioCode.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/Windows.gitignore
+#  * https://github.com/github/gitignore/blob/master/Global/macOS.gitignore
+
+# Custom Ignore
+## Enter your project specific ignores here
+terraform-provider-tharsis
+**/.terraform.lock.hcl
+
+
+# Martian Cloud Common Ignore
+testdata/*
+.env*
+.coverage
+.test-results
+.xunit-results.xml
+
+
+
+# Go language Ignore (https://github.com/github/gitignore/blob/master/Go.gitignore)
+## Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+## Test binary, built with `go test -c`
+*.test
+
+## Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+## Dependency directories (remove the comment below to include it)
+vendor/
+
+
+
+# Terraform Ignore (https://github.com/github/gitignore/blob/master/Terraform.gitignore)
+## Local .terraform directories
+**/.terraform/*
+
+## .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+
+## Exclude all .tfvars files, which are likely to contain sentitive data, such as
+## password, private keys, and other secrets. These should not be part of version
+## control as they are data points which are potentially sensitive and subject
+## to change depending on the environment.
+##
+*.tfvars
+
+## Ignore override files as they are usually used to override resources locally and so
+## are not checked in
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+## Include override files you do wish to add to version control using negated pattern
+##
+## !example_override.tf
+
+## Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
+## example: *tfplan*
+
+## Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+
+
+# Archives Ignore (https://github.com/github/gitignore/blob/master/Global/Archives.gitignore)
+## It's better to unpack these files and commit the raw source because
+## git has its own built in compression methods.
+*.7z
+*.jar
+*.rar
+*.zip
+*.gz
+*.gzip
+*.tgz
+*.bzip
+*.bzip2
+*.bz2
+*.xz
+*.lzma
+*.cab
+*.xar
+
+## Packing-only formats
+*.iso
+*.tar
+
+## Package management formats
+*.dmg
+*.xpi
+*.gem
+*.egg
+*.deb
+*.rpm
+*.msi
+*.msm
+*.msp
+*.txz
+
+
+
+# Backup Ignore (https://github.com/github/gitignore/blob/master/Global/Backup.gitignore)
+*.bak
+*.gho
+*.ori
+*.orig
+*.tmp
+
+
+
+# Diff Ignore (https://github.com/github/gitignore/blob/master/Global/Diff.gitignore)
+*.patch
+*.diff
+
+
+
+# Images Ignore (https://github.com/github/gitignore/blob/master/Global/Images.gitignore)
+## JPEG
+*.jpg
+*.jpeg
+*.jpe
+*.jif
+*.jfif
+*.jfi
+
+## JPEG 2000
+*.jp2
+*.j2k
+*.jpf
+*.jpx
+*.jpm
+*.mj2
+
+## JPEG XR
+*.jxr
+*.hdp
+*.wdp
+
+## Graphics Interchange Format
+*.gif
+
+## RAW
+*.raw
+
+## Web P
+*.webp
+
+## Portable Network Graphics
+*.png
+
+## Animated Portable Network Graphics
+*.apng
+
+## Multiple-image Network Graphics
+*.mng
+
+## Tagged Image File Format
+*.tiff
+*.tif
+
+## Scalable Vector Graphics
+*.svg
+*.svgz
+
+## Portable Document Format
+*.pdf
+
+## X BitMap
+*.xbm
+
+## BMP
+*.bmp
+*.dib
+
+## ICO
+*.ico
+
+## 3D Images
+*.3dm
+*.max
+
+
+
+# Linux Ignore (https://github.com/github/gitignore/blob/master/Global/Linux.gitignore)
+*~
+
+## temporary files which can be created if a process still has a handle open of a deleted file
+.fuse_hidden*
+
+## KDE directory preferences
+.directory
+
+## Linux trash folder which might appear on any partition or disk
+.Trash-*
+
+## .nfs files are created when an open file is removed but is still being accessed
+.nfs*
+
+
+
+# Patch Ignore (https://github.com/github/gitignore/blob/master/Global/Patch.gitignore)
+*.orig
+*.rej
+
+
+
+# PuTTY Ignore (https://github.com/github/gitignore/blob/master/Global/PuTTY.gitignore)
+## Private key
+*.ppk
+
+
+
+# Vim Ignore (https://github.com/github/gitignore/blob/master/Global/Vim.gitignore)
+## Swap
+[._]*.s[a-v][a-z]
+!*.svg  # comment out if you don't need vector files
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+## Session
+Session.vim
+Sessionx.vim
+
+## Temporary
+.netrwhist
+## Auto-generated tag files
+tags
+## Persistent undo
+[._]*.un~
+
+
+
+# Visual Studio Code Ignore (https://github.com/github/gitignore/blob/master/Global/VisualStudioCode.gitignore)
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+## Local History for Visual Studio Code
+.history/
+
+
+
+# Windows Ignore (https://github.com/github/gitignore/blob/master/Global/Windows.gitignore)
+## Windows thumbnail cache files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+
+## Dump file
+*.stackdump
+
+## Folder config file
+[Dd]esktop.ini
+
+## Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+## Windows Installer files
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+## Windows shortcuts
+*.lnk
+
+
+
+# macOS Ignore (https://github.com/github/gitignore/blob/master/Global/macOS.gitignore)
+## General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+## Icon must end with two \r
+Icon
+
+## Thumbnails
+._*
+
+## Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+## Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
