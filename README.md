@@ -1,6 +1,6 @@
 # Terraform Tharsis Provider
 
-This generic template project will define various standard files that should be included whenever creating a new project.
+Use the Tharsis Provider to interact with Tharsis resources.
 
 ## Requirements
 

@@ -11,7 +11,7 @@ OS_ARCH=linux_amd64
 
 default: install
 
-.PHONY: build install default docs test testacc tools
+.PHONY: build install default test testacc
 
 build:
 	CGO_ENABLED=0 go build ${GCFLAGS} ${LDFLAGS} -o ${BINARY}
@@ -26,9 +26,3 @@ test:
 
 testacc:
 	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m
-
-tools:
-	cd tools && go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
-
-docs:
-	@tfplugindocs generate
