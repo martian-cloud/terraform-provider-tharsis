@@ -1,5 +1,5 @@
 // Package provider contains the provider configuration.
-package provider
+package tharsis
 
 import (
 	"context"
@@ -8,7 +8,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	svchost "github.com/hashicorp/terraform-svchost"
@@ -19,20 +22,20 @@ import (
 )
 
 // Ensure provider defined types fully satisfy framework interfaces
-var _ tfsdk.Provider = &provider{}
+var _ provider.Provider = &tharsisProvider{}
 
 const scheme string = "https://"
 
 // New creates a new instance of the Tharsis provider
-func New() tfsdk.Provider {
-	return &provider{
+func New() provider.Provider {
+	return &tharsisProvider{
 		version: Version,
 	}
 }
 
-// provider satisfies the tfsdk.Provider interface and usually is included
+// tharsisProvider satisfies the provider.Provider interface and usually is included
 // with all Resource and DataSource implementations.
-type provider struct {
+type tharsisProvider struct {
 	// configured is set to true at the end of the Configure method.
 	// This can be used in Resource and DataSource implementations to verify
 	// that the provider was previously configured.
@@ -47,7 +50,7 @@ type provider struct {
 	client *tharsis.Client
 }
 
-func (p *provider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (p *tharsisProvider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfsdk.Schema{
 		Attributes: map[string]tfsdk.Attribute{
 			"host": {
@@ -133,7 +136,7 @@ func (pd *providerData) checkUnknowns() diag.Diagnostics {
 	return diags
 }
 
-func (p *provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderRequest, resp *tfsdk.ConfigureProviderResponse) {
+func (p *tharsisProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	var data providerData
 
 	diags := req.Config.Get(ctx, &data)
@@ -161,15 +164,29 @@ func (p *provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 	p.configured = true
 }
 
-func (p *provider) GetResources(ctx context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
-	return map[string]tfsdk.ResourceType{}, nil
+func (p *tharsisProvider) Resources(context.Context) []func() resource.Resource {
+	return []func() resource.Resource{}
 }
 
-func (p *provider) GetDataSources(ctx context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
-	return map[string]tfsdk.DataSourceType{
-		"tharsis_workspace_outputs":      workspaceOutputsDataSourceType{IsJSONEncoded: false},
-		"tharsis_workspace_outputs_json": workspaceOutputsDataSourceType{IsJSONEncoded: true},
-	}, nil
+func (p *tharsisProvider) DataSources(context.Context) []func() datasource.DataSource {
+	return []func() datasource.DataSource{
+
+		// tharsis_workspace_outputs, no JSON
+		func() datasource.DataSource {
+			return workspaceOutputsDataSource{
+				provider:      *p,
+				isJSONEncoded: false,
+			}
+		},
+
+		// tharsis_workspace_outputs, with JSON
+		func() datasource.DataSource {
+			return workspaceOutputsDataSource{
+				provider:      *p,
+				isJSONEncoded: true,
+			}
+		},
+	}
 }
 
 func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, error) {
@@ -254,17 +271,17 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 // this helper can be skipped and the provider type can be directly type
 // asserted (e.g. provider: in.(*provider)), however using this can prevent
 // potential panics.
-func convertProviderType(in tfsdk.Provider) (provider, diag.Diagnostics) {
+func convertProviderType(in provider.Provider) (tharsisProvider, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	p, ok := in.(*provider)
+	p, ok := in.(*tharsisProvider)
 
 	if !ok {
 		diags.AddError(
 			"Unexpected Provider Instance Type",
 			fmt.Sprintf("While creating the data source or resource, an unexpected provider type (%T) was received. This is always a bug in the provider code and should be reported to the provider developers.", p),
 		)
-		return provider{}, diags
+		return tharsisProvider{}, diags
 	}
 
 	if p == nil {
@@ -272,7 +289,7 @@ func convertProviderType(in tfsdk.Provider) (provider, diag.Diagnostics) {
 			"Unexpected Provider Instance Type",
 			"While creating the data source or resource, an unexpected empty provider instance was received. This is always a bug in the provider code and should be reported to the provider developers.",
 		)
-		return provider{}, diags
+		return tharsisProvider{}, diags
 	}
 
 	return *p, diags

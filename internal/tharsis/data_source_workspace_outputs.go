@@ -1,4 +1,4 @@
-package provider
+package tharsis
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -23,15 +24,21 @@ const (
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ tfsdk.DataSourceType = workspaceOutputsDataSourceType{}
-	_ tfsdk.DataSource     = workspaceOutputsDataSource{}
+	_ datasource.DataSource = workspaceOutputsDataSource{}
 )
 
-type workspaceOutputsDataSourceType struct {
-	IsJSONEncoded bool
+// Metadata effectively replaces the DataSourceType (and thus workspaceOutputsDataSourceType)
+// It returns the full name of the data source.
+func (t workspaceOutputsDataSource) Metadata(_ context.Context,
+	req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	typeName := "tharsis_workspace_outputs"
+	if t.isJSONEncoded {
+		typeName += "_json"
+	}
+	resp.TypeName = typeName
 }
 
-func (t workspaceOutputsDataSourceType) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (t workspaceOutputsDataSource) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfsdk.Schema{
 		Version: 1,
 
@@ -77,21 +84,13 @@ func (t workspaceOutputsDataSourceType) GetSchema(_ context.Context) (tfsdk.Sche
 	}, nil
 }
 
-func (t workspaceOutputsDataSourceType) NewDataSource(ctx context.Context, in tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	provider, diags := convertProviderType(in)
-
-	return workspaceOutputsDataSource{
-		provider:      provider,
-		isJSONEncoded: t.IsJSONEncoded,
-	}, diags
-}
-
 type workspaceOutputsDataSource struct {
-	provider      provider
+	provider      tharsisProvider
 	isJSONEncoded bool
 }
 
-func (d workspaceOutputsDataSource) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (d workspaceOutputsDataSource) Read(ctx context.Context,
+	req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	defer func() {
 		if r := recover(); r != nil {
 			resp.Diagnostics.AddError("Oops! Something went wrong", fmt.Sprintf("%v\n%v", r, string(debug.Stack())))
