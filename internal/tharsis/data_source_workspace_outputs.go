@@ -89,7 +89,7 @@ type workspaceOutputsDataSource struct {
 	isJSONEncoded bool
 }
 
-func (d workspaceOutputsDataSource) Read(ctx context.Context,
+func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -126,7 +126,7 @@ func (d workspaceOutputsDataSource) Read(ctx context.Context,
 		Path: path,
 	}
 
-	workspace, err := d.provider.client.Workspaces.GetWorkspace(ctx, input)
+	workspace, err := t.provider.client.Workspaces.GetWorkspace(ctx, input)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error retrieving workspace",
@@ -153,7 +153,7 @@ func (d workspaceOutputsDataSource) Read(ctx context.Context,
 
 	data.Outputs = map[string]string{}
 	for _, output := range workspace.CurrentStateVersion.Outputs {
-		if !d.isJSONEncoded {
+		if !t.isJSONEncoded {
 			switch output.Type {
 			// Currently Strings are only supported
 			case cty.String:
@@ -171,7 +171,7 @@ func (d workspaceOutputsDataSource) Read(ctx context.Context,
 			)
 		}
 
-		if !d.isJSONEncoded {
+		if !t.isJSONEncoded {
 			var s string
 			if err := json.Unmarshal(b, &s); err != nil {
 				resp.Diagnostics.AddError(

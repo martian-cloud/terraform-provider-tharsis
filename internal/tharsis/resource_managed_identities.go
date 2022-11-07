@@ -168,7 +168,7 @@ type managedIdentitiesResource struct {
 	provider tharsisProvider
 }
 
-func (d managedIdentitiesResource) Create(ctx context.Context,
+func (t managedIdentitiesResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse) {
 
 	// Retrieve values from plan.
@@ -191,7 +191,7 @@ func (d managedIdentitiesResource) Create(ctx context.Context,
 	}
 
 	// Create the managed identity.
-	created, err := d.provider.client.ManagedIdentity.CreateManagedIdentity(ctx,
+	created, err := t.provider.client.ManagedIdentity.CreateManagedIdentity(ctx,
 		&ttypes.CreateManagedIdentityInput{
 			Type:        ttypes.ManagedIdentityType(plan.Type.ValueString()),
 			Name:        plan.Name.ValueString(),
@@ -247,7 +247,7 @@ func (d managedIdentitiesResource) Create(ctx context.Context,
 	}
 }
 
-func (d managedIdentitiesResource) Read(ctx context.Context,
+func (t managedIdentitiesResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse) {
 
 	// Get the current state.
@@ -259,7 +259,7 @@ func (d managedIdentitiesResource) Read(ctx context.Context,
 	}
 
 	// Get the managed identity from Tharsis.
-	found, err := d.provider.client.ManagedIdentity.GetManagedIdentity(ctx, &ttypes.GetManagedIdentityInput{
+	found, err := t.provider.client.ManagedIdentity.GetManagedIdentity(ctx, &ttypes.GetManagedIdentityInput{
 		ID: state.ResourcePath.ValueString(),
 	})
 	if err != nil {
@@ -314,7 +314,7 @@ func (d managedIdentitiesResource) Read(ctx context.Context,
 	}
 }
 
-func (d managedIdentitiesResource) Update(ctx context.Context,
+func (t managedIdentitiesResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
 	// Retrieve values from plan.
@@ -328,7 +328,7 @@ func (d managedIdentitiesResource) Update(ctx context.Context,
 	// Update the managed identity via Tharsis.
 	// The ID is used to find the record to update.
 	// The description and data are modified.
-	updated, err := d.provider.client.ManagedIdentity.UpdateManagedIdentity(ctx,
+	updated, err := t.provider.client.ManagedIdentity.UpdateManagedIdentity(ctx,
 		&ttypes.UpdateManagedIdentityInput{
 			ID:          plan.ID.ValueString(),
 			Description: plan.Description.ValueString(),
@@ -355,7 +355,7 @@ func (d managedIdentitiesResource) Update(ctx context.Context,
 	}
 }
 
-func (d managedIdentitiesResource) Delete(ctx context.Context,
+func (t managedIdentitiesResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse) {
 
 	// Get the current state.
@@ -368,7 +368,7 @@ func (d managedIdentitiesResource) Delete(ctx context.Context,
 
 	// Delete the managed identity via Tharsis.
 	// The ID is used to find the record to delete.
-	err := d.provider.client.ManagedIdentity.DeleteManagedIdentity(ctx,
+	err := t.provider.client.ManagedIdentity.DeleteManagedIdentity(ctx,
 		&ttypes.DeleteManagedIdentityInput{
 			ID: state.ID.ValueString(),
 		})
