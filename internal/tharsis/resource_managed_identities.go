@@ -14,25 +14,25 @@ import (
 // Managed identity models:
 
 type managedIdentityModel struct {
-	ID           types.String
-	Type         types.String
-	ResourcePath types.String
-	Name         types.String
-	Description  types.String
-	GroupPath    types.String
-	CreatedBy    types.String
-	Data         types.String // less overhead than a types.List of int[8]s
-	AccessRules  []managedIdentityAccessRuleModel
-	LastUpdated  types.String
+	ID           types.String                     `tfsdk:"id"`
+	Type         types.String                     `tfsdk:"type"`
+	ResourcePath types.String                     `tfsdk:"resource_path"`
+	Name         types.String                     `tfsdk:"name"`
+	Description  types.String                     `tfsdk:"description"`
+	GroupPath    types.String                     `tfsdk:"group_path"`
+	CreatedBy    types.String                     `tfsdk:"created_by"`
+	Data         types.String                     `tfsdk:"data"` // less overhead than a types.List of int[8]s
+	AccessRules  []managedIdentityAccessRuleModel `tfsdk:"access_rules"`
+	LastUpdated  types.String                     `tfsdk:"last_updated"`
 }
 
 type managedIdentityAccessRuleModel struct {
-	ID                     types.String
-	RunStage               types.String
-	ManagedIdentityID      types.String
-	AllowedUsers           []types.String
-	AllowedServiceAccounts []types.String
-	AllowedTeams           []types.String
+	ID                     types.String   `tfsdk:"id"`
+	RunStage               types.String   `tfsdk:"run_stage"`
+	ManagedIdentityID      types.String   `tfsdk:"managed_identity_id"`
+	AllowedUsers           []types.String `tfsdk:"allowed_users"`
+	AllowedServiceAccounts []types.String `tfsdk:"allowed_service_accounts"`
+	AllowedTeams           []types.String `tfsdk:"allowed_teams"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -87,11 +87,11 @@ func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, d
 				Description:         "A description of the managed identity.",
 				Optional:            true,
 			},
-			"group_id": {
+			"group_path": {
 				Type:                types.StringType,
-				MarkdownDescription: "String identifier of the parent group.",
-				Description:         "String identifier of the parent group.",
-				Computed:            true,
+				MarkdownDescription: "Full path of the parent group.",
+				Description:         "Full path of the parent group.",
+				Required:            true,
 			},
 			"created_by": {
 				Type:                types.StringType,
@@ -128,7 +128,7 @@ func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, d
 						Description:         "String identifier of the connected managed identity.",
 						Computed:            true,
 					},
-					"allowed_user_emails": {
+					"allowed_users": {
 						Type: types.ListType{
 							ElemType: types.StringType,
 						},
@@ -136,7 +136,7 @@ func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, d
 						Description:         "List of email addresses of users allowed to use this rule.",
 						Optional:            true,
 					},
-					"allowed_service_account_resource_paths": {
+					"allowed_service_accounts": {
 						Type: types.ListType{
 							ElemType: types.StringType,
 						},
@@ -144,7 +144,7 @@ func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, d
 						Description:         "List of resource paths of service accounts allowed to use this rule.",
 						Optional:            true,
 					},
-					"allowed_team_names": {
+					"allowed_teams": {
 						Type: types.ListType{
 							ElemType: types.StringType,
 						},
@@ -153,6 +153,12 @@ func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, d
 						Optional:            true,
 					},
 				}),
+			},
+			"last_updated": {
+				Type:                types.StringType,
+				MarkdownDescription: "Timestamp when this managed identity was most recently updated.",
+				Description:         "Timestamp when this managed identity was most recently updated.",
+				Computed:            true,
 			},
 		},
 	}, nil
