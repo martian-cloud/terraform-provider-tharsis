@@ -109,7 +109,7 @@ func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, d
 				MarkdownDescription: "List of access rules for the managed identity.",
 				Description:         "List of access rules for the managed identity.",
 				Optional:            true,
-				Attributes: tfsdk.ListNestedAttributes(map[string]tfsdk.Attribute{
+				Attributes: tfsdk.SetNestedAttributes(map[string]tfsdk.Attribute{
 					"id": {
 						Type:                types.StringType,
 						MarkdownDescription: "String identifier of the access rule.",
@@ -129,7 +129,7 @@ func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, d
 						Computed:            true,
 					},
 					"allowed_users": {
-						Type: types.ListType{
+						Type: types.SetType{
 							ElemType: types.StringType,
 						},
 						MarkdownDescription: "List of email addresses of users allowed to use this rule.",
@@ -137,7 +137,7 @@ func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, d
 						Optional:            true,
 					},
 					"allowed_service_accounts": {
-						Type: types.ListType{
+						Type: types.SetType{
 							ElemType: types.StringType,
 						},
 						MarkdownDescription: "List of resource paths of service accounts allowed to use this rule.",
@@ -145,7 +145,7 @@ func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, d
 						Optional:            true,
 					},
 					"allowed_teams": {
-						Type: types.ListType{
+						Type: types.SetType{
 							ElemType: types.StringType,
 						},
 						MarkdownDescription: "List of names of teams allowed to use this rule.",
@@ -208,13 +208,28 @@ func (t managedIdentitiesResource) Create(ctx context.Context,
 		return
 	}
 
+	// The CreateManagedIdentity call above does not return the access rules,
+	// even though the rules are written to the database.
+	createdAccessRules, err := t.provider.client.ManagedIdentity.GetManagedIdentityAccessRules(ctx,
+		&ttypes.GetManagedIdentityInput{ID: created.Metadata.ID})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error getting managed identity access rules",
+			err.Error(),
+		)
+		return
+	}
+	created.AccessRules = createdAccessRules
+
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
 	plan.ID = types.StringValue(created.Metadata.ID)
+	plan.ResourcePath = types.StringValue(created.Metadata.ID)
 	for ruleIx, rule := range created.AccessRules {
 
 		allowedUsers := []types.String{}
 		for _, user := range rule.AllowedUsers {
-			allowedUsers = append(allowedUsers, types.StringValue(user.Email))
+			allowedUsers = append(allowedUsers, types.StringValue(user.Username))
 		}
 
 		allowedServiceAccounts := []types.String{}
@@ -281,7 +296,7 @@ func (t managedIdentitiesResource) Read(ctx context.Context,
 
 		allowedUsers := []types.String{}
 		for _, user := range rule.AllowedUsers {
-			allowedUsers = append(allowedUsers, types.StringValue(user.Email))
+			allowedUsers = append(allowedUsers, types.StringValue(user.Username))
 		}
 
 		allowedServiceAccounts := []types.String{}
