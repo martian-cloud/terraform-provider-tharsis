@@ -226,7 +226,7 @@ func (t managedIdentityResource) Read(ctx context.Context,
 
 	// Get the managed identity from Tharsis.
 	found, err := t.provider.client.ManagedIdentity.GetManagedIdentity(ctx, &ttypes.GetManagedIdentityInput{
-		ID: state.ResourcePath.ValueString(),
+		ID: state.ID.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
