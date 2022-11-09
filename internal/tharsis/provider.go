@@ -167,9 +167,16 @@ func (p *tharsisProvider) Configure(ctx context.Context, req provider.ConfigureR
 func (p *tharsisProvider) Resources(context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 
-		// managed identities resource
+		// managed identity resource
 		func() resource.Resource {
-			return managedIdentitiesResource{
+			return managedIdentityResource{
+				provider: *p,
+			}
+		},
+
+		// managed identity access rule resource
+		func() resource.Resource {
+			return managedIdentityAccessRuleResource{
 				provider: *p,
 			}
 		},

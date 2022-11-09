@@ -11,43 +11,19 @@ import (
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
-// Managed identity models:
-
-type managedIdentityModel struct {
-	ID           types.String                     `tfsdk:"id"`
-	Type         types.String                     `tfsdk:"type"`
-	ResourcePath types.String                     `tfsdk:"resource_path"`
-	Name         types.String                     `tfsdk:"name"`
-	Description  types.String                     `tfsdk:"description"`
-	GroupPath    types.String                     `tfsdk:"group_path"`
-	CreatedBy    types.String                     `tfsdk:"created_by"`
-	Data         types.String                     `tfsdk:"data"` // less overhead than a types.List of int[8]s
-	AccessRules  []managedIdentityAccessRuleModel `tfsdk:"access_rules"`
-	LastUpdated  types.String                     `tfsdk:"last_updated"`
-}
-
-type managedIdentityAccessRuleModel struct {
-	ID                     types.String   `tfsdk:"id"`
-	RunStage               types.String   `tfsdk:"run_stage"`
-	ManagedIdentityID      types.String   `tfsdk:"managed_identity_id"`
-	AllowedUsers           []types.String `tfsdk:"allowed_users"`
-	AllowedServiceAccounts []types.String `tfsdk:"allowed_service_accounts"`
-	AllowedTeams           []types.String `tfsdk:"allowed_teams"`
-}
-
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource = managedIdentitiesResource{}
+	_ resource.Resource = managedIdentityResource{}
 )
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t managedIdentitiesResource) Metadata(ctx context.Context,
+func (t managedIdentityResource) Metadata(ctx context.Context,
 	req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = "tharsis_managed_identities"
+	resp.TypeName = "tharsis_managed_identity"
 }
 
 // The diagnostics return value is required by the interface even though this function returns only nil.
-func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (t managedIdentityResource) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	description := "Defines and manages a managed identity."
 
 	return tfsdk.Schema{
@@ -164,15 +140,15 @@ func (t managedIdentitiesResource) GetSchema(_ context.Context) (tfsdk.Schema, d
 	}, nil
 }
 
-type managedIdentitiesResource struct {
+type managedIdentityResource struct {
 	provider tharsisProvider
 }
 
-func (t managedIdentitiesResource) Create(ctx context.Context,
+func (t managedIdentityResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse) {
 
 	// Retrieve values from plan.
-	var plan managedIdentityModel
+	var plan ManagedIdentityModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -184,11 +160,15 @@ func (t managedIdentitiesResource) Create(ctx context.Context,
 	for _, thInput := range plan.AccessRules {
 		accessRuleInputs = append(accessRuleInputs, ttypes.ManagedIdentityAccessRuleInput{
 			RunStage:               ttypes.JobType(thInput.RunStage.ValueString()),
-			AllowedUsers:           stringValues(thInput.AllowedUsers),
-			AllowedServiceAccounts: stringValues(thInput.AllowedServiceAccounts),
-			AllowedTeams:           stringValues(thInput.AllowedTeams),
+			AllowedUsers:           valueStrings(thInput.AllowedUsers),
+			AllowedServiceAccounts: valueStrings(thInput.AllowedServiceAccounts),
+			AllowedTeams:           valueStrings(thInput.AllowedTeams),
 		})
 	}
+
+	// FIXME: Must take something more human-readable as input for data.
+	// The provider must (marshal and) base64-encode it.
+	// Brandon to decide whether to use a union type or some other arrangement.
 
 	// Create the managed identity.
 	created, err := t.provider.client.ManagedIdentity.CreateManagedIdentity(ctx,
@@ -223,36 +203,7 @@ func (t managedIdentitiesResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	plan.ID = types.StringValue(created.Metadata.ID)
-	plan.ResourcePath = types.StringValue(created.Metadata.ID)
-	for ruleIx, rule := range created.AccessRules {
-
-		allowedUsers := []types.String{}
-		for _, user := range rule.AllowedUsers {
-			allowedUsers = append(allowedUsers, types.StringValue(user.Username))
-		}
-
-		allowedServiceAccounts := []types.String{}
-		for _, serviceAccount := range rule.AllowedServiceAccounts {
-			allowedServiceAccounts = append(allowedServiceAccounts,
-				types.StringValue(serviceAccount.ResourcePath))
-		}
-
-		allowedTeams := []types.String{}
-		for _, team := range rule.AllowedTeams {
-			allowedTeams = append(allowedTeams, types.StringValue(team.Name))
-		}
-
-		plan.AccessRules[ruleIx] = managedIdentityAccessRuleModel{
-			ID:                     types.StringValue(rule.Metadata.ID),
-			RunStage:               types.StringValue(string(rule.RunStage)),
-			ManagedIdentityID:      plan.ID,
-			AllowedUsers:           allowedUsers,
-			AllowedServiceAccounts: allowedServiceAccounts,
-			AllowedTeams:           allowedTeams,
-		}
-	}
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	copyManagedIdentity(*created, &plan)
 
 	// Set the response state to the fully-populated plan.
 	diags = resp.State.Set(ctx, plan)
@@ -262,11 +213,11 @@ func (t managedIdentitiesResource) Create(ctx context.Context,
 	}
 }
 
-func (t managedIdentitiesResource) Read(ctx context.Context,
+func (t managedIdentityResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse) {
 
 	// Get the current state.
-	var state managedIdentityModel
+	var state ManagedIdentityModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -286,40 +237,7 @@ func (t managedIdentitiesResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	state.ID = types.StringValue(found.Metadata.ID)
-	state.Type = types.StringValue(string(found.Type))
-	state.ResourcePath = types.StringValue(found.ResourcePath)
-	state.Name = types.StringValue(found.Name)
-	state.Description = types.StringValue(found.Description)
-	state.Data = types.StringValue(found.Data)
-	for ruleIx, rule := range found.AccessRules {
-
-		allowedUsers := []types.String{}
-		for _, user := range rule.AllowedUsers {
-			allowedUsers = append(allowedUsers, types.StringValue(user.Username))
-		}
-
-		allowedServiceAccounts := []types.String{}
-		for _, serviceAccount := range rule.AllowedServiceAccounts {
-			allowedServiceAccounts = append(allowedServiceAccounts,
-				types.StringValue(serviceAccount.ResourcePath))
-		}
-
-		allowedTeams := []types.String{}
-		for _, team := range rule.AllowedTeams {
-			allowedTeams = append(allowedTeams, types.StringValue(team.Name))
-		}
-
-		state.AccessRules[ruleIx] = managedIdentityAccessRuleModel{
-			ID:                     types.StringValue(rule.Metadata.ID),
-			RunStage:               types.StringValue(string(rule.RunStage)),
-			ManagedIdentityID:      state.ID,
-			AllowedUsers:           allowedUsers,
-			AllowedServiceAccounts: allowedServiceAccounts,
-			AllowedTeams:           allowedTeams,
-		}
-	}
-	state.LastUpdated = types.StringValue(found.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
+	copyManagedIdentity(*found, &state)
 
 	// Set the refreshed state.
 	diags = resp.State.Set(ctx, &state)
@@ -329,12 +247,20 @@ func (t managedIdentitiesResource) Read(ctx context.Context,
 	}
 }
 
-func (t managedIdentitiesResource) Update(ctx context.Context,
+func (t managedIdentityResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
-	// Retrieve values from plan.
-	var plan managedIdentityModel
-	diags := req.Plan.Get(ctx, &plan)
+	// Get the current state for its ID.
+	var state ManagedIdentityModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Retrieve values from plan for the description and data.
+	var plan ManagedIdentityModel
+	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -345,7 +271,7 @@ func (t managedIdentitiesResource) Update(ctx context.Context,
 	// The description and data are modified.
 	updated, err := t.provider.client.ManagedIdentity.UpdateManagedIdentity(ctx,
 		&ttypes.UpdateManagedIdentityInput{
-			ID:          plan.ID.ValueString(),
+			ID:          state.ID.ValueString(),
 			Description: plan.Description.ValueString(),
 			Data:        plan.Data.ValueString(),
 		})
@@ -357,10 +283,8 @@ func (t managedIdentitiesResource) Update(ctx context.Context,
 		return
 	}
 
-	// Update the resource state with updated values and timestamp.
-	plan.Description = types.StringValue(updated.Description)
-	plan.Data = types.StringValue(updated.Data)
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	// Copy all fields returned by Tharsis back into the plan.
+	copyManagedIdentity(*updated, &plan)
 
 	// Set the response state to the fully-populated plan.
 	diags = resp.State.Set(ctx, plan)
@@ -370,11 +294,11 @@ func (t managedIdentitiesResource) Update(ctx context.Context,
 	}
 }
 
-func (t managedIdentitiesResource) Delete(ctx context.Context,
+func (t managedIdentityResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse) {
 
 	// Get the current state.
-	var state managedIdentityModel
+	var state ManagedIdentityModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -396,13 +320,41 @@ func (t managedIdentitiesResource) Delete(ctx context.Context,
 	}
 }
 
-// stringValues converts a slice of types.String to a slice of strings.
-func stringValues(arg []types.String) []string {
-	result := make([]string, len(arg))
-	for ix, bigSValue := range arg {
-		result[ix] = bigSValue.ValueString()
+// copyManagedIdentity copies the contents of a managed identity.
+// It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
+func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel) {
+
+	dest.ID = types.StringValue(src.Metadata.ID)
+	dest.Type = types.StringValue(string(src.Type))
+	dest.ResourcePath = types.StringValue(src.ResourcePath)
+	for ruleIx, rule := range src.AccessRules {
+
+		allowedUsers := []types.String{}
+		for _, user := range rule.AllowedUsers {
+			allowedUsers = append(allowedUsers, types.StringValue(user.Username))
+		}
+
+		allowedServiceAccounts := []types.String{}
+		for _, serviceAccount := range rule.AllowedServiceAccounts {
+			allowedServiceAccounts = append(allowedServiceAccounts,
+				types.StringValue(serviceAccount.ResourcePath))
+		}
+
+		allowedTeams := []types.String{}
+		for _, team := range rule.AllowedTeams {
+			allowedTeams = append(allowedTeams, types.StringValue(team.Name))
+		}
+
+		dest.AccessRules[ruleIx] = ManagedIdentityAccessRuleModel{
+			ID:                     types.StringValue(rule.Metadata.ID),
+			RunStage:               types.StringValue(string(rule.RunStage)),
+			ManagedIdentityID:      dest.ID,
+			AllowedUsers:           allowedUsers,
+			AllowedServiceAccounts: allowedServiceAccounts,
+			AllowedTeams:           allowedTeams,
+		}
 	}
-	return result
+	dest.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 }
 
 // The End.
