@@ -268,7 +268,7 @@ func (t managedIdentityAccessRuleResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse) {
 
 	// Get the current state.
-	var state ManagedIdentityModel
+	var state ManagedIdentityAccessRuleModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -277,8 +277,8 @@ func (t managedIdentityAccessRuleResource) Delete(ctx context.Context,
 
 	// Delete the managed identity via Tharsis.
 	// The ID is used to find the record to delete.
-	err := t.provider.client.ManagedIdentity.DeleteManagedIdentity(ctx,
-		&ttypes.DeleteManagedIdentityInput{
+	err := t.provider.client.ManagedIdentity.DeleteManagedIdentityAccessRule(ctx,
+		&ttypes.DeleteManagedIdentityAccessRuleInput{
 			ID: state.ID.ValueString(),
 		})
 	if err != nil {
