@@ -2,6 +2,7 @@ package tharsis
 
 import (
 	"context"
+	"encoding/base64"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -77,8 +78,8 @@ func (t managedIdentityResource) GetSchema(_ context.Context) (tfsdk.Schema, dia
 			},
 			"data": {
 				Type:                types.StringType,
-				MarkdownDescription: "IAM role or tenant and client IDs of the managed identity.",
-				Description:         "IAM role or tenant and client IDs of the managed identity.",
+				MarkdownDescription: "JSON-encoded AWS IAM role or Azure tenant and client IDs of the managed identity.",
+				Description:         "JSON-encoded AWS IAM role or Azure tenant and client IDs of the managed identity.",
 				Required:            true,
 			},
 			"access_rules": {
@@ -166,9 +167,18 @@ func (t managedIdentityResource) Create(ctx context.Context,
 		})
 	}
 
-	// FIXME: Must take something more human-readable as input for data.
-	// The provider must (marshal and) base64-encode it.
-	// Brandon to decide whether to use a union type or some other arrangement.
+	/* The data field should specify something like this in the .tf file:
+	# For AWS:
+	data = jsonencode({
+		role = "some-iam-role"
+	})
+
+	# For Azure:
+	data = jsonencode({
+		clientId = "some-client-id",
+		tenantId = "some-tenant-id"
+	})
+	*/
 
 	// Create the managed identity.
 	created, err := t.provider.client.ManagedIdentity.CreateManagedIdentity(ctx,
@@ -177,7 +187,7 @@ func (t managedIdentityResource) Create(ctx context.Context,
 			Name:        plan.Name.ValueString(),
 			Description: plan.Description.ValueString(),
 			GroupPath:   plan.GroupPath.ValueString(),
-			Data:        plan.Data.ValueString(),
+			Data:        base64.StdEncoding.EncodeToString([]byte(plan.Data.ValueString())),
 			AccessRules: accessRuleInputs,
 		})
 	if err != nil {
@@ -273,7 +283,7 @@ func (t managedIdentityResource) Update(ctx context.Context,
 		&ttypes.UpdateManagedIdentityInput{
 			ID:          state.ID.ValueString(),
 			Description: plan.Description.ValueString(),
-			Data:        plan.Data.ValueString(),
+			Data:        base64.StdEncoding.EncodeToString([]byte(plan.Data.ValueString())),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
