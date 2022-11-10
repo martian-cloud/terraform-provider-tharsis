@@ -13,7 +13,7 @@ type WorkspacesOutputsDataSourceData struct {
 	Outputs        map[string]string `tfsdk:"outputs"`
 }
 
-// ManagedIdentityModel:
+// ManagedIdentityModel is the model for a managed identity.
 type ManagedIdentityModel struct {
 	ID           types.String                     `tfsdk:"id"`
 	Type         types.String                     `tfsdk:"type"`
@@ -27,7 +27,7 @@ type ManagedIdentityModel struct {
 	LastUpdated  types.String                     `tfsdk:"last_updated"`
 }
 
-// ManagedIdentityAccessRuleModel:
+// ManagedIdentityAccessRuleModel is the model for a managed identity access rule.
 type ManagedIdentityAccessRuleModel struct {
 	ID                     types.String   `tfsdk:"id"`
 	RunStage               types.String   `tfsdk:"run_stage"`
