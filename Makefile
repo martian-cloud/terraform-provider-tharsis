@@ -6,7 +6,7 @@ NAME=tharsis
 BINARY=terraform-provider-${NAME}
 VERSION?=0.0.0-$(shell git rev-parse --short HEAD)
 GCFLAGS:=-gcflags all=-trimpath=${PWD}
-LDFLAGS:=-ldflags "-s -w -X internal/provider.Version=${VERSION}"
+LDFLAGS:=-ldflags "-s -w -X internal/tharsis.Version=${VERSION}"
 OS_ARCH=linux_amd64
 
 default: install
