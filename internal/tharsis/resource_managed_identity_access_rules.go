@@ -107,7 +107,7 @@ func (t managedIdentityAccessRuleResource) Create(ctx context.Context,
 		&accessRuleInput)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating managed identity",
+			"Error creating managed identity access rule",
 			err.Error(),
 		)
 		return
@@ -163,7 +163,7 @@ func (t managedIdentityAccessRuleResource) Read(ctx context.Context,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading managed identity",
+			"Error reading managed identity access rule",
 			err.Error(),
 		)
 		return
@@ -230,7 +230,7 @@ func (t managedIdentityAccessRuleResource) Update(ctx context.Context,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error updating managed identity",
+			"Error updating managed identity access rule",
 			err.Error(),
 		)
 		return
@@ -283,7 +283,7 @@ func (t managedIdentityAccessRuleResource) Delete(ctx context.Context,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error deleting managed identity",
+			"Error deleting managed identity access rule",
 			err.Error(),
 		)
 		return
