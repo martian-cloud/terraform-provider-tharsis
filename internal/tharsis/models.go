@@ -22,7 +22,10 @@ type ManagedIdentityModel struct {
 	Description  types.String                     `tfsdk:"description"`
 	GroupPath    types.String                     `tfsdk:"group_path"`
 	CreatedBy    types.String                     `tfsdk:"created_by"`
-	Data         types.String                     `tfsdk:"data"` // less overhead than a types.List of int[8]s
+	Role         types.String                     `tfsdk:"role"`
+	ClientID     types.String                     `tfsdk:"client_id"`
+	TenantID     types.String                     `tfsdk:"tenant_id"`
+	Subject      types.String                     `tfsdk:"subject"`
 	AccessRules  []ManagedIdentityAccessRuleModel `tfsdk:"access_rules"`
 	LastUpdated  types.String                     `tfsdk:"last_updated"`
 }

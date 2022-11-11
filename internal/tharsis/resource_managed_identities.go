@@ -3,6 +3,9 @@ package tharsis
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -11,6 +14,21 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
+
+// universalInputData has all fields required for input to the encoded data string.
+type universalInputData struct {
+	Role     string `json:"role,omitempty"`
+	ClientID string `json:"clientId,omitempty"`
+	TenantID string `json:"tenantId,omitempty"`
+}
+
+// universalData has all fields required for output from the encoded data string.
+type universalData struct {
+	Role     *string `json:"role,omitempty"`
+	ClientID *string `json:"clientId,omitempty"`
+	TenantID *string `json:"tenantId,omitempty"`
+	Subject  string  `json:"subject,omitempty"`
+}
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
@@ -76,11 +94,25 @@ func (t managedIdentityResource) GetSchema(_ context.Context) (tfsdk.Schema, dia
 				Description:         "User email address, service account path, or other identifier of creator of the managed identity.",
 				Optional:            true,
 			},
-			"data": {
-				Type:                types.StringType,
-				MarkdownDescription: "JSON-encoded AWS IAM role or Azure tenant and client IDs of the managed identity.",
-				Description:         "JSON-encoded AWS IAM role or Azure tenant and client IDs of the managed identity.",
-				Required:            true,
+			"role": {Type: types.StringType,
+				MarkdownDescription: "AWS role",
+				Description:         "AWS role",
+				Optional:            true,
+			},
+			"client_id": {Type: types.StringType,
+				MarkdownDescription: "Azure client ID",
+				Description:         "Azure client ID",
+				Optional:            true,
+			},
+			"tenant_id": {Type: types.StringType,
+				MarkdownDescription: "Azure tenant ID",
+				Description:         "Azure tenant ID",
+				Optional:            true,
+			},
+			"subject": {Type: types.StringType,
+				MarkdownDescription: "subject string for AWS and Azure",
+				Description:         "subject string for AWS and Azure",
+				Computed:            true,
 			},
 			"access_rules": {
 				MarkdownDescription: "List of access rules for the managed identity.",
@@ -167,18 +199,19 @@ func (t managedIdentityResource) Create(ctx context.Context,
 		})
 	}
 
-	/* The data field should specify something like this in the .tf file:
-	# For AWS:
-	data = jsonencode({
-		role = "some-iam-role"
-	})
-
-	# For Azure:
-	data = jsonencode({
-		clientId = "some-client-id",
-		tenantId = "some-tenant-id"
-	})
-	*/
+	encodedData, err := encodeDataString(plan.Type,
+		universalInputData{
+			Role:     plan.Role.ValueString(),
+			ClientID: plan.ClientID.ValueString(),
+			TenantID: plan.TenantID.ValueString(),
+		})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error encoding managed identity data field",
+			err.Error(),
+		)
+		return
+	}
 
 	// Create the managed identity.
 	created, err := t.provider.client.ManagedIdentity.CreateManagedIdentity(ctx,
@@ -187,7 +220,7 @@ func (t managedIdentityResource) Create(ctx context.Context,
 			Name:        plan.Name.ValueString(),
 			Description: plan.Description.ValueString(),
 			GroupPath:   plan.GroupPath.ValueString(),
-			Data:        base64.StdEncoding.EncodeToString([]byte(plan.Data.ValueString())),
+			Data:        encodedData,
 			AccessRules: accessRuleInputs,
 		})
 	if err != nil {
@@ -276,6 +309,20 @@ func (t managedIdentityResource) Update(ctx context.Context,
 		return
 	}
 
+	encodedData, err := encodeDataString(plan.Type,
+		universalInputData{
+			Role:     plan.Role.ValueString(),
+			ClientID: plan.ClientID.ValueString(),
+			TenantID: plan.TenantID.ValueString(),
+		})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error encoding managed identity data field",
+			err.Error(),
+		)
+		return
+	}
+
 	// Update the managed identity via Tharsis.
 	// The ID is used to find the record to update.
 	// The description and data are modified.
@@ -283,7 +330,7 @@ func (t managedIdentityResource) Update(ctx context.Context,
 		&ttypes.UpdateManagedIdentityInput{
 			ID:          state.ID.ValueString(),
 			Description: plan.Description.ValueString(),
-			Data:        base64.StdEncoding.EncodeToString([]byte(plan.Data.ValueString())),
+			Data:        encodedData,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -332,11 +379,31 @@ func (t managedIdentityResource) Delete(ctx context.Context,
 
 // copyManagedIdentity copies the contents of a managed identity.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel) {
+func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel) error {
+
+	decodedData, err := decodeDataString(src.Data)
+	if err != nil {
+		return err
+	}
 
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.Type = types.StringValue(string(src.Type))
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
+	dest.Name = types.StringValue(src.Name)
+	dest.Description = types.StringValue(src.Description)
+	dest.GroupPath = types.StringValue(getGroupPath(src.ResourcePath))
+	dest.CreatedBy = types.StringValue(src.CreatedBy)
+	if decodedData.Role != nil {
+		dest.Role = types.StringValue(*decodedData.Role)
+	}
+	if decodedData.ClientID != nil {
+		dest.ClientID = types.StringValue(*decodedData.ClientID)
+	}
+	if decodedData.TenantID != nil {
+		dest.TenantID = types.StringValue(*decodedData.TenantID)
+	}
+	dest.Subject = types.StringValue(decodedData.Subject)
+
 	for ruleIx, rule := range src.AccessRules {
 
 		allowedUsers := []types.String{}
@@ -365,6 +432,71 @@ func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel)
 		}
 	}
 	dest.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+
+	return nil
+}
+
+// encodeDataString checks the role, client ID, tenant ID, and subject fields
+// and then marshals them into the appropriate type and base64 encodes that.
+func encodeDataString(managedIdentityType types.String, input universalInputData) (string, error) {
+	type2 := ttypes.ManagedIdentityType(managedIdentityType.ValueString())
+
+	// What to check depends on the type of managed identity this is.
+	switch type2 {
+	case ttypes.ManagedIdentityAWSFederated:
+		if input.Role == "" {
+			return "", fmt.Errorf("non-empty role is required for AWS managed identity")
+		}
+		if input.ClientID != "" {
+			return "", fmt.Errorf("non-empty role is not allowed for AWS managed identity")
+		}
+		if input.TenantID != "" {
+			return "", fmt.Errorf("non-empty role is not allowed for AWS managed identity")
+		}
+	case ttypes.ManagedIdentityAzureFederated:
+		if input.Role != "" {
+			return "", fmt.Errorf("non-empty role is not allowed for Azure managed identity")
+		}
+		if input.ClientID == "" {
+			return "", fmt.Errorf("non-empty role is required for Azure managed identity")
+		}
+		if input.TenantID == "" {
+			return "", fmt.Errorf("non-empty role is required for Azure managed identity")
+		}
+	default:
+		return "", fmt.Errorf("invalid managed identity type: %s", type2)
+	}
+
+	// With the checking completed, JSON-encode the fields, taking advantage of omitempty.
+	preResult, err := json.Marshal(input)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal managed identity data fields")
+	}
+
+	// Return it in base64-encoded form.
+	return base64.StdEncoding.EncodeToString(preResult), nil
+}
+
+// decodeDataString checks the role, client ID, tenant ID, and subject fields
+// and then marshals them into the appropriate type and base64 encodes that.
+func decodeDataString(encoded string) (*universalData, error) {
+
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, err
+	}
+
+	var result universalData
+	if jErr := json.Unmarshal(decoded, &result); jErr != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+// getGroupPath returns the group path
+func getGroupPath(resourcePath string) string {
+	return resourcePath[:strings.LastIndex(resourcePath, "/")]
 }
 
 // The End.
