@@ -25,7 +25,6 @@ Defines and manages a managed identity.
 
 - `access_rules` (Attributes Set) List of access rules for the managed identity. (see [below for nested schema](#nestedatt--access_rules))
 - `client_id` (String) Azure client ID
-- `created_by` (String) User email address, service account path, or other identifier of creator of the managed identity.
 - `description` (String) A description of the managed identity.
 - `role` (String) AWS role
 - `tenant_id` (String) Azure tenant ID
@@ -42,6 +41,7 @@ Defines and manages a managed identity.
 
 Required:
 
+- `managed_identity_id` (String) String identifier of the connected managed identity.
 - `run_stage` (String) Type of job, plan or apply.
 
 Optional:
@@ -53,6 +53,5 @@ Optional:
 Read-Only:
 
 - `id` (String) String identifier of the access rule.
-- `managed_identity_id` (String) String identifier of the connected managed identity.
 
 
