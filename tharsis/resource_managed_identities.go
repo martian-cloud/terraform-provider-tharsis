@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
@@ -32,18 +34,42 @@ type universalData struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource = managedIdentityResource{}
+	_ resource.Resource                = &managedIdentityResource{}
+	_ resource.ResourceWithConfigure   = &managedIdentityResource{}
+	_ resource.ResourceWithImportState = &managedIdentityResource{}
 )
 
+// NewManagedIdentityResource is a helper function to simplify the provider implementation.
+func NewManagedIdentityResource() resource.Resource {
+	return &managedIdentityResource{}
+}
+
+type managedIdentityResource struct {
+	client *tharsis.Client
+}
+
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t managedIdentityResource) Metadata(ctx context.Context,
+func (t *managedIdentityResource) Metadata(ctx context.Context,
 	req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = "tharsis_managed_identity"
 }
 
 // The diagnostics return value is required by the interface even though this function returns only nil.
-func (t managedIdentityResource) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (t *managedIdentityResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	description := "Defines and manages a managed identity."
+
+	// Prepare to nest the access rule schema inside this schema.
+	accessRulesSchema, ruleDiags := NewManagedIdentityAccessRuleResource().GetSchema(ctx)
+	if ruleDiags.HasError() {
+		// The above call currently does not return diags, but this future-proofs us in case that changes.
+		return tfsdk.Schema{}, ruleDiags
+	}
+	rulesAttribute := tfsdk.Attribute{
+		MarkdownDescription: "List of access rules for the managed identity.",
+		Description:         "List of access rules for the managed identity.",
+		Optional:            true,
+		Attributes:          tfsdk.SetNestedAttributes(accessRulesSchema.Attributes),
+	}
 
 	return tfsdk.Schema{
 		Version: 1,
@@ -88,12 +114,6 @@ func (t managedIdentityResource) GetSchema(_ context.Context) (tfsdk.Schema, dia
 				Description:         "Full path of the parent group.",
 				Required:            true,
 			},
-			"created_by": {
-				Type:                types.StringType,
-				MarkdownDescription: "User email address, service account path, or other identifier of creator of the managed identity.",
-				Description:         "User email address, service account path, or other identifier of creator of the managed identity.",
-				Optional:            true,
-			},
 			"role": {Type: types.StringType,
 				MarkdownDescription: "AWS role",
 				Description:         "AWS role",
@@ -114,55 +134,7 @@ func (t managedIdentityResource) GetSchema(_ context.Context) (tfsdk.Schema, dia
 				Description:         "subject string for AWS and Azure",
 				Computed:            true,
 			},
-			"access_rules": {
-				MarkdownDescription: "List of access rules for the managed identity.",
-				Description:         "List of access rules for the managed identity.",
-				Optional:            true,
-				Attributes: tfsdk.SetNestedAttributes(map[string]tfsdk.Attribute{
-					"id": {
-						Type:                types.StringType,
-						MarkdownDescription: "String identifier of the access rule.",
-						Description:         "String identifier of the access rule.",
-						Computed:            true,
-					},
-					"run_stage": {
-						Type:                types.StringType,
-						MarkdownDescription: "Type of job, plan or apply.",
-						Description:         "Type of job, plan or apply.",
-						Required:            true,
-					},
-					"managed_identity_id": {
-						Type:                types.StringType,
-						MarkdownDescription: "String identifier of the connected managed identity.",
-						Description:         "String identifier of the connected managed identity.",
-						Computed:            true,
-					},
-					"allowed_users": {
-						Type: types.SetType{
-							ElemType: types.StringType,
-						},
-						MarkdownDescription: "List of email addresses of users allowed to use this rule.",
-						Description:         "List of email addresses of users allowed to use this rule.",
-						Optional:            true,
-					},
-					"allowed_service_accounts": {
-						Type: types.SetType{
-							ElemType: types.StringType,
-						},
-						MarkdownDescription: "List of resource paths of service accounts allowed to use this rule.",
-						Description:         "List of resource paths of service accounts allowed to use this rule.",
-						Optional:            true,
-					},
-					"allowed_teams": {
-						Type: types.SetType{
-							ElemType: types.StringType,
-						},
-						MarkdownDescription: "List of names of teams allowed to use this rule.",
-						Description:         "List of names of teams allowed to use this rule.",
-						Optional:            true,
-					},
-				}),
-			},
+			"access_rules": rulesAttribute,
 			"last_updated": {
 				Type:                types.StringType,
 				MarkdownDescription: "Timestamp when this managed identity was most recently updated.",
@@ -173,11 +145,16 @@ func (t managedIdentityResource) GetSchema(_ context.Context) (tfsdk.Schema, dia
 	}, nil
 }
 
-type managedIdentityResource struct {
-	provider tharsisProvider
+// Configure lets the provider implement the ResourceWithConfigure interface.
+func (t *managedIdentityResource) Configure(_ context.Context,
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	t.client = req.ProviderData.(*tharsis.Client)
 }
 
-func (t managedIdentityResource) Create(ctx context.Context,
+func (t *managedIdentityResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse) {
 
 	// Retrieve values from plan.
@@ -214,7 +191,7 @@ func (t managedIdentityResource) Create(ctx context.Context,
 	}
 
 	// Create the managed identity.
-	created, err := t.provider.client.ManagedIdentity.CreateManagedIdentity(ctx,
+	created, err := t.client.ManagedIdentity.CreateManagedIdentity(ctx,
 		&ttypes.CreateManagedIdentityInput{
 			Type:        ttypes.ManagedIdentityType(plan.Type.ValueString()),
 			Name:        plan.Name.ValueString(),
@@ -233,7 +210,7 @@ func (t managedIdentityResource) Create(ctx context.Context,
 
 	// The CreateManagedIdentity call above does not return the access rules,
 	// even though the rules are written to the database.
-	createdAccessRules, err := t.provider.client.ManagedIdentity.GetManagedIdentityAccessRules(ctx,
+	createdAccessRules, err := t.client.ManagedIdentity.GetManagedIdentityAccessRules(ctx,
 		&ttypes.GetManagedIdentityInput{ID: created.Metadata.ID})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -256,7 +233,7 @@ func (t managedIdentityResource) Create(ctx context.Context,
 	}
 }
 
-func (t managedIdentityResource) Read(ctx context.Context,
+func (t *managedIdentityResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse) {
 
 	// Get the current state.
@@ -268,7 +245,7 @@ func (t managedIdentityResource) Read(ctx context.Context,
 	}
 
 	// Get the managed identity from Tharsis.
-	found, err := t.provider.client.ManagedIdentity.GetManagedIdentity(ctx, &ttypes.GetManagedIdentityInput{
+	found, err := t.client.ManagedIdentity.GetManagedIdentity(ctx, &ttypes.GetManagedIdentityInput{
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
@@ -290,7 +267,7 @@ func (t managedIdentityResource) Read(ctx context.Context,
 	}
 }
 
-func (t managedIdentityResource) Update(ctx context.Context,
+func (t *managedIdentityResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
 	// Get the current state for its ID.
@@ -326,7 +303,7 @@ func (t managedIdentityResource) Update(ctx context.Context,
 	// Update the managed identity via Tharsis.
 	// The ID is used to find the record to update.
 	// The description and data are modified.
-	updated, err := t.provider.client.ManagedIdentity.UpdateManagedIdentity(ctx,
+	updated, err := t.client.ManagedIdentity.UpdateManagedIdentity(ctx,
 		&ttypes.UpdateManagedIdentityInput{
 			ID:          state.ID.ValueString(),
 			Description: plan.Description.ValueString(),
@@ -351,7 +328,7 @@ func (t managedIdentityResource) Update(ctx context.Context,
 	}
 }
 
-func (t managedIdentityResource) Delete(ctx context.Context,
+func (t *managedIdentityResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse) {
 
 	// Get the current state.
@@ -364,7 +341,7 @@ func (t managedIdentityResource) Delete(ctx context.Context,
 
 	// Delete the managed identity via Tharsis.
 	// The ID is used to find the record to delete.
-	err := t.provider.client.ManagedIdentity.DeleteManagedIdentity(ctx,
+	err := t.client.ManagedIdentity.DeleteManagedIdentity(ctx,
 		&ttypes.DeleteManagedIdentityInput{
 			ID: state.ID.ValueString(),
 		})
@@ -375,6 +352,14 @@ func (t managedIdentityResource) Delete(ctx context.Context,
 		)
 		return
 	}
+}
+
+// ImportState helps the provider implement the ResourceWithImportState interface.
+func (t *managedIdentityResource) ImportState(ctx context.Context,
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // copyManagedIdentity copies the contents of a managed identity.
@@ -392,7 +377,6 @@ func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel)
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
 	dest.GroupPath = types.StringValue(getGroupPath(src.ResourcePath))
-	dest.CreatedBy = types.StringValue(src.CreatedBy)
 	if decodedData.Role != nil {
 		dest.Role = types.StringValue(*decodedData.Role)
 	}
@@ -431,7 +415,8 @@ func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel)
 			AllowedTeams:           allowedTeams,
 		}
 	}
-	dest.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
 
 	return nil
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	svchost "github.com/hashicorp/terraform-svchost"
 
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
@@ -162,24 +163,23 @@ func (p *tharsisProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 	p.client = tClient
 	p.configured = true
+
+	// Make the Tharsis client available during DataSource and Resource
+	// type Configure methods.
+	resp.DataSourceData = tClient
+	resp.ResourceData = tClient
+
+	tflog.Info(ctx, "Configured Tharsis client", map[string]any{"success": true})
 }
 
 func (p *tharsisProvider) Resources(context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 
 		// managed identity resource
-		func() resource.Resource {
-			return managedIdentityResource{
-				provider: *p,
-			}
-		},
+		NewManagedIdentityResource,
 
 		// managed identity access rule resource
-		func() resource.Resource {
-			return managedIdentityAccessRuleResource{
-				provider: *p,
-			}
-		},
+		NewManagedIdentityAccessRuleResource,
 	}
 }
 

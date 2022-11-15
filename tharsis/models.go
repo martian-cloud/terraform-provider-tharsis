@@ -21,7 +21,6 @@ type ManagedIdentityModel struct {
 	Name         types.String                     `tfsdk:"name"`
 	Description  types.String                     `tfsdk:"description"`
 	GroupPath    types.String                     `tfsdk:"group_path"`
-	CreatedBy    types.String                     `tfsdk:"created_by"`
 	Role         types.String                     `tfsdk:"role"`
 	ClientID     types.String                     `tfsdk:"client_id"`
 	TenantID     types.String                     `tfsdk:"tenant_id"`

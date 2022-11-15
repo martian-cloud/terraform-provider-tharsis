@@ -4,25 +4,38 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource = managedIdentityAccessRuleResource{}
+	_ resource.Resource                = &managedIdentityAccessRuleResource{}
+	_ resource.ResourceWithConfigure   = &managedIdentityAccessRuleResource{}
+	_ resource.ResourceWithImportState = &managedIdentityAccessRuleResource{}
 )
 
+// NewManagedIdentityAccessRuleResource is a helper function to simplify the provider implementation.
+func NewManagedIdentityAccessRuleResource() resource.Resource {
+	return &managedIdentityAccessRuleResource{}
+}
+
+type managedIdentityAccessRuleResource struct {
+	client *tharsis.Client
+}
+
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t managedIdentityAccessRuleResource) Metadata(ctx context.Context,
+func (t *managedIdentityAccessRuleResource) Metadata(ctx context.Context,
 	req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = "tharsis_managed_identity_access_rule"
 }
 
 // The diagnostics return value is required by the interface even though this function returns only nil.
-func (t managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	description := "Defines and manages a managed identity access rule."
 
 	return tfsdk.Schema{
@@ -78,11 +91,16 @@ func (t managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.S
 	}, nil
 }
 
-type managedIdentityAccessRuleResource struct {
-	provider tharsisProvider
+// Configure lets the provider implement the ResourceWithConfigure interface.
+func (t *managedIdentityAccessRuleResource) Configure(_ context.Context,
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	t.client = req.ProviderData.(*tharsis.Client)
 }
 
-func (t managedIdentityAccessRuleResource) Create(ctx context.Context,
+func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse) {
 
 	// Retrieve values from plan.
@@ -103,7 +121,7 @@ func (t managedIdentityAccessRuleResource) Create(ctx context.Context,
 	}
 
 	// Create the managed identity access rule.
-	created, err := t.provider.client.ManagedIdentity.CreateManagedIdentityAccessRule(ctx,
+	created, err := t.client.ManagedIdentity.CreateManagedIdentityAccessRule(ctx,
 		&accessRuleInput)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -145,7 +163,7 @@ func (t managedIdentityAccessRuleResource) Create(ctx context.Context,
 	}
 }
 
-func (t managedIdentityAccessRuleResource) Read(ctx context.Context,
+func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse) {
 
 	// Get the current state.
@@ -157,7 +175,7 @@ func (t managedIdentityAccessRuleResource) Read(ctx context.Context,
 	}
 
 	// Get the managed identity access rule from Tharsis.
-	found, err := t.provider.client.ManagedIdentity.GetManagedIdentityAccessRule(ctx,
+	found, err := t.client.ManagedIdentity.GetManagedIdentityAccessRule(ctx,
 		&ttypes.GetManagedIdentityAccessRuleInput{
 			ID: state.ID.ValueString(),
 		})
@@ -198,7 +216,7 @@ func (t managedIdentityAccessRuleResource) Read(ctx context.Context,
 	}
 }
 
-func (t managedIdentityAccessRuleResource) Update(ctx context.Context,
+func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
 	// Get the current state for its ID.
@@ -220,7 +238,7 @@ func (t managedIdentityAccessRuleResource) Update(ctx context.Context,
 	// Update the access rule via Tharsis.
 	// The ID is used to find the record to update.
 	// The other fields are modified.
-	updated, err := t.provider.client.ManagedIdentity.UpdateManagedIdentityAccessRule(ctx,
+	updated, err := t.client.ManagedIdentity.UpdateManagedIdentityAccessRule(ctx,
 		&ttypes.UpdateManagedIdentityAccessRuleInput{
 			ID:                     state.ID.ValueString(),
 			RunStage:               ttypes.JobType(plan.RunStage.ValueString()),
@@ -264,7 +282,7 @@ func (t managedIdentityAccessRuleResource) Update(ctx context.Context,
 	}
 }
 
-func (t managedIdentityAccessRuleResource) Delete(ctx context.Context,
+func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse) {
 
 	// Get the current state.
@@ -277,7 +295,7 @@ func (t managedIdentityAccessRuleResource) Delete(ctx context.Context,
 
 	// Delete the managed identity via Tharsis.
 	// The ID is used to find the record to delete.
-	err := t.provider.client.ManagedIdentity.DeleteManagedIdentityAccessRule(ctx,
+	err := t.client.ManagedIdentity.DeleteManagedIdentityAccessRule(ctx,
 		&ttypes.DeleteManagedIdentityAccessRuleInput{
 			ID: state.ID.ValueString(),
 		})
@@ -288,6 +306,14 @@ func (t managedIdentityAccessRuleResource) Delete(ctx context.Context,
 		)
 		return
 	}
+}
+
+// ImportState helps the provider implement the ResourceWithImportState interface.
+func (t *managedIdentityAccessRuleResource) ImportState(ctx context.Context,
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // valueStrings converts a slice of types.String to a slice of strings.
