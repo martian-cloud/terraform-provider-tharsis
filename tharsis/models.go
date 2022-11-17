@@ -15,18 +15,17 @@ type WorkspacesOutputsDataSourceData struct {
 
 // ManagedIdentityModel is the model for a managed identity.
 type ManagedIdentityModel struct {
-	ID           types.String                     `tfsdk:"id"`
-	Type         types.String                     `tfsdk:"type"`
-	ResourcePath types.String                     `tfsdk:"resource_path"`
-	Name         types.String                     `tfsdk:"name"`
-	Description  types.String                     `tfsdk:"description"`
-	GroupPath    types.String                     `tfsdk:"group_path"`
-	Role         types.String                     `tfsdk:"role"`
-	ClientID     types.String                     `tfsdk:"client_id"`
-	TenantID     types.String                     `tfsdk:"tenant_id"`
-	Subject      types.String                     `tfsdk:"subject"`
-	AccessRules  []ManagedIdentityAccessRuleModel `tfsdk:"access_rules"`
-	LastUpdated  types.String                     `tfsdk:"last_updated"`
+	ID           types.String `tfsdk:"id"`
+	Type         types.String `tfsdk:"type"`
+	ResourcePath types.String `tfsdk:"resource_path"`
+	Name         types.String `tfsdk:"name"`
+	Description  types.String `tfsdk:"description"`
+	GroupPath    types.String `tfsdk:"group_path"`
+	Role         types.String `tfsdk:"role"`
+	ClientID     types.String `tfsdk:"client_id"`
+	TenantID     types.String `tfsdk:"tenant_id"`
+	Subject      types.String `tfsdk:"subject"`
+	LastUpdated  types.String `tfsdk:"last_updated"`
 }
 
 // ManagedIdentityAccessRuleModel is the model for a managed identity access rule.

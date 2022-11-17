@@ -58,19 +58,6 @@ func (t *managedIdentityResource) Metadata(ctx context.Context,
 func (t *managedIdentityResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	description := "Defines and manages a managed identity."
 
-	// Prepare to nest the access rule schema inside this schema.
-	accessRulesSchema, ruleDiags := NewManagedIdentityAccessRuleResource().GetSchema(ctx)
-	if ruleDiags.HasError() {
-		// The above call currently does not return diags, but this future-proofs us in case that changes.
-		return tfsdk.Schema{}, ruleDiags
-	}
-	rulesAttribute := tfsdk.Attribute{
-		MarkdownDescription: "List of access rules for the managed identity.",
-		Description:         "List of access rules for the managed identity.",
-		Optional:            true,
-		Attributes:          tfsdk.SetNestedAttributes(accessRulesSchema.Attributes),
-	}
-
 	return tfsdk.Schema{
 		Version: 1,
 
@@ -134,7 +121,6 @@ func (t *managedIdentityResource) GetSchema(ctx context.Context) (tfsdk.Schema, 
 				Description:         "subject string for AWS and Azure",
 				Computed:            true,
 			},
-			"access_rules": rulesAttribute,
 			"last_updated": {
 				Type:                types.StringType,
 				MarkdownDescription: "Timestamp when this managed identity was most recently updated.",
@@ -165,17 +151,6 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 		return
 	}
 
-	// Build the access rule inputs.
-	accessRuleInputs := []ttypes.ManagedIdentityAccessRuleInput{}
-	for _, thInput := range plan.AccessRules {
-		accessRuleInputs = append(accessRuleInputs, ttypes.ManagedIdentityAccessRuleInput{
-			RunStage:               ttypes.JobType(thInput.RunStage.ValueString()),
-			AllowedUsers:           valueStrings(thInput.AllowedUsers),
-			AllowedServiceAccounts: valueStrings(thInput.AllowedServiceAccounts),
-			AllowedTeams:           valueStrings(thInput.AllowedTeams),
-		})
-	}
-
 	encodedData, err := encodeDataString(plan.Type,
 		universalInputData{
 			Role:     plan.Role.ValueString(),
@@ -198,7 +173,6 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 			Description: plan.Description.ValueString(),
 			GroupPath:   plan.GroupPath.ValueString(),
 			Data:        encodedData,
-			AccessRules: accessRuleInputs,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -207,19 +181,6 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 		)
 		return
 	}
-
-	// The CreateManagedIdentity call above does not return the access rules,
-	// even though the rules are written to the database.
-	createdAccessRules, err := t.client.ManagedIdentity.GetManagedIdentityAccessRules(ctx,
-		&ttypes.GetManagedIdentityInput{ID: created.Metadata.ID})
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error getting managed identity access rules",
-			err.Error(),
-		)
-		return
-	}
-	created.AccessRules = createdAccessRules
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
@@ -388,33 +349,6 @@ func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel)
 	}
 	dest.Subject = types.StringValue(decodedData.Subject)
 
-	for ruleIx, rule := range src.AccessRules {
-
-		allowedUsers := []types.String{}
-		for _, user := range rule.AllowedUsers {
-			allowedUsers = append(allowedUsers, types.StringValue(user.Username))
-		}
-
-		allowedServiceAccounts := []types.String{}
-		for _, serviceAccount := range rule.AllowedServiceAccounts {
-			allowedServiceAccounts = append(allowedServiceAccounts,
-				types.StringValue(serviceAccount.ResourcePath))
-		}
-
-		allowedTeams := []types.String{}
-		for _, team := range rule.AllowedTeams {
-			allowedTeams = append(allowedTeams, types.StringValue(team.Name))
-		}
-
-		dest.AccessRules[ruleIx] = ManagedIdentityAccessRuleModel{
-			ID:                     types.StringValue(rule.Metadata.ID),
-			RunStage:               types.StringValue(string(rule.RunStage)),
-			ManagedIdentityID:      dest.ID,
-			AllowedUsers:           allowedUsers,
-			AllowedServiceAccounts: allowedServiceAccounts,
-			AllowedTeams:           allowedTeams,
-		}
-	}
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
 

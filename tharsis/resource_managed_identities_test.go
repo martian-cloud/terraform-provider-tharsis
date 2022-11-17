@@ -69,7 +69,6 @@ func TestManagedIdentityAWS(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "group_path", testGroupPath),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "role", createRole),
 					// client_id and tenant_id should not be set, but we cannot check that.
-					// Access rules aren't a string, so don't check them here.
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_aws", "id"),
@@ -98,7 +97,6 @@ func TestManagedIdentityAWS(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "group_path", testGroupPath),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "role", updatedRole),
 					// client_id and tenant_id should not be set, but we cannot check that.
-					// Access rules aren't a string, so don't check them here.
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_aws", "id"),
@@ -169,7 +167,6 @@ func TestManagedIdentityAzure(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "tenant_id", createTenantID),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "client_id", createClientID),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "tenant_id", createTenantID),
-					// Access rules aren't a string, so don't check them here.
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_azure", "id"),
@@ -200,7 +197,6 @@ func TestManagedIdentityAzure(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "tenant_id", updatedTenantID),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "client_id", updatedClientID),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "tenant_id", updatedTenantID),
-					// Access rules aren't a string, so don't check them here.
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_azure", "id"),
