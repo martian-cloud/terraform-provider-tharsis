@@ -87,6 +87,9 @@ func (t *managedIdentityResource) GetSchema(ctx context.Context) (tfsdk.Schema, 
 				MarkdownDescription: "String identifier of the managed identity.",
 				Description:         "String identifier of the managed identity.",
 				Computed:            true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{
+					resource.UseStateForUnknown(),
+				},
 			},
 			"type": {
 				Type:                types.StringType,
@@ -160,19 +163,18 @@ func (t *managedIdentityResource) Configure(_ context.Context,
 func (t *managedIdentityResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse) {
 
-	// Retrieve values from plan.
-	var plan ManagedIdentityModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	// Retrieve values from managedIdentity.
+	var managedIdentity ManagedIdentityModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &managedIdentity)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	encodedData, err := encodeDataString(plan.Type,
+	encodedData, err := encodeDataString(managedIdentity.Type,
 		universalInputData{
-			AWSRole:       plan.AWSRole.ValueString(),
-			AzureClientID: plan.AzureClientID.ValueString(),
-			AzureTenantID: plan.AzureTenantID.ValueString(),
+			AWSRole:       managedIdentity.AWSRole.ValueString(),
+			AzureClientID: managedIdentity.AzureClientID.ValueString(),
+			AzureTenantID: managedIdentity.AzureTenantID.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -185,10 +187,10 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 	// Create the managed identity.
 	created, err := t.client.ManagedIdentity.CreateManagedIdentity(ctx,
 		&ttypes.CreateManagedIdentityInput{
-			Type:        ttypes.ManagedIdentityType(plan.Type.ValueString()),
-			Name:        plan.Name.ValueString(),
-			Description: plan.Description.ValueString(),
-			GroupPath:   plan.GroupPath.ValueString(),
+			Type:        ttypes.ManagedIdentityType(managedIdentity.Type.ValueString()),
+			Name:        managedIdentity.Name.ValueString(),
+			Description: managedIdentity.Description.ValueString(),
+			GroupPath:   managedIdentity.GroupPath.ValueString(),
 			Data:        encodedData,
 		})
 	if err != nil {
@@ -201,11 +203,10 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	copyManagedIdentity(*created, &plan)
+	copyManagedIdentity(*created, &managedIdentity)
 
 	// Set the response state to the fully-populated plan.
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, managedIdentity)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -216,8 +217,7 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 
 	// Get the current state.
 	var state ManagedIdentityModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -238,8 +238,7 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 	copyManagedIdentity(*found, &state)
 
 	// Set the refreshed state.
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -250,16 +249,14 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 
 	// Get the current state for its ID.
 	var state ManagedIdentityModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Retrieve values from plan for the description and data.
 	var plan ManagedIdentityModel
-	diags = req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -299,8 +296,7 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 	copyManagedIdentity(*updated, &plan)
 
 	// Set the response state to the fully-populated plan.
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -311,8 +307,7 @@ func (t *managedIdentityResource) Delete(ctx context.Context,
 
 	// Get the current state.
 	var state ManagedIdentityModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

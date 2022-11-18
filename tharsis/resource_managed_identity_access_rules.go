@@ -60,6 +60,9 @@ func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.
 				MarkdownDescription: "String identifier of the access rule.",
 				Description:         "String identifier of the access rule.",
 				Computed:            true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{
+					resource.UseStateForUnknown(),
+				},
 			},
 			"run_stage": {
 				Type:                types.StringType,
@@ -77,24 +80,24 @@ func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.
 				Type: types.SetType{
 					ElemType: types.StringType,
 				},
-				MarkdownDescription: "List of email addresses of users allowed to use this rule.",
-				Description:         "List of email addresses of users allowed to use this rule.",
+				MarkdownDescription: "List of email addresses of users allowed to use the managed identity associated with this rule.",
+				Description:         "List of email addresses of users allowed to use the managed identity associated with this rule.",
 				Optional:            true,
 			},
 			"allowed_service_accounts": {
 				Type: types.SetType{
 					ElemType: types.StringType,
 				},
-				MarkdownDescription: "List of resource paths of service accounts allowed to use this rule.",
-				Description:         "List of resource paths of service accounts allowed to use this rule.",
+				MarkdownDescription: "List of resource paths of service accounts allowed to use the managed identity associated with this rule.",
+				Description:         "List of resource paths of service accounts allowed to use the managed identity associated with this rule.",
 				Optional:            true,
 			},
 			"allowed_teams": {
 				Type: types.SetType{
 					ElemType: types.StringType,
 				},
-				MarkdownDescription: "List of names of teams allowed to use this rule.",
-				Description:         "List of names of teams allowed to use this rule.",
+				MarkdownDescription: "List of names of teams allowed to use the managed identity associated with this rule.",
+				Description:         "List of names of teams allowed to use the managed identity associated with this rule.",
 				Optional:            true,
 			},
 		},
@@ -113,21 +116,20 @@ func (t *managedIdentityAccessRuleResource) Configure(_ context.Context,
 func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse) {
 
-	// Retrieve values from plan.
-	var plan ManagedIdentityAccessRuleModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	// Retrieve values from accessRule.
+	var accessRule ManagedIdentityAccessRuleModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &accessRule)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Build the access rule input.
 	accessRuleInput := ttypes.CreateManagedIdentityAccessRuleInput{
-		ManagedIdentityID:      plan.ManagedIdentityID.ValueString(),
-		RunStage:               ttypes.JobType(plan.RunStage.ValueString()),
-		AllowedUsers:           valueStrings(plan.AllowedUsers),
-		AllowedServiceAccounts: valueStrings(plan.AllowedServiceAccounts),
-		AllowedTeams:           valueStrings(plan.AllowedTeams),
+		ManagedIdentityID:      accessRule.ManagedIdentityID.ValueString(),
+		RunStage:               ttypes.JobType(accessRule.RunStage.ValueString()),
+		AllowedUsers:           t.valueStrings(accessRule.AllowedUsers),
+		AllowedServiceAccounts: t.valueStrings(accessRule.AllowedServiceAccounts),
+		AllowedTeams:           t.valueStrings(accessRule.AllowedTeams),
 	}
 
 	// Create the managed identity access rule.
@@ -143,31 +145,30 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	plan.ID = types.StringValue(created.Metadata.ID)
-	plan.RunStage = types.StringValue(string(created.RunStage))
-	plan.ManagedIdentityID = types.StringValue(created.ManagedIdentityID)
+	accessRule.ID = types.StringValue(created.Metadata.ID)
+	accessRule.RunStage = types.StringValue(string(created.RunStage))
+	accessRule.ManagedIdentityID = types.StringValue(created.ManagedIdentityID)
 
 	allowedUsers := []types.String{}
 	for _, user := range created.AllowedUsers {
 		allowedUsers = append(allowedUsers, types.StringValue(user.Username))
 	}
-	plan.AllowedUsers = allowedUsers
+	accessRule.AllowedUsers = allowedUsers
 
 	allowedServiceAccounts := []types.String{}
 	for _, serviceAccount := range created.AllowedServiceAccounts {
 		allowedServiceAccounts = append(allowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
 	}
-	plan.AllowedServiceAccounts = allowedServiceAccounts
+	accessRule.AllowedServiceAccounts = allowedServiceAccounts
 
 	allowedTeams := []types.String{}
 	for _, team := range created.AllowedTeams {
 		allowedTeams = append(allowedTeams, types.StringValue(team.Name))
 	}
-	plan.AllowedTeams = allowedTeams
+	accessRule.AllowedTeams = allowedTeams
 
 	// Set the response state to the fully-populated plan.
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, accessRule)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -178,8 +179,7 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 
 	// Get the current state.
 	var state ManagedIdentityAccessRuleModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -219,8 +219,7 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 	}
 
 	// Set the refreshed state.
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -231,16 +230,14 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 
 	// Get the current state for its ID.
 	var state ManagedIdentityAccessRuleModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Retrieve values from plan for the fields to modify.
 	var plan ManagedIdentityAccessRuleModel
-	diags = req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -252,9 +249,9 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		&ttypes.UpdateManagedIdentityAccessRuleInput{
 			ID:                     state.ID.ValueString(),
 			RunStage:               ttypes.JobType(plan.RunStage.ValueString()),
-			AllowedUsers:           valueStrings(plan.AllowedUsers),
-			AllowedServiceAccounts: valueStrings(plan.AllowedServiceAccounts),
-			AllowedTeams:           valueStrings(plan.AllowedTeams),
+			AllowedUsers:           t.valueStrings(plan.AllowedUsers),
+			AllowedServiceAccounts: t.valueStrings(plan.AllowedServiceAccounts),
+			AllowedTeams:           t.valueStrings(plan.AllowedTeams),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -285,8 +282,7 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	}
 
 	// Set the response state to the fully-populated plan.
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -297,8 +293,7 @@ func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
 
 	// Get the current state.
 	var state ManagedIdentityAccessRuleModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -327,7 +322,7 @@ func (t *managedIdentityAccessRuleResource) ImportState(ctx context.Context,
 }
 
 // valueStrings converts a slice of types.String to a slice of strings.
-func valueStrings(arg []types.String) []string {
+func (t *managedIdentityAccessRuleResource) valueStrings(arg []types.String) []string {
 	result := make([]string, len(arg))
 	for ix, bigSValue := range arg {
 		result[ix] = bigSValue.ValueString()

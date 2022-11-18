@@ -108,8 +108,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}()
 
 	var data WorkspacesOutputsDataSourceData
-	diags := req.Config.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -200,8 +199,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	data.WorkspaceID = types.String{Value: workspace.Metadata.ID}
 	data.StateVersionID = types.String{Value: workspace.CurrentStateVersion.Metadata.ID}
 
-	diags = resp.State.Set(ctx, &data)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func resolvePath(path string) (string, error) {
