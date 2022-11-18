@@ -24,7 +24,7 @@ func TestManagedIdentityAWS(t *testing.T) {
 	createName := "tmi_aws_name"
 	createDescription := "this is tmi_aws, a Tharsis managed identity"
 	createResourcePath := testGroupPath + "/" + createName
-	createRole := "some-iam-role"
+	createAWSRole := "some-iam-role"
 	createConfig := fmt.Sprintf(`
 
 	resource "tharsis_managed_identity" "tmi_aws" {
@@ -32,13 +32,13 @@ func TestManagedIdentityAWS(t *testing.T) {
 		name        = "%s"
 		description = "%s"
 		group_path  = "%s"
-		role        = "%s"
+		aws_role    = "%s"
 	}
 
-	`, createType, createName, createDescription, testGroupPath, createRole)
+	`, createType, createName, createDescription, testGroupPath, createAWSRole)
 
 	updatedDescription := "this is an updated description for tmi_aws"
-	updatedRole := "updated-iam-role"
+	updatedAWSRole := "updated-iam-role"
 	updatedConfig := fmt.Sprintf(`
 
 	resource "tharsis_managed_identity" "tmi_aws" {
@@ -46,10 +46,10 @@ func TestManagedIdentityAWS(t *testing.T) {
 		name        = "%s"
 		description = "%s"
 		group_path  = "%s"
-		role        = "%s"
+		aws_role    = "%s"
 	}
 
-	`, createType, createName, updatedDescription, testGroupPath, updatedRole)
+	`, createType, createName, updatedDescription, testGroupPath, updatedAWSRole)
 
 	resource.Test(t, resource.TestCase{
 
@@ -67,8 +67,8 @@ func TestManagedIdentityAWS(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "name", createName),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "description", createDescription),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "group_path", testGroupPath),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "role", createRole),
-					// client_id and tenant_id should not be set, but we cannot check that.
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "aws_role", createAWSRole),
+					// Azure client_id and Azure tenant_id should not be set, but we cannot check that.
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_aws", "id"),
@@ -95,8 +95,8 @@ func TestManagedIdentityAWS(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "name", createName),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "description", updatedDescription),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "group_path", testGroupPath),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "role", updatedRole),
-					// client_id and tenant_id should not be set, but we cannot check that.
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "aws_role", updatedAWSRole),
+					// Azure client_id and Azure tenant_id should not be set, but we cannot check that.
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_aws", "id"),
@@ -116,36 +116,36 @@ func TestManagedIdentityAzure(t *testing.T) {
 	createName := "tmi_azure_name"
 	createDescription := "this is tmi_azure, a Tharsis managed identity"
 	createResourcePath := testGroupPath + "/" + createName
-	createClientID := "some-client-id"
-	createTenantID := "some-tenant-id"
+	createAzureClientID := "some-azure-client-id"
+	createAzureTenantID := "some-azure-tenant-id"
 	createConfig := fmt.Sprintf(`
 
 	resource "tharsis_managed_identity" "tmi_azure" {
-		type        = "%s"
-		name        = "%s"
-		description = "%s"
-		group_path  = "%s"
-		client_id   = "%s"
-		tenant_id   = "%s"
+		type            = "%s"
+		name            = "%s"
+		description     = "%s"
+		group_path      = "%s"
+		azure_client_id = "%s"
+		azure_tenant_id = "%s"
 	}
 
-	`, createType, createName, createDescription, testGroupPath, createClientID, createTenantID)
+	`, createType, createName, createDescription, testGroupPath, createAzureClientID, createAzureTenantID)
 
 	updatedDescription := "this is an updated description for tmi_azure"
-	updatedClientID := "updated-client-id"
-	updatedTenantID := "updated-tenant-id"
+	updatedAzureClientID := "updated-azure-client-id"
+	updatedAzureTenantID := "updated-azure-tenant-id"
 	updatedConfig := fmt.Sprintf(`
 
 	resource "tharsis_managed_identity" "tmi_azure" {
-		type        = "%s"
-		name        = "%s"
-		description = "%s"
-		group_path  = "%s"
-		client_id   = "%s"
-		tenant_id   = "%s"
+		type            = "%s"
+		name            = "%s"
+		description     = "%s"
+		group_path      = "%s"
+		azure_client_id = "%s"
+		azure_tenant_id = "%s"
 	}
 
-	`, createType, createName, updatedDescription, testGroupPath, updatedClientID, updatedTenantID)
+	`, createType, createName, updatedDescription, testGroupPath, updatedAzureClientID, updatedAzureTenantID)
 
 	resource.Test(t, resource.TestCase{
 
@@ -163,10 +163,8 @@ func TestManagedIdentityAzure(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "name", createName),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "description", createDescription),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "group_path", testGroupPath),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "client_id", createClientID),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "tenant_id", createTenantID),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "client_id", createClientID),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "tenant_id", createTenantID),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "azure_client_id", createAzureClientID),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "azure_tenant_id", createAzureTenantID),
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_azure", "id"),
@@ -193,10 +191,8 @@ func TestManagedIdentityAzure(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "name", createName),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "description", updatedDescription),
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "group_path", testGroupPath),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "client_id", updatedClientID),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "tenant_id", updatedTenantID),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "client_id", updatedClientID),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "tenant_id", updatedTenantID),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "azure_client_id", updatedAzureClientID),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "azure_tenant_id", updatedAzureTenantID),
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_azure", "id"),

@@ -17,7 +17,7 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 	parentType := string(ttypes.ManagedIdentityAWSFederated)
 	parentName := "tmiar_parent_name"
 	parentDescription := "this is tmiar_parent, a Tharsis managed identity"
-	parentRole := "some-iam-role"
+	parentAWSRole := "some-iam-aws-role"
 	parentConfig := fmt.Sprintf(`
 
 	resource "tharsis_managed_identity" "tmiar_parent" {
@@ -25,10 +25,10 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 		name        = "%s"
 		description = "%s"
 		group_path  = "%s"
-		role        = "%s"
+		aws_role    = "%s"
 	}
 
-	`, parentType, parentName, parentDescription, testGroupPath, parentRole)
+	`, parentType, parentName, parentDescription, testGroupPath, parentAWSRole)
 
 	// TODO: When we have the ability to create the parent group, users, service accounts, and teams, add them.
 

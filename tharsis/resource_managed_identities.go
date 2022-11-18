@@ -18,18 +18,20 @@ import (
 )
 
 // universalInputData has all fields required for input to the encoded data string.
+// The vendor-specific prefixes are not used in the SDK, so they are omitted from the JSON tags.
 type universalInputData struct {
-	Role     string `json:"role,omitempty"`
-	ClientID string `json:"clientId,omitempty"`
-	TenantID string `json:"tenantId,omitempty"`
+	AWSRole       string `json:"role,omitempty"`
+	AzureClientID string `json:"clientId,omitempty"`
+	AzureTenantID string `json:"tenantId,omitempty"`
 }
 
 // universalData has all fields required for output from the encoded data string.
+// The vendor-specific prefixes are not used in the SDK, so they are omitted from the JSON tags.
 type universalData struct {
-	Role     *string `json:"role,omitempty"`
-	ClientID *string `json:"clientId,omitempty"`
-	TenantID *string `json:"tenantId,omitempty"`
-	Subject  string  `json:"subject,omitempty"`
+	AWSRole       *string `json:"role,omitempty"`
+	AzureClientID *string `json:"clientId,omitempty"`
+	AzureTenantID *string `json:"tenantId,omitempty"`
+	Subject       string  `json:"subject,omitempty"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -101,17 +103,17 @@ func (t *managedIdentityResource) GetSchema(ctx context.Context) (tfsdk.Schema, 
 				Description:         "Full path of the parent group.",
 				Required:            true,
 			},
-			"role": {Type: types.StringType,
+			"aws_role": {Type: types.StringType,
 				MarkdownDescription: "AWS role",
 				Description:         "AWS role",
 				Optional:            true,
 			},
-			"client_id": {Type: types.StringType,
+			"azure_client_id": {Type: types.StringType,
 				MarkdownDescription: "Azure client ID",
 				Description:         "Azure client ID",
 				Optional:            true,
 			},
-			"tenant_id": {Type: types.StringType,
+			"azure_tenant_id": {Type: types.StringType,
 				MarkdownDescription: "Azure tenant ID",
 				Description:         "Azure tenant ID",
 				Optional:            true,
@@ -153,9 +155,9 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 
 	encodedData, err := encodeDataString(plan.Type,
 		universalInputData{
-			Role:     plan.Role.ValueString(),
-			ClientID: plan.ClientID.ValueString(),
-			TenantID: plan.TenantID.ValueString(),
+			AWSRole:       plan.AWSRole.ValueString(),
+			AzureClientID: plan.AzureClientID.ValueString(),
+			AzureTenantID: plan.AzureTenantID.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -249,9 +251,9 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 
 	encodedData, err := encodeDataString(plan.Type,
 		universalInputData{
-			Role:     plan.Role.ValueString(),
-			ClientID: plan.ClientID.ValueString(),
-			TenantID: plan.TenantID.ValueString(),
+			AWSRole:       plan.AWSRole.ValueString(),
+			AzureClientID: plan.AzureClientID.ValueString(),
+			AzureTenantID: plan.AzureTenantID.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -338,14 +340,14 @@ func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel)
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
 	dest.GroupPath = types.StringValue(getGroupPath(src.ResourcePath))
-	if decodedData.Role != nil {
-		dest.Role = types.StringValue(*decodedData.Role)
+	if decodedData.AWSRole != nil {
+		dest.AWSRole = types.StringValue(*decodedData.AWSRole)
 	}
-	if decodedData.ClientID != nil {
-		dest.ClientID = types.StringValue(*decodedData.ClientID)
+	if decodedData.AzureClientID != nil {
+		dest.AzureClientID = types.StringValue(*decodedData.AzureClientID)
 	}
-	if decodedData.TenantID != nil {
-		dest.TenantID = types.StringValue(*decodedData.TenantID)
+	if decodedData.AzureTenantID != nil {
+		dest.AzureTenantID = types.StringValue(*decodedData.AzureTenantID)
 	}
 	dest.Subject = types.StringValue(decodedData.Subject)
 
@@ -355,7 +357,7 @@ func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel)
 	return nil
 }
 
-// encodeDataString checks the role, client ID, tenant ID, and subject fields
+// encodeDataString checks the AWS role, Azure client ID, Azure tenant ID, and subject fields
 // and then marshals them into the appropriate type and base64 encodes that.
 func encodeDataString(managedIdentityType types.String, input universalInputData) (string, error) {
 	type2 := ttypes.ManagedIdentityType(managedIdentityType.ValueString())
@@ -363,24 +365,24 @@ func encodeDataString(managedIdentityType types.String, input universalInputData
 	// What to check depends on the type of managed identity this is.
 	switch type2 {
 	case ttypes.ManagedIdentityAWSFederated:
-		if input.Role == "" {
+		if input.AWSRole == "" {
 			return "", fmt.Errorf("non-empty role is required for AWS managed identity")
 		}
-		if input.ClientID != "" {
-			return "", fmt.Errorf("non-empty role is not allowed for AWS managed identity")
+		if input.AzureClientID != "" {
+			return "", fmt.Errorf("non-empty client ID is not allowed for AWS managed identity")
 		}
-		if input.TenantID != "" {
-			return "", fmt.Errorf("non-empty role is not allowed for AWS managed identity")
+		if input.AzureTenantID != "" {
+			return "", fmt.Errorf("non-empty tenant ID is not allowed for AWS managed identity")
 		}
 	case ttypes.ManagedIdentityAzureFederated:
-		if input.Role != "" {
+		if input.AWSRole != "" {
 			return "", fmt.Errorf("non-empty role is not allowed for Azure managed identity")
 		}
-		if input.ClientID == "" {
-			return "", fmt.Errorf("non-empty role is required for Azure managed identity")
+		if input.AzureClientID == "" {
+			return "", fmt.Errorf("non-empty client ID is required for Azure managed identity")
 		}
-		if input.TenantID == "" {
-			return "", fmt.Errorf("non-empty role is required for Azure managed identity")
+		if input.AzureTenantID == "" {
+			return "", fmt.Errorf("non-empty tenant ID is required for Azure managed identity")
 		}
 	default:
 		return "", fmt.Errorf("invalid managed identity type: %s", type2)
@@ -396,8 +398,8 @@ func encodeDataString(managedIdentityType types.String, input universalInputData
 	return base64.StdEncoding.EncodeToString(preResult), nil
 }
 
-// decodeDataString checks the role, client ID, tenant ID, and subject fields
-// and then marshals them into the appropriate type and base64 encodes that.
+// decodeDataString base64 decodes and then unmarshals the
+// AWS role, Azure client ID, Azure tenant ID, and subject fields
 func decodeDataString(encoded string) (*universalData, error) {
 
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
