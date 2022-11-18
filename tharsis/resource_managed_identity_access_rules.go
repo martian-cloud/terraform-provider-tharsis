@@ -2,6 +2,7 @@ package tharsis
 
 import (
 	"context"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -190,6 +191,13 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 			ID: state.ID.ValueString(),
 		})
 	if err != nil {
+
+		// Handle the case that the access rule no longer exists.
+		if t.isErrorRuleNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
 		resp.Diagnostics.AddError(
 			"Error reading managed identity access rule",
 			err.Error(),
@@ -298,13 +306,20 @@ func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
 		return
 	}
 
-	// Delete the managed identity via Tharsis.
+	// Delete the access rule via Tharsis.
 	// The ID is used to find the record to delete.
 	err := t.client.ManagedIdentity.DeleteManagedIdentityAccessRule(ctx,
 		&ttypes.DeleteManagedIdentityAccessRuleInput{
 			ID: state.ID.ValueString(),
 		})
 	if err != nil {
+
+		// Handle the case that the access rule no longer exists.
+		if t.isErrorRuleNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
 		resp.Diagnostics.AddError(
 			"Error deleting managed identity access rule",
 			err.Error(),
@@ -328,6 +343,15 @@ func (t *managedIdentityAccessRuleResource) valueStrings(arg []types.String) []s
 		result[ix] = bigSValue.ValueString()
 	}
 	return result
+}
+
+// isErrorRuleNotFound returns true iff the error message is that an access rule was not found.
+// Don't check the ID, because the available ID is the global id, while the ID in the message is a local ID.
+// In theory, we should never see a message that some other ID was not found.
+func (t *managedIdentityAccessRuleResource) isErrorRuleNotFound(e error) bool {
+	// Omission of the leading 'M' is intentional in case the SDK changes to lowercase.
+	return strings.Contains(e.Error(), "anaged identity access rule with ID ") &&
+		strings.Contains(e.Error(), " not found")
 }
 
 // The End.
