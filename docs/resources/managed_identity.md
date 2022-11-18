@@ -23,11 +23,10 @@ Defines and manages a managed identity.
 
 ### Optional
 
-- `access_rules` (Attributes Set) List of access rules for the managed identity. (see [below for nested schema](#nestedatt--access_rules))
-- `client_id` (String) Azure client ID
+- `aws_role` (String) AWS role
+- `azure_client_id` (String) Azure client ID
+- `azure_tenant_id` (String) Azure tenant ID
 - `description` (String) A description of the managed identity.
-- `role` (String) AWS role
-- `tenant_id` (String) Azure tenant ID
 
 ### Read-Only
 
@@ -35,23 +34,5 @@ Defines and manages a managed identity.
 - `last_updated` (String) Timestamp when this managed identity was most recently updated.
 - `resource_path` (String) The path of the parent group plus the name of the managed identity.
 - `subject` (String) subject string for AWS and Azure
-
-<a id="nestedatt--access_rules"></a>
-### Nested Schema for `access_rules`
-
-Required:
-
-- `managed_identity_id` (String) String identifier of the connected managed identity.
-- `run_stage` (String) Type of job, plan or apply.
-
-Optional:
-
-- `allowed_service_accounts` (Set of String) List of resource paths of service accounts allowed to use this rule.
-- `allowed_teams` (Set of String) List of names of teams allowed to use this rule.
-- `allowed_users` (Set of String) List of email addresses of users allowed to use this rule.
-
-Read-Only:
-
-- `id` (String) String identifier of the access rule.
 
 

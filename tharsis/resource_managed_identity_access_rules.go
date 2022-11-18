@@ -12,6 +12,16 @@ import (
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
+// ManagedIdentityAccessRuleModel is the model for a managed identity access rule.
+type ManagedIdentityAccessRuleModel struct {
+	ID                     types.String   `tfsdk:"id"`
+	RunStage               types.String   `tfsdk:"run_stage"`
+	ManagedIdentityID      types.String   `tfsdk:"managed_identity_id"`
+	AllowedUsers           []types.String `tfsdk:"allowed_users"`
+	AllowedServiceAccounts []types.String `tfsdk:"allowed_service_accounts"`
+	AllowedTeams           []types.String `tfsdk:"allowed_teams"`
+}
+
 // Ensure provider defined types fully satisfy framework interfaces
 var (
 	_ resource.Resource                = &managedIdentityAccessRuleResource{}

@@ -17,6 +17,21 @@ import (
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
+// ManagedIdentityModel is the model for a managed identity.
+type ManagedIdentityModel struct {
+	ID            types.String `tfsdk:"id"`
+	Type          types.String `tfsdk:"type"`
+	ResourcePath  types.String `tfsdk:"resource_path"`
+	Name          types.String `tfsdk:"name"`
+	Description   types.String `tfsdk:"description"`
+	GroupPath     types.String `tfsdk:"group_path"`
+	AWSRole       types.String `tfsdk:"aws_role"`
+	AzureClientID types.String `tfsdk:"azure_client_id"`
+	AzureTenantID types.String `tfsdk:"azure_tenant_id"`
+	Subject       types.String `tfsdk:"subject"`
+	LastUpdated   types.String `tfsdk:"last_updated"`
+}
+
 // universalInputData has all fields required for input to the encoded data string.
 // The vendor-specific prefixes are not used in the SDK, so they are omitted from the JSON tags.
 type universalInputData struct {
