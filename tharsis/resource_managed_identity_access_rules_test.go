@@ -80,7 +80,7 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 
 			// Import state.
 			{
-				ResourceName:      "tharsis_managed_identity.tmiar_parent",
+				ResourceName:      "tharsis_managed_identity_access_rule.rule01",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
