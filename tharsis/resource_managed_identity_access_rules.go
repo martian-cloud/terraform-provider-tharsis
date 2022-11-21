@@ -205,10 +205,8 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		return
 	}
 
-	// Copy the from-Tharsis struct to the state.
-	state.ID = types.StringValue(found.Metadata.ID)
+	// Copy the from-Tharsis run stage to the state.
 	state.RunStage = types.StringValue(string(found.RunStage))
-	state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
 
 	state.AllowedUsers = []types.String{}
 	for _, user := range found.AllowedUsers {
