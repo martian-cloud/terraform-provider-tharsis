@@ -208,6 +208,12 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 	// Copy the from-Tharsis run stage to the state.
 	state.RunStage = types.StringValue(string(found.RunStage))
 
+	// When this Read method is called during a "terraform import" operation, state.ManagedIdentityID is null.
+	// In that case, it is necessary to copy ManagedIdentityID from found to state.
+	if state.ManagedIdentityID.Null {
+		state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
+	}
+
 	state.AllowedUsers = []types.String{}
 	for _, user := range found.AllowedUsers {
 		state.AllowedUsers = append(state.AllowedUsers, types.StringValue(user.Username))
@@ -323,6 +329,9 @@ func (t *managedIdentityAccessRuleResource) ImportState(ctx context.Context,
 
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+
+	// Setting of the ManagedIdentityID field during import is handled in the Read method.
+
 }
 
 // valueStrings converts a slice of types.String to a slice of strings.
