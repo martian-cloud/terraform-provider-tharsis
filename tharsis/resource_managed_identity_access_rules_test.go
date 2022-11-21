@@ -14,43 +14,16 @@ import (
 func TestManagedIdentityAccessRules(t *testing.T) {
 
 	// Configuration for the parent managed identity.
-	parentType := string(ttypes.ManagedIdentityAWSFederated)
 	parentName := "tmiar_parent_name"
-	parentDescription := "this is tmiar_parent, a Tharsis managed identity"
-	parentAWSRole := "some-iam-aws-role"
-	parentConfig := fmt.Sprintf(`
-
-	resource "tharsis_managed_identity" "tmiar_parent" {
-		type        = "%s"
-		name        = "%s"
-		description = "%s"
-		group_path  = "%s"
-		aws_role    = "%s"
-	}
-
-	`, parentType, parentName, parentDescription, testGroupPath, parentAWSRole)
 
 	// TODO: When we have the ability to create the parent group, users, service accounts, and teams, add them.
 
 	// Configuration to create the access rule(s).
 	ruleStage := "plan"
-	ruleParentID := "tharsis_managed_identity.tmiar_parent.id"
-	ruleConfig := fmt.Sprintf(`
-
-	resource "tharsis_managed_identity_access_rule" "rule01" {
-		run_stage                = "%s"
-		managed_identity_id      = %s
-		allowed_users            = []
-		allowed_service_accounts = []
-		allowed_teams            = []
-	}
-
-	`, ruleStage, ruleParentID)
 
 	// Configuration to update the access rule(s).
 	// Only the run stage can be changed.
 	updateStage := "apply"
-	updateConfig := strings.Replace(ruleConfig, ruleStage, updateStage, 1)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -59,7 +32,9 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 			// Create the parent managed identity and the access rule in one step.
 			// If done in separate steps, the access rule can't find its parent.
 			{
-				Config: providerConfig + parentConfig + ruleConfig,
+				Config: testSharedProviderConfiguration() +
+					testManagedIdentityAccessRulesConfigurationParent() +
+					testManagedIdentityAccessRulesConfigurationRule(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 
 					// Verify a few key values of the parent that should be known.
@@ -88,7 +63,9 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 			// Attempt to update and read.
 			// This is some indication this might be doing a fresh creation rather than an update.
 			{
-				Config: providerConfig + parentConfig + updateConfig,
+				Config: testSharedProviderConfiguration() +
+					testManagedIdentityAccessRulesConfigurationParent() +
+					testManagedIdentityAccessRulesConfigurationUpdate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01",
@@ -104,6 +81,47 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 			// Destroy should be covered automatically by TestCase.
 		},
 	})
+}
+
+func testManagedIdentityAccessRulesConfigurationParent() string {
+	parentType := string(ttypes.ManagedIdentityAWSFederated)
+	parentName := "tmiar_parent_name"
+	parentDescription := "this is tmiar_parent, a Tharsis managed identity"
+	parentAWSRole := "some-iam-aws-role"
+	return fmt.Sprintf(`
+
+resource "tharsis_managed_identity" "tmiar_parent" {
+	type        = "%s"
+	name        = "%s"
+	description = "%s"
+	group_path  = "%s"
+	aws_role    = "%s"
+}
+
+	`, parentType, parentName, parentDescription, testGroupPath, parentAWSRole)
+}
+
+func testManagedIdentityAccessRulesConfigurationRule() string {
+	ruleStage := "plan"
+	ruleParentID := "tharsis_managed_identity.tmiar_parent.id"
+	return fmt.Sprintf(`
+
+resource "tharsis_managed_identity_access_rule" "rule01" {
+	run_stage                = "%s"
+	managed_identity_id      = %s
+	allowed_users            = []
+	allowed_service_accounts = []
+	allowed_teams            = []
+}
+
+`, ruleStage, ruleParentID)
+}
+
+func testManagedIdentityAccessRulesConfigurationUpdate() string {
+	// Only the run stage can be changed.
+	ruleStage := "plan"
+	updateStage := "apply"
+	return strings.Replace(testManagedIdentityAccessRulesConfigurationRule(), ruleStage, updateStage, 1)
 }
 
 // The End.

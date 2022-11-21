@@ -25,31 +25,9 @@ func TestManagedIdentityAWS(t *testing.T) {
 	createDescription := "this is tmi_aws, a Tharsis managed identity"
 	createResourcePath := testGroupPath + "/" + createName
 	createAWSRole := "some-iam-role"
-	createConfig := fmt.Sprintf(`
-
-	resource "tharsis_managed_identity" "tmi_aws" {
-		type        = "%s"
-		name        = "%s"
-		description = "%s"
-		group_path  = "%s"
-		aws_role    = "%s"
-	}
-
-	`, createType, createName, createDescription, testGroupPath, createAWSRole)
 
 	updatedDescription := "this is an updated description for tmi_aws"
 	updatedAWSRole := "updated-iam-role"
-	updatedConfig := fmt.Sprintf(`
-
-	resource "tharsis_managed_identity" "tmi_aws" {
-		type        = "%s"
-		name        = "%s"
-		description = "%s"
-		group_path  = "%s"
-		aws_role    = "%s"
-	}
-
-	`, createType, createName, updatedDescription, testGroupPath, updatedAWSRole)
 
 	resource.Test(t, resource.TestCase{
 
@@ -59,7 +37,7 @@ func TestManagedIdentityAWS(t *testing.T) {
 
 			// Create and read back a managed identity.
 			{
-				Config: providerConfig + createConfig,
+				Config: testSharedProviderConfiguration() + testManagedIdentityAWSConfigurationCreate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "type", createType),
@@ -87,7 +65,7 @@ func TestManagedIdentityAWS(t *testing.T) {
 			// Update and read.
 			{
 				// Update and read back a managed identity.
-				Config: providerConfig + updatedConfig,
+				Config: testSharedProviderConfiguration() + testManagedIdentityAWSConfigurationUpdate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_aws", "type", createType),
@@ -118,34 +96,10 @@ func TestManagedIdentityAzure(t *testing.T) {
 	createResourcePath := testGroupPath + "/" + createName
 	createAzureClientID := "some-azure-client-id"
 	createAzureTenantID := "some-azure-tenant-id"
-	createConfig := fmt.Sprintf(`
-
-	resource "tharsis_managed_identity" "tmi_azure" {
-		type            = "%s"
-		name            = "%s"
-		description     = "%s"
-		group_path      = "%s"
-		azure_client_id = "%s"
-		azure_tenant_id = "%s"
-	}
-
-	`, createType, createName, createDescription, testGroupPath, createAzureClientID, createAzureTenantID)
 
 	updatedDescription := "this is an updated description for tmi_azure"
 	updatedAzureClientID := "updated-azure-client-id"
 	updatedAzureTenantID := "updated-azure-tenant-id"
-	updatedConfig := fmt.Sprintf(`
-
-	resource "tharsis_managed_identity" "tmi_azure" {
-		type            = "%s"
-		name            = "%s"
-		description     = "%s"
-		group_path      = "%s"
-		azure_client_id = "%s"
-		azure_tenant_id = "%s"
-	}
-
-	`, createType, createName, updatedDescription, testGroupPath, updatedAzureClientID, updatedAzureTenantID)
 
 	resource.Test(t, resource.TestCase{
 
@@ -155,7 +109,7 @@ func TestManagedIdentityAzure(t *testing.T) {
 
 			// Create and read back a managed identity.
 			{
-				Config: providerConfig + createConfig,
+				Config: testSharedProviderConfiguration() + testManagedIdentityAzureConfigurationCreate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "type", createType),
@@ -183,7 +137,7 @@ func TestManagedIdentityAzure(t *testing.T) {
 			// Update and read.
 			{
 				// Update and read back a managed identity.
-				Config: providerConfig + updatedConfig,
+				Config: testSharedProviderConfiguration() + testManagedIdentityAzureConfigurationUpdate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_azure", "type", createType),
@@ -204,6 +158,82 @@ func TestManagedIdentityAzure(t *testing.T) {
 			// Destroy should be covered automatically by TestCase.
 		},
 	})
+}
+
+func testManagedIdentityAWSConfigurationCreate() string {
+	createType := string(ttypes.ManagedIdentityAWSFederated)
+	createName := "tmi_aws_name"
+	createDescription := "this is tmi_aws, a Tharsis managed identity"
+	createAWSRole := "some-iam-role"
+	return fmt.Sprintf(`
+
+resource "tharsis_managed_identity" "tmi_aws" {
+	type        = "%s"
+	name        = "%s"
+	description = "%s"
+	group_path  = "%s"
+	aws_role    = "%s"
+}
+
+	`, createType, createName, createDescription, testGroupPath, createAWSRole)
+}
+
+func testManagedIdentityAWSConfigurationUpdate() string {
+	createType := string(ttypes.ManagedIdentityAWSFederated)
+	createName := "tmi_aws_name"
+	updatedDescription := "this is an updated description for tmi_aws"
+	updatedAWSRole := "updated-iam-role"
+	return fmt.Sprintf(`
+
+	resource "tharsis_managed_identity" "tmi_aws" {
+		type        = "%s"
+		name        = "%s"
+		description = "%s"
+		group_path  = "%s"
+		aws_role    = "%s"
+	}
+
+	`, createType, createName, updatedDescription, testGroupPath, updatedAWSRole)
+}
+
+func testManagedIdentityAzureConfigurationCreate() string {
+	createType := string(ttypes.ManagedIdentityAzureFederated)
+	createName := "tmi_azure_name"
+	createDescription := "this is tmi_azure, a Tharsis managed identity"
+	createAzureClientID := "some-azure-client-id"
+	createAzureTenantID := "some-azure-tenant-id"
+	return fmt.Sprintf(`
+
+resource "tharsis_managed_identity" "tmi_azure" {
+	type            = "%s"
+	name            = "%s"
+	description     = "%s"
+	group_path      = "%s"
+	azure_client_id = "%s"
+	azure_tenant_id = "%s"
+}
+
+	`, createType, createName, createDescription, testGroupPath, createAzureClientID, createAzureTenantID)
+}
+
+func testManagedIdentityAzureConfigurationUpdate() string {
+	createType := string(ttypes.ManagedIdentityAzureFederated)
+	createName := "tmi_azure_name"
+	updatedDescription := "this is an updated description for tmi_azure"
+	updatedAzureClientID := "updated-azure-client-id"
+	updatedAzureTenantID := "updated-azure-tenant-id"
+	return fmt.Sprintf(`
+
+	resource "tharsis_managed_identity" "tmi_azure" {
+		type            = "%s"
+		name            = "%s"
+		description     = "%s"
+		group_path      = "%s"
+		azure_client_id = "%s"
+		azure_tenant_id = "%s"
+	}
+
+	`, createType, createName, updatedDescription, testGroupPath, updatedAzureClientID, updatedAzureTenantID)
 }
 
 // The End.

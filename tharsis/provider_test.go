@@ -8,17 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-const (
-
-	// Provider configuration uses environment variables:
-	//   THARSIS_ENDPOINT
-	//   THARSIS_STATIC_TOKEN
-	providerConfig = `
-provider "tharsis" {
-}
-`
-)
-
 var (
 	testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 		"tharsis": providerserver.NewProtocol6WithError(New()),
@@ -31,13 +20,23 @@ func TestProvider(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: providerConfig,
+				Config: testSharedProviderConfiguration(),
 				Check:  resource.ComposeAggregateTestCheckFunc(
 				// No check to do here.
 				),
 			},
 		},
 	})
+}
+
+// Provider configuration (used by several tests) uses environment variables:
+//   THARSIS_ENDPOINT
+//   THARSIS_STATIC_TOKEN
+func testSharedProviderConfiguration() string {
+	return `
+provider "tharsis" {
+}
+	`
 }
 
 // The End.
