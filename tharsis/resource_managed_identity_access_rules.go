@@ -234,13 +234,6 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
-	// Get the current state for its ID.
-	var state ManagedIdentityAccessRuleModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	// Retrieve values from plan for the fields to modify.
 	var plan ManagedIdentityAccessRuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -253,7 +246,7 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	// The other fields are modified.
 	updated, err := t.client.ManagedIdentity.UpdateManagedIdentityAccessRule(ctx,
 		&ttypes.UpdateManagedIdentityAccessRuleInput{
-			ID:                     state.ID.ValueString(),
+			ID:                     plan.ID.ValueString(),
 			RunStage:               ttypes.JobType(plan.RunStage.ValueString()),
 			AllowedUsers:           t.valueStrings(plan.AllowedUsers),
 			AllowedServiceAccounts: t.valueStrings(plan.AllowedServiceAccounts),
