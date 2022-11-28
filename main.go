@@ -8,7 +8,7 @@ import (
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/martian-cloud/terraform-provider-tharsis/tharsis"
+	"github.com/martian-cloud/terraform-provider-tharsis/internal/provider"
 )
 
 // Run "go generate" to format example terraform files and generate the docs for the registry/website
@@ -32,7 +32,7 @@ func main() {
 		Debug:   debug,
 	}
 
-	err := providerserver.Serve(context.Background(), tharsis.New, opts)
+	err := providerserver.Serve(context.Background(), provider.New, opts)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

@@ -1,5 +1,5 @@
 // Package tharsis contains the Tharsis provider configuration.
-package tharsis
+package provider
 
 import (
 	"context"

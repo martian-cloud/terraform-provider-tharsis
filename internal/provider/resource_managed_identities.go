@@ -1,4 +1,4 @@
-package tharsis
+package provider
 
 import (
 	"context"
