@@ -45,6 +45,7 @@ jobs:
             (echo; echo "Unexpected difference in directories after code generation. Run 'go generate ./...' command and commit."; exit 1)
 
   # Run acceptance tests in a matrix with Terraform CLI versions
+  # TODO: Re-enable acceptance tests: set TF_ACC to 1.
   test:
     name: Terraform Provider Acceptance Tests
     needs: build
@@ -71,6 +72,6 @@ jobs:
           terraform_wrapper: false
       - run: go mod download
       - env:
-          TF_ACC: "1"
+          # TF_ACC: "1"
         run: go test -v -cover ./internal/provider/
         timeout-minutes: 10
