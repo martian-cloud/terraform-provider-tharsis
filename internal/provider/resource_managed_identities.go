@@ -170,7 +170,7 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 		return
 	}
 
-	encodedData, err := encodeDataString(managedIdentity.Type,
+	encodedData, err := t.encodeDataString(managedIdentity.Type,
 		managedIdentityDataInput{
 			AWSRole:       managedIdentity.AWSRole.ValueString(),
 			AzureClientID: managedIdentity.AzureClientID.ValueString(),
@@ -203,7 +203,7 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	copyManagedIdentity(*created, &managedIdentity)
+	t.copyManagedIdentity(*created, &managedIdentity)
 
 	// Set the response state to the fully-populated plan.
 	resp.Diagnostics.Append(resp.State.Set(ctx, managedIdentity)...)
@@ -227,6 +227,13 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
+
+		// Handle the case that the managed identity no longer exists if that fact is reported as an error.
+		if t.isErrorIdentityNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
 		resp.Diagnostics.AddError(
 			"Error reading managed identity",
 			err.Error(),
@@ -234,8 +241,13 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 		return
 	}
 
+	if found == nil {
+		// Handle the case that the managed identity no longer exists if that fact is reported by returning nil.
+		resp.State.RemoveResource(ctx)
+	}
+
 	// Copy the from-Tharsis struct to the state.
-	copyManagedIdentity(*found, &state)
+	t.copyManagedIdentity(*found, &state)
 
 	// Set the refreshed state.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -247,21 +259,14 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 func (t *managedIdentityResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
-	// Get the current state for its ID.
-	var state ManagedIdentityModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Retrieve values from plan for the description and data.
+	// Retrieve values from plan for the ID, the description, and the data.
 	var plan ManagedIdentityModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	encodedData, err := encodeDataString(plan.Type,
+	encodedData, err := t.encodeDataString(plan.Type,
 		managedIdentityDataInput{
 			AWSRole:       plan.AWSRole.ValueString(),
 			AzureClientID: plan.AzureClientID.ValueString(),
@@ -280,7 +285,7 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 	// The description and data are modified.
 	updated, err := t.client.ManagedIdentity.UpdateManagedIdentity(ctx,
 		&ttypes.UpdateManagedIdentityInput{
-			ID:          state.ID.ValueString(),
+			ID:          plan.ID.ValueString(),
 			Description: plan.Description.ValueString(),
 			Data:        encodedData,
 		})
@@ -293,13 +298,10 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	copyManagedIdentity(*updated, &plan)
+	t.copyManagedIdentity(*updated, &plan)
 
-	// Set the response state to the fully-populated plan.
+	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *managedIdentityResource) Delete(ctx context.Context,
@@ -319,6 +321,13 @@ func (t *managedIdentityResource) Delete(ctx context.Context,
 			ID: state.ID.ValueString(),
 		})
 	if err != nil {
+
+		// Handle the case that the managed identity no longer exists.
+		if t.isErrorIdentityNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
 		resp.Diagnostics.AddError(
 			"Error deleting managed identity",
 			err.Error(),
@@ -337,9 +346,9 @@ func (t *managedIdentityResource) ImportState(ctx context.Context,
 
 // copyManagedIdentity copies the contents of a managed identity.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel) error {
+func (t *managedIdentityResource) copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel) error {
 
-	decodedData, err := decodeDataString(src.Data)
+	decodedData, err := t.decodeDataString(src.Data)
 	if err != nil {
 		return err
 	}
@@ -349,7 +358,7 @@ func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel)
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
-	dest.GroupPath = types.StringValue(getGroupPath(src.ResourcePath))
+	dest.GroupPath = types.StringValue(t.getGroupPath(src.ResourcePath))
 	if decodedData.AWSRole != nil {
 		dest.AWSRole = types.StringValue(*decodedData.AWSRole)
 	}
@@ -369,7 +378,7 @@ func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel)
 
 // encodeDataString checks the AWS role, Azure client ID, Azure tenant ID, and subject fields
 // and then marshals them into the appropriate type and base64 encodes that.
-func encodeDataString(managedIdentityType types.String, input managedIdentityDataInput) (string, error) {
+func (t *managedIdentityResource) encodeDataString(managedIdentityType types.String, input managedIdentityDataInput) (string, error) {
 	type2 := ttypes.ManagedIdentityType(managedIdentityType.ValueString())
 
 	// What to check depends on the type of managed identity this is.
@@ -410,7 +419,7 @@ func encodeDataString(managedIdentityType types.String, input managedIdentityDat
 
 // decodeDataString base64 decodes and then unmarshals the
 // AWS role, Azure client ID, Azure tenant ID, and subject fields
-func decodeDataString(encoded string) (*managedIdentityData, error) {
+func (t *managedIdentityResource) decodeDataString(encoded string) (*managedIdentityData, error) {
 
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
@@ -426,8 +435,17 @@ func decodeDataString(encoded string) (*managedIdentityData, error) {
 }
 
 // getGroupPath returns the group path
-func getGroupPath(resourcePath string) string {
+func (t *managedIdentityResource) getGroupPath(resourcePath string) string {
 	return resourcePath[:strings.LastIndex(resourcePath, "/")]
+}
+
+// isErrorIdentityNotFound returns true iff the error message is that a managed identity was not found.
+// Don't check the ID, because the available ID is the global id, while the ID in the message is a local ID.
+// In theory, we should never see a message that some other ID was not found.
+func (t *managedIdentityResource) isErrorIdentityNotFound(e error) bool {
+	// Omission of the leading 'M' is intentional in case the SDK changes to lowercase.
+	return strings.Contains(e.Error(), "anaged identity with ID ") &&
+		strings.Contains(e.Error(), " not found")
 }
 
 // The End.

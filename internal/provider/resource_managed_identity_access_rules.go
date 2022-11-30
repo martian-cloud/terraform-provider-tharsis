@@ -284,11 +284,8 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		plan.AllowedTeams = append(plan.AllowedTeams, types.StringValue(team.Name))
 	}
 
-	// Set the response state to the fully-populated plan.
+	// Set the response state to the fully-populated plan, error or not.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
