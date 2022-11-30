@@ -32,17 +32,17 @@ type ManagedIdentityModel struct {
 	LastUpdated   types.String `tfsdk:"last_updated"`
 }
 
-// universalInputData has all fields required for input to the encoded data string.
+// managedIdentityDataInput has all fields required for input to the encoded data string.
 // The vendor-specific prefixes are not used in the SDK, so they are omitted from the JSON tags.
-type universalInputData struct {
+type managedIdentityDataInput struct {
 	AWSRole       string `json:"role,omitempty"`
 	AzureClientID string `json:"clientId,omitempty"`
 	AzureTenantID string `json:"tenantId,omitempty"`
 }
 
-// universalData has all fields required for output from the encoded data string.
+// managedIdentityData has all fields required for output from the encoded data string.
 // The vendor-specific prefixes are not used in the SDK, so they are omitted from the JSON tags.
-type universalData struct {
+type managedIdentityData struct {
 	AWSRole       *string `json:"role,omitempty"`
 	AzureClientID *string `json:"clientId,omitempty"`
 	AzureTenantID *string `json:"tenantId,omitempty"`
@@ -171,7 +171,7 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 	}
 
 	encodedData, err := encodeDataString(managedIdentity.Type,
-		universalInputData{
+		managedIdentityDataInput{
 			AWSRole:       managedIdentity.AWSRole.ValueString(),
 			AzureClientID: managedIdentity.AzureClientID.ValueString(),
 			AzureTenantID: managedIdentity.AzureTenantID.ValueString(),
@@ -262,7 +262,7 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 	}
 
 	encodedData, err := encodeDataString(plan.Type,
-		universalInputData{
+		managedIdentityDataInput{
 			AWSRole:       plan.AWSRole.ValueString(),
 			AzureClientID: plan.AzureClientID.ValueString(),
 			AzureTenantID: plan.AzureTenantID.ValueString(),
@@ -369,7 +369,7 @@ func copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel)
 
 // encodeDataString checks the AWS role, Azure client ID, Azure tenant ID, and subject fields
 // and then marshals them into the appropriate type and base64 encodes that.
-func encodeDataString(managedIdentityType types.String, input universalInputData) (string, error) {
+func encodeDataString(managedIdentityType types.String, input managedIdentityDataInput) (string, error) {
 	type2 := ttypes.ManagedIdentityType(managedIdentityType.ValueString())
 
 	// What to check depends on the type of managed identity this is.
@@ -410,14 +410,14 @@ func encodeDataString(managedIdentityType types.String, input universalInputData
 
 // decodeDataString base64 decodes and then unmarshals the
 // AWS role, Azure client ID, Azure tenant ID, and subject fields
-func decodeDataString(encoded string) (*universalData, error) {
+func decodeDataString(encoded string) (*managedIdentityData, error) {
 
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		return nil, err
 	}
 
-	var result universalData
+	var result managedIdentityData
 	if jErr := json.Unmarshal(decoded, &result); jErr != nil {
 		return nil, err
 	}
