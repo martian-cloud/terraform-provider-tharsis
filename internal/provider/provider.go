@@ -1,4 +1,4 @@
-// Package tharsis contains the Tharsis provider configuration.
+// Package provider contains the Tharsis provider configuration.
 package provider
 
 import (
