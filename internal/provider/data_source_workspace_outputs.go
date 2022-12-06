@@ -130,8 +130,9 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 		return
 	}
 
+	// For later dereference, input.Path is known to not be nil.
 	input := &ttypes.GetWorkspaceInput{
-		Path: path,
+		Path: &path,
 	}
 
 	workspace, err := t.provider.client.Workspaces.GetWorkspace(ctx, input)
@@ -146,7 +147,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	if workspace == nil {
 		resp.Diagnostics.AddError(
 			"Couldn't find workspace",
-			fmt.Sprintf("Workspace '%s' could not be found. Either the workspace doesn't exist or you don't have access.", input.Path),
+			fmt.Sprintf("Workspace '%s' could not be found. Either the workspace doesn't exist or you don't have access.", *input.Path),
 		)
 		return
 	}
@@ -154,7 +155,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	if workspace.CurrentStateVersion == nil {
 		resp.Diagnostics.AddError(
 			"Workspace doesn't have a current state version",
-			fmt.Sprintf("Workspace '%s' does not have a current state version.", input.Path),
+			fmt.Sprintf("Workspace '%s' does not have a current state version.", *input.Path),
 		)
 		return
 	}

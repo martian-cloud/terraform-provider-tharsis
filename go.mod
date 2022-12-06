@@ -3,13 +3,14 @@ module github.com/martian-cloud/terraform-provider-tharsis
 go 1.18
 
 require (
+	github.com/aws/smithy-go v1.13.4
 	github.com/hashicorp/terraform-plugin-docs v0.13.0
 	github.com/hashicorp/terraform-plugin-framework v0.15.0
 	github.com/hashicorp/terraform-plugin-go v0.14.1
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.24.1
 	github.com/hashicorp/terraform-svchost v0.0.0-20200729002733-f050f53b9734
 	github.com/zclconf/go-cty v1.12.1
-	gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.4.0
+	gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.4.1-0.20221205203457-1876b7f4478b
 )
 
 require (

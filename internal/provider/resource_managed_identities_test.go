@@ -8,16 +8,6 @@ import (
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
-const (
-
-	// For now, assume this group exists.  See the TODO comment later in the code.
-	testGroupPath = "provider-test-parent-group"
-)
-
-// TODO: For now, we're assuming the group exists.
-// Eventually, the tests will need to use the Provider to create/destroy the group.  See this as an example:
-// https://github.com/hashicorp/terraform-provider-tfe/blob/main/tfe/resource_tfe_workspace_run_task_test.go#L200
-
 // TestManagedIdentityAWS tests creation, reading, updating, and deletion of an AWS managed identity resource.
 func TestManagedIdentityAWS(t *testing.T) {
 	createType := string(ttypes.ManagedIdentityAWSFederated)
