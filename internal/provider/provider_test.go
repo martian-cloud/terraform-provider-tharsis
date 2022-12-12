@@ -40,8 +40,9 @@ func TestProvider(t *testing.T) {
 }
 
 // Provider configuration (used by several tests) uses environment variables:
-//   THARSIS_ENDPOINT
-//   THARSIS_STATIC_TOKEN
+//
+//	THARSIS_ENDPOINT
+//	THARSIS_STATIC_TOKEN
 func testSharedProviderConfiguration() string {
 	return `
 provider "tharsis" {

@@ -178,7 +178,7 @@ func (p *tharsisProvider) Resources(context.Context) []func() resource.Resource 
 		NewManagedIdentityResource,
 		NewManagedIdentityAccessRuleResource,
 		NewServiceAccountResource,
-		// FIXME: Eventually, uncomment this: // NewVariableResource,
+		NewVariableResource,
 		NewWorkspaceResource,
 	}
 }
