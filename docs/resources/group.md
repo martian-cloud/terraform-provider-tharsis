@@ -18,11 +18,11 @@ Defines and manages a group.
 ### Required
 
 - `name` (String) The name of the group.
-- `parent_path` (String) Full path of the parent namespace.
 
 ### Optional
 
 - `description` (String) A description of the group.
+- `parent_path` (String) Full path of the parent namespace.
 
 ### Read-Only
 

@@ -105,18 +105,21 @@ func (t *workspaceResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.D
 				MarkdownDescription: "Maximum job duration in minutes.",
 				Description:         "Maximum job duration in minutes.",
 				Optional:            true,
+				Computed:            true, // API sets a default value if not specified.
 			},
 			"terraform_version": {
 				Type:                types.StringType,
 				MarkdownDescription: "Terraform version for this workspace.",
 				Description:         "Terraform version for this workspace.",
 				Optional:            true,
+				Computed:            true, // API sets a default value if not specified.
 			},
 			"prevent_destroy_plan": {
 				Type:                types.BoolType,
 				MarkdownDescription: "Whether a destroy plan would be prevented.",
 				Description:         "Whether a destroy plan would be prevented.",
 				Optional:            true,
+				Computed:            true, // API sets a (arguably trivial) default value if not specified.
 			},
 			"last_updated": {
 				Type:                types.StringType,

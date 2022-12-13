@@ -102,6 +102,9 @@ func (t *managedIdentityResource) GetSchema(ctx context.Context) (tfsdk.Schema, 
 				MarkdownDescription: "The path of the parent group plus the name of the managed identity.",
 				Description:         "The path of the parent group plus the name of the managed identity.",
 				Computed:            true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{
+					resource.UseStateForUnknown(),
+				},
 			},
 			"name": {
 				Type:                types.StringType,

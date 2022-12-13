@@ -83,13 +83,16 @@ func (t *groupResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagn
 				Type:                types.StringType,
 				MarkdownDescription: "Full path of the parent namespace.",
 				Description:         "Full path of the parent namespace.",
-				Required:            true,
+				Optional:            true, // A root group has no parent path.
 			},
 			"full_path": {
 				Type:                types.StringType,
 				MarkdownDescription: "The path of the parent namespace plus the name of the group.",
 				Description:         "The path of the parent namespace plus the name of the group.",
 				Computed:            true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{
+					resource.UseStateForUnknown(),
+				},
 			},
 			"last_updated": {
 				Type:                types.StringType,
