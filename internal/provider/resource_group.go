@@ -139,11 +139,8 @@ func (t *groupResource) Create(ctx context.Context,
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
 	t.copyGroup(*created, &group)
 
-	// Set the response state to the fully-populated plan.
+	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, group)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *groupResource) Read(ctx context.Context,
@@ -183,11 +180,8 @@ func (t *groupResource) Read(ctx context.Context,
 	// Copy the from-Tharsis struct to the state.
 	t.copyGroup(*found, &state)
 
-	// Set the refreshed state.
+	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *groupResource) Update(ctx context.Context,
@@ -250,7 +244,6 @@ func (t *groupResource) Delete(ctx context.Context,
 			"Error deleting group",
 			err.Error(),
 		)
-		return
 	}
 }
 

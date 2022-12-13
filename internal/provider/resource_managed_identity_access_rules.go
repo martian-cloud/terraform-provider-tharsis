@@ -168,11 +168,8 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	}
 	accessRule.AllowedTeams = allowedTeams
 
-	// Set the response state to the fully-populated plan.
+	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, accessRule)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
@@ -230,11 +227,8 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		state.AllowedTeams = append(state.AllowedTeams, types.StringValue(team.Name))
 	}
 
-	// Set the refreshed state.
+	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
@@ -316,7 +310,6 @@ func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
 			"Error deleting managed identity access rule",
 			err.Error(),
 		)
-		return
 	}
 }
 

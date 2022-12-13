@@ -169,11 +169,8 @@ func (t *workspaceResource) Create(ctx context.Context,
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
 	t.copyWorkspace(*created, &workspace)
 
-	// Set the response state to the fully-populated plan.
+	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, workspace)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *workspaceResource) Read(ctx context.Context,
@@ -213,11 +210,8 @@ func (t *workspaceResource) Read(ctx context.Context,
 	// Copy the from-Tharsis struct to the state.
 	t.copyWorkspace(*found, &state)
 
-	// Set the refreshed state.
+	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *workspaceResource) Update(ctx context.Context,
@@ -284,7 +278,6 @@ func (t *workspaceResource) Delete(ctx context.Context,
 			"Error deleting workspace",
 			err.Error(),
 		)
-		return
 	}
 }
 

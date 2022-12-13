@@ -140,11 +140,8 @@ func (t *variableResource) Create(ctx context.Context,
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
 	t.copyVariable(*created, &variable)
 
-	// Set the response state to the fully-populated plan.
+	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, variable)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *variableResource) Read(ctx context.Context,
@@ -184,11 +181,8 @@ func (t *variableResource) Read(ctx context.Context,
 	// Copy the from-Tharsis struct to the state.
 	t.copyVariable(*found, &state)
 
-	// Set the refreshed state.
+	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *variableResource) Update(ctx context.Context,
@@ -253,7 +247,6 @@ func (t *variableResource) Delete(ctx context.Context,
 			"Error deleting namespace variable",
 			err.Error(),
 		)
-		return
 	}
 }
 

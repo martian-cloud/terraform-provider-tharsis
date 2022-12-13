@@ -161,11 +161,8 @@ func (t *serviceAccountResource) Create(ctx context.Context,
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
 	t.copyServiceAccount(*created, &serviceAccount)
 
-	// Set the response state to the fully-populated plan.
+	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, serviceAccount)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *serviceAccountResource) Read(ctx context.Context,
@@ -205,11 +202,8 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 	// Copy the from-Tharsis struct to the state.
 	t.copyServiceAccount(*found, &state)
 
-	// Set the refreshed state.
+	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *serviceAccountResource) Update(ctx context.Context,
@@ -273,7 +267,6 @@ func (t *serviceAccountResource) Delete(ctx context.Context,
 			"Error deleting service account",
 			err.Error(),
 		)
-		return
 	}
 }
 
