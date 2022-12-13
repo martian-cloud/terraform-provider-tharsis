@@ -266,27 +266,6 @@ func (t *variableResource) copyVariable(src ttypes.NamespaceVariable, dest *Vari
 	return nil
 }
 
-// copyTrustPoliciesToInput copies a slice of OIDCTrustPolicyModel to a slice of ttypes.OIDCTrustPolicyInput.
-func (t *variableResource) copyTrustPoliciesToInput(models []OIDCTrustPolicyModel) []ttypes.OIDCTrustPolicyInput {
-	result := []ttypes.OIDCTrustPolicyInput{}
-
-	for _, model := range models {
-		boundClaims := []ttypes.JWTClaimInput{}
-		for k, v := range model.BoundClaims {
-			boundClaims = append(boundClaims, ttypes.JWTClaimInput{
-				Name:  k,
-				Value: v.ValueString(),
-			})
-		}
-		result = append(result, ttypes.OIDCTrustPolicyInput{
-			Issuer:      model.Issuer.ValueString(),
-			BoundClaims: boundClaims,
-		})
-	}
-
-	return result
-}
-
 // getParentPath returns the parent path
 func (t *variableResource) getParentPath(fullPath string) string {
 	return fullPath[:strings.LastIndex(fullPath, "/")]
