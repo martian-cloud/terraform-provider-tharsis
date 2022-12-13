@@ -158,13 +158,6 @@ func (t *groupResource) Read(ctx context.Context,
 		ID: ptr.String(state.ID.ValueString()),
 	})
 	if err != nil {
-
-		// Handle the case that the group no longer exists if that fact is reported as an error.
-		if t.isErrorGroupNotFound(err) {
-			resp.State.RemoveResource(ctx)
-			return
-		}
-
 		resp.Diagnostics.AddError(
 			"Error reading group",
 			err.Error(),

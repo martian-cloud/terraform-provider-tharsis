@@ -224,13 +224,6 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
-
-		// Handle the case that the managed identity no longer exists if that fact is reported as an error.
-		if t.isErrorIdentityNotFound(err) {
-			resp.State.RemoveResource(ctx)
-			return
-		}
-
 		resp.Diagnostics.AddError(
 			"Error reading managed identity",
 			err.Error(),

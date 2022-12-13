@@ -180,13 +180,6 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
-
-		// Handle the case that the service account no longer exists if that fact is reported as an error.
-		if t.isErrorServiceAccountNotFound(err) {
-			resp.State.RemoveResource(ctx)
-			return
-		}
-
 		resp.Diagnostics.AddError(
 			"Error reading service account",
 			err.Error(),

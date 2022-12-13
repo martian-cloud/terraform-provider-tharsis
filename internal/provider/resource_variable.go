@@ -159,13 +159,6 @@ func (t *variableResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
-
-		// Handle the case that the namespace variable no longer exists if that fact is reported as an error.
-		if t.isErrorVariableNotFound(err) {
-			resp.State.RemoveResource(ctx)
-			return
-		}
-
 		resp.Diagnostics.AddError(
 			"Error reading namespace variable",
 			err.Error(),

@@ -188,13 +188,6 @@ func (t *workspaceResource) Read(ctx context.Context,
 		ID: ptr.String(state.ID.ValueString()),
 	})
 	if err != nil {
-
-		// Handle the case that the workspace no longer exists if that fact is reported as an error.
-		if t.isErrorWorkspaceNotFound(err) {
-			resp.State.RemoveResource(ctx)
-			return
-		}
-
 		resp.Diagnostics.AddError(
 			"Error reading workspace",
 			err.Error(),
