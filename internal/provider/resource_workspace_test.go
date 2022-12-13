@@ -8,22 +8,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-type testWorkspaceConstants struct {
-	createName                string
-	createDescription         string
-	createGroupPath           string
-	createFullPath            string
-	createMaxJobDuration      int
-	createTerraformVersion    string
-	createPreventDestroyPlan  bool
-	updatedDescription        string
-	updatedMaxJobDuration     int
-	updatedTerraformVersion   string
-	updatedPreventDestroyPlan bool
-}
-
 func TestWorkspace(t *testing.T) {
-	c := buildTestWorkspaceConstants()
+	createName := "tw_name"
+	createDescription := "this is tw, a test workspace"
+	createGroupPath := testGroupPath
+	createFullPath := testGroupPath + "/" + createName
+	createMaxJobDuration := 1234      // must not exceed 1440
+	createTerraformVersion := "1.2.3" // must be a valid version
+	createPreventDestroyPlan := true
+	updatedDescription := "this is an updated description for tw, a test workspace"
+	updatedMaxJobDuration := 1357      // must not exceed 1440
+	updatedTerraformVersion := "1.3.5" // must be a valid version
+	updatedPreventDestroyPlan := false
 
 	resource.Test(t, resource.TestCase{
 
@@ -35,13 +31,13 @@ func TestWorkspace(t *testing.T) {
 				Config: testWorkspaceConfigurationCreate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "name", c.createName),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "description", c.createDescription),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "full_path", c.createFullPath),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "group_path", c.createGroupPath),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "max_job_duration", strconv.Itoa(c.createMaxJobDuration)),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "terraform_version", c.createTerraformVersion),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "prevent_destroy_plan", strconv.FormatBool(c.createPreventDestroyPlan)),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "description", createDescription),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "full_path", createFullPath),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "group_path", createGroupPath),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "max_job_duration", strconv.Itoa(createMaxJobDuration)),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "terraform_version", createTerraformVersion),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "prevent_destroy_plan", strconv.FormatBool(createPreventDestroyPlan)),
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_workspace.tw", "id"),
@@ -61,13 +57,13 @@ func TestWorkspace(t *testing.T) {
 				Config: testWorkspaceConfigurationUpdate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "name", c.createName),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "description", c.updatedDescription),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "full_path", c.createFullPath),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "group_path", c.createGroupPath),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "max_job_duration", strconv.Itoa(c.updatedMaxJobDuration)),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "terraform_version", c.updatedTerraformVersion),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw", "prevent_destroy_plan", strconv.FormatBool(c.updatedPreventDestroyPlan)),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "description", updatedDescription),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "full_path", createFullPath),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "group_path", createGroupPath),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "max_job_duration", strconv.Itoa(updatedMaxJobDuration)),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "terraform_version", updatedTerraformVersion),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw", "prevent_destroy_plan", strconv.FormatBool(updatedPreventDestroyPlan)),
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_workspace.tw", "id"),
@@ -82,7 +78,13 @@ func TestWorkspace(t *testing.T) {
 }
 
 func testWorkspaceConfigurationCreate() string {
-	c := buildTestWorkspaceConstants()
+	createName := "tw_name"
+	createDescription := "this is tw, a test workspace"
+	createGroupPath := testGroupPath
+	createMaxJobDuration := 1234      // must not exceed 1440
+	createTerraformVersion := "1.2.3" // must be a valid version
+	createPreventDestroyPlan := true
+
 	return fmt.Sprintf(`
 
 resource "tharsis_workspace" "tw" {
@@ -93,12 +95,18 @@ resource "tharsis_workspace" "tw" {
 	terraform_version = "%s"
 	prevent_destroy_plan = "%v"
 }
-	`, c.createName, c.createDescription, c.createGroupPath,
-		c.createMaxJobDuration, c.createTerraformVersion, c.createPreventDestroyPlan)
+	`, createName, createDescription, createGroupPath,
+		createMaxJobDuration, createTerraformVersion, createPreventDestroyPlan)
 }
 
 func testWorkspaceConfigurationUpdate() string {
-	c := buildTestWorkspaceConstants()
+	createName := "tw_name"
+	createGroupPath := testGroupPath
+	updatedDescription := "this is an updated description for tw, a test workspace"
+	updatedMaxJobDuration := 1357      // must not exceed 1440
+	updatedTerraformVersion := "1.3.5" // must be a valid version
+	updatedPreventDestroyPlan := false
+
 	return fmt.Sprintf(`
 
 resource "tharsis_workspace" "tw" {
@@ -109,25 +117,8 @@ resource "tharsis_workspace" "tw" {
 	terraform_version = "%s"
 	prevent_destroy_plan = "%v"
 }
-	`, c.createName, c.updatedDescription, c.createGroupPath,
-		c.updatedMaxJobDuration, c.updatedTerraformVersion, c.updatedPreventDestroyPlan)
-}
-
-func buildTestWorkspaceConstants() *testWorkspaceConstants {
-	createName := "tw_name"
-	return &testWorkspaceConstants{
-		createName:                createName,
-		createDescription:         "this is tw, a test workspace",
-		createGroupPath:           testGroupPath,
-		createFullPath:            testGroupPath + "/" + createName,
-		createMaxJobDuration:      1234,    // must not exceed 1440
-		createTerraformVersion:    "1.2.3", // must be a valid version
-		createPreventDestroyPlan:  true,
-		updatedDescription:        "this is an updated description for tw, a test workspace",
-		updatedMaxJobDuration:     1357,    // must not exceed 1440
-		updatedTerraformVersion:   "1.3.5", // must be a valid version
-		updatedPreventDestroyPlan: false,
-	}
+	`, createName, updatedDescription, createGroupPath,
+		updatedMaxJobDuration, updatedTerraformVersion, updatedPreventDestroyPlan)
 }
 
 // The End.

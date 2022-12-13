@@ -7,22 +7,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-type testServiceAccountConstants struct {
-	createName                       string
-	createDescription                string
-	createGroupPath                  string
-	createResourcePath               string
-	createTrustPolicyIssuer          string
-	createTrustPolicyBoundClaimKey   string
-	createTrustPolicyBoundClaimValue string
-	updatedDescription               string
-	updateTrustPolicyIssuer          string
-	updateTrustPolicyBoundClaimKey   string
-	updateTrustPolicyBoundClaimValue string
-}
-
 func TestServiceAccount(t *testing.T) {
-	c := buildTestServiceAccountConstants()
+	createName := "tsa_name"
+	createDescription := "this is tsa, a test service account"
+	createGroupPath := testGroupPath
+	createResourcePath := testGroupPath + "/" + createName
+	updatedDescription := "this is an updated description for tsa, a test service account"
 
 	resource.Test(t, resource.TestCase{
 
@@ -34,10 +24,10 @@ func TestServiceAccount(t *testing.T) {
 				Config: testServiceAccountConfigurationCreate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "name", c.createName),
-					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "description", c.createDescription),
-					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "resource_path", c.createResourcePath),
-					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "group_path", c.createGroupPath),
+					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "description", createDescription),
+					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "resource_path", createResourcePath),
+					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "group_path", createGroupPath),
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_service_account.tsa", "id"),
@@ -56,10 +46,10 @@ func TestServiceAccount(t *testing.T) {
 				Config: testServiceAccountConfigurationUpdate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "name", c.createName),
-					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "description", c.updatedDescription),
-					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "resource_path", c.createResourcePath),
-					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "group_path", c.createGroupPath),
+					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "description", updatedDescription),
+					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "resource_path", createResourcePath),
+					resource.TestCheckResourceAttr("tharsis_service_account.tsa", "group_path", createGroupPath),
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_service_account.tsa", "id"),
@@ -73,7 +63,13 @@ func TestServiceAccount(t *testing.T) {
 }
 
 func testServiceAccountConfigurationCreate() string {
-	c := buildTestServiceAccountConstants()
+	createName := "tsa_name"
+	createDescription := "this is tsa, a test service account"
+	createGroupPath := testGroupPath
+	createTrustPolicyIssuer := "https://first-issuer/"
+	createTrustPolicyBoundClaimKey := "first-key"
+	createTrustPolicyBoundClaimValue := "first-value"
+
 	return fmt.Sprintf(`
 
 resource "tharsis_service_account" "tsa" {
@@ -82,13 +78,19 @@ resource "tharsis_service_account" "tsa" {
 	group_path = "%s"
 	oidc_trust_policies = [{bound_claims = {"%s" = "%s"}, issuer = "%s"}]
 }
-	`, c.createName, c.createDescription, c.createGroupPath,
-		c.createTrustPolicyBoundClaimKey, c.createTrustPolicyBoundClaimValue, c.createTrustPolicyIssuer,
+	`, createName, createDescription, createGroupPath,
+		createTrustPolicyBoundClaimKey, createTrustPolicyBoundClaimValue, createTrustPolicyIssuer,
 	)
 }
 
 func testServiceAccountConfigurationUpdate() string {
-	c := buildTestServiceAccountConstants()
+	createName := "tsa_name"
+	createGroupPath := testGroupPath
+	updatedDescription := "this is an updated description for tsa, a test service account"
+	updateTrustPolicyIssuer := "https://updated-issuer/"
+	updateTrustPolicyBoundClaimKey := "updated-key"
+	updateTrustPolicyBoundClaimValue := "updated-value"
+
 	return fmt.Sprintf(`
 
 resource "tharsis_service_account" "tsa" {
@@ -97,26 +99,9 @@ resource "tharsis_service_account" "tsa" {
 	group_path = "%s"
 	oidc_trust_policies = [{bound_claims = {"%s" = "%s"}, issuer = "%s"}]
 }
-	`, c.createName, c.updatedDescription, c.createGroupPath,
-		c.updateTrustPolicyBoundClaimKey, c.updateTrustPolicyBoundClaimValue, c.updateTrustPolicyIssuer,
+	`, createName, updatedDescription, createGroupPath,
+		updateTrustPolicyBoundClaimKey, updateTrustPolicyBoundClaimValue, updateTrustPolicyIssuer,
 	)
-}
-
-func buildTestServiceAccountConstants() *testServiceAccountConstants {
-	createName := "tsa_name"
-	return &testServiceAccountConstants{
-		createName:                       createName,
-		createDescription:                "this is tsa, a test service account",
-		createGroupPath:                  testGroupPath,
-		createResourcePath:               testGroupPath + "/" + createName,
-		createTrustPolicyIssuer:          "https://first-issuer/",
-		createTrustPolicyBoundClaimKey:   "first-key",
-		createTrustPolicyBoundClaimValue: "first-value",
-		updatedDescription:               "this is an updated description for tsa, a test service account",
-		updateTrustPolicyIssuer:          "https://updated-issuer/",
-		updateTrustPolicyBoundClaimKey:   "updated-key",
-		updateTrustPolicyBoundClaimValue: "updated-value",
-	}
 }
 
 // The End.

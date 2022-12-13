@@ -8,19 +8,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-type testVariableConstants struct {
-	createNamespacePath string
-	createCategory      string
-	createHCL           bool
-	createKey           string
-	createValue         string
-	updateHCL           bool
-	updateKey           string
-	updateValue         string
-}
-
 func TestVariable(t *testing.T) {
-	c := buildTestVariableConstants()
+	createNamespacePath := testGroupPath
+	createCategory := "terraform"
+	createHCL := true
+	createKey := "first-key"
+	createValue := "first-value"
+	updateHCL := false
+	updateKey := "updated-key"
+	updateValue := "updated-value"
 
 	resource.Test(t, resource.TestCase{
 
@@ -32,11 +28,11 @@ func TestVariable(t *testing.T) {
 				Config: testVariableConfigurationCreate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "namespace_path", c.createNamespacePath),
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "category", c.createCategory),
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "hcl", strconv.FormatBool(c.createHCL)),
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "key", c.createKey),
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "value", c.createValue),
+					resource.TestCheckResourceAttr("tharsis_variable.tnv", "namespace_path", createNamespacePath),
+					resource.TestCheckResourceAttr("tharsis_variable.tnv", "category", createCategory),
+					resource.TestCheckResourceAttr("tharsis_variable.tnv", "hcl", strconv.FormatBool(createHCL)),
+					resource.TestCheckResourceAttr("tharsis_variable.tnv", "key", createKey),
+					resource.TestCheckResourceAttr("tharsis_variable.tnv", "value", createValue),
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_variable.tnv", "id"),
@@ -55,11 +51,11 @@ func TestVariable(t *testing.T) {
 				Config: testVariableConfigurationUpdate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "namespace_path", c.createNamespacePath),
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "category", c.createCategory),
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "hcl", strconv.FormatBool(c.updateHCL)),
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "key", c.updateKey),
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "value", c.updateValue),
+					resource.TestCheckResourceAttr("tharsis_variable.tnv", "namespace_path", createNamespacePath),
+					resource.TestCheckResourceAttr("tharsis_variable.tnv", "category", createCategory),
+					resource.TestCheckResourceAttr("tharsis_variable.tnv", "hcl", strconv.FormatBool(updateHCL)),
+					resource.TestCheckResourceAttr("tharsis_variable.tnv", "key", updateKey),
+					resource.TestCheckResourceAttr("tharsis_variable.tnv", "value", updateValue),
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_variable.tnv", "id"),
@@ -73,7 +69,12 @@ func TestVariable(t *testing.T) {
 }
 
 func testVariableConfigurationCreate() string {
-	c := buildTestVariableConstants()
+	createNamespacePath := testGroupPath
+	createCategory := "terraform"
+	createHCL := true
+	createKey := "first-key"
+	createValue := "first-value"
+
 	return fmt.Sprintf(`
 
 resource "tharsis_variable" "tnv" {
@@ -83,11 +84,16 @@ resource "tharsis_variable" "tnv" {
 	key = "%s"
 	value = "%s"
 }
-	`, c.createNamespacePath, c.createCategory, c.createHCL, c.createKey, c.createValue)
+	`, createNamespacePath, createCategory, createHCL, createKey, createValue)
 }
 
 func testVariableConfigurationUpdate() string {
-	c := buildTestVariableConstants()
+	createNamespacePath := testGroupPath
+	createCategory := "terraform"
+	updateHCL := false
+	updateKey := "updated-key"
+	updateValue := "updated-value"
+
 	return fmt.Sprintf(`
 
 resource "tharsis_variable" "tnv" {
@@ -97,20 +103,7 @@ resource "tharsis_variable" "tnv" {
 	key = "%s"
 	value = "%s"
 }
-	`, c.createNamespacePath, c.createCategory, c.updateHCL, c.updateKey, c.updateValue)
-}
-
-func buildTestVariableConstants() *testVariableConstants {
-	return &testVariableConstants{
-		createNamespacePath: testGroupPath,
-		createCategory:      "terraform",
-		createHCL:           true,
-		createKey:           "first-key",
-		createValue:         "first-value",
-		updateHCL:           false,
-		updateKey:           "updated-key",
-		updateValue:         "updated-value",
-	}
+	`, createNamespacePath, createCategory, updateHCL, updateKey, updateValue)
 }
 
 // The End.
