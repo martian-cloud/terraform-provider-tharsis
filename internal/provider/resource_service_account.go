@@ -297,18 +297,15 @@ func (t *serviceAccountResource) copyServiceAccount(src ttypes.ServiceAccount, d
 }
 
 // copyTrustPoliciesToInput copies a slice of OIDCTrustPolicyModel to a slice of ttypes.OIDCTrustPolicyInput.
-func (t *serviceAccountResource) copyTrustPoliciesToInput(models []OIDCTrustPolicyModel) []ttypes.OIDCTrustPolicyInput {
-	result := []ttypes.OIDCTrustPolicyInput{}
+func (t *serviceAccountResource) copyTrustPoliciesToInput(models []OIDCTrustPolicyModel) []ttypes.OIDCTrustPolicy {
+	result := []ttypes.OIDCTrustPolicy{}
 
 	for _, model := range models {
-		boundClaims := []ttypes.JWTClaimInput{}
+		boundClaims := map[string]string{}
 		for k, v := range model.BoundClaims {
-			boundClaims = append(boundClaims, ttypes.JWTClaimInput{
-				Name:  k,
-				Value: v.ValueString(),
-			})
+			boundClaims[k] = v.ValueString()
 		}
-		result = append(result, ttypes.OIDCTrustPolicyInput{
+		result = append(result, ttypes.OIDCTrustPolicy{
 			Issuer:      model.Issuer.ValueString(),
 			BoundClaims: boundClaims,
 		})
