@@ -228,7 +228,6 @@ github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LE
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/leodido/go-urn v1.2.0 h1:hpXL4XnriNwQ/ABnpepYM/1vCLWNDfUNts8dX3xTG6Y=
 github.com/leodido/go-urn v1.2.0/go.mod h1:+8+nEpDfqqsY+g338gtMEUOtuK+4dEMhiQEgxpxOKII=
-github.com/likexian/gokit v0.25.8 h1:YL5yxnUxVMmJ5PRrMw3Dgr9gNidjXitdPs0/69T4PX0=
 github.com/matryer/is v1.2.0/go.mod h1:2fLPjFQM9rhQ15aVEtbuwhJinnOqrmgXPNdZsdwlWXA=
 github.com/mattn/go-colorable v0.0.9/go.mod h1:9vuHe8Xs5qXnSaW/c/ABM9alt+Vo+STaOChaDxuIBZU=
 github.com/mattn/go-colorable v0.1.9/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
@@ -322,10 +321,8 @@ github.com/zclconf/go-cty v1.10.0/go.mod h1:vVKLxnk3puL4qRAv72AO+W99LUD4da90g3uU
 github.com/zclconf/go-cty v1.12.1 h1:PcupnljUm9EIvbgSHQnHhUr3fO6oFmkOrvs2BAFNXXY=
 github.com/zclconf/go-cty v1.12.1/go.mod h1:s9IfD1LK5ccNMSWCVFCE2rJfHiZgi7JijgeWIMfhLvA=
 github.com/zclconf/go-cty-debug v0.0.0-20191215020915-b22d67c1ba0b/go.mod h1:ZRKQfBXbGkpdV6QMzT3rU1kSTAnfu1dO8dPKjYprgj8=
-gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.5.1-0.20221208225144-bd2979afaa7a h1:Yvd8MZz32e/l2F/UrepdFbsji/Rmt9oCdT6Swqin6kU=
-gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.5.1-0.20221208225144-bd2979afaa7a/go.mod h1:wuoxyl++ChN259YbkKD1bzQRP9Q3IR+21ChuJD+y0Ns=
-gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.5.1-0.20221212161222-8ece676c718c h1:PPZSxmwjUKglRDFI2+fEu39d5o6s44tdw1MUBVL7bio=
-gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.5.1-0.20221212161222-8ece676c718c/go.mod h1:wuoxyl++ChN259YbkKD1bzQRP9Q3IR+21ChuJD+y0Ns=
+gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.6.0 h1:ueFHeAvmJfAtRxggD56WSFmv0gIZSe8ObMycAOFv8ng=
+gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.6.0/go.mod h1:wuoxyl++ChN259YbkKD1bzQRP9Q3IR+21ChuJD+y0Ns=
 go.opentelemetry.io/otel v1.6.3/go.mod h1:7BgNga5fNlF/iZjG06hM3yofffp0ofKCDwSXx1GC4dI=
 go.opentelemetry.io/otel/trace v1.6.3/go.mod h1:GNJQusJlUgZl9/TQBPKU/Y/ty+0iVB5fjhKeJGZPGFs=
 go.opentelemetry.io/proto/otlp v0.7.0/go.mod h1:PqfVotwruBrMGOCsRd/89rSnXhoiJIqeYNgFYFoEGnI=
