@@ -68,8 +68,8 @@ func (t *variableResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Di
 			},
 			"namespace_path": {
 				Type:                types.StringType,
-				MarkdownDescription: "The path to this variable's host namespace.",
-				Description:         "The path to this variable's host namespace.",
+				MarkdownDescription: "The path to this variable's namespace.",
+				Description:         "The path to this variable's namespace.",
 				Required:            true,
 			},
 			"category": {
@@ -86,8 +86,8 @@ func (t *variableResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Di
 			},
 			"key": {
 				Type:                types.StringType,
-				MarkdownDescription: "This variable's key (within its host namespace).",
-				Description:         "This variable's key (within its host namespace).",
+				MarkdownDescription: "This variable's key (within its namespace).",
+				Description:         "This variable's key (within its namespace).",
 				Required:            true,
 			},
 			"value": {

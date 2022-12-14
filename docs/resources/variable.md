@@ -19,8 +19,8 @@ Defines and manages a namespace variable.
 
 - `category` (String) Whether this variable is a Terraform or an environment variable.
 - `hcl` (Boolean) Whether this variable has an HCL value.
-- `key` (String) This variable's key (within its host namespace).
-- `namespace_path` (String) The path to this variable's host namespace.
+- `key` (String) This variable's key (within its namespace).
+- `namespace_path` (String) The path to this variable's namespace.
 
 ### Optional
 
