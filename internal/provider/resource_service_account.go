@@ -311,6 +311,12 @@ func (t *serviceAccountResource) copyTrustPoliciesToInput(models []OIDCTrustPoli
 		})
 	}
 
+	// Terraform generally wants to see nil rather than an empty list.
+	// However, this is likely to be moot, because Tharsis does not allow a service account with zero trust policies.
+	if len(result) == 0 {
+		result = nil
+	}
+
 	return result
 }
 
