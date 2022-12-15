@@ -231,13 +231,17 @@ func (t *workspaceResource) Update(ctx context.Context,
 	if plan.MaxJobDuration.ValueInt64() != 0 {
 		maxJobDuration = ptr.Int32(int32(plan.MaxJobDuration.ValueInt64()))
 	}
+	var terraformVersion *string
+	if plan.TerraformVersion.ValueString() != "" {
+		terraformVersion = ptr.String(plan.TerraformVersion.ValueString())
+	}
 	updated, err := t.client.Workspaces.UpdateWorkspace(ctx,
 		&ttypes.UpdateWorkspaceInput{
 			ID:                 ptr.String(plan.ID.ValueString()),
 			Description:        plan.Description.ValueString(),
 			WorkspacePath:      ptr.String(plan.FullPath.ValueString()),
 			MaxJobDuration:     maxJobDuration,
-			TerraformVersion:   ptr.String(plan.TerraformVersion.ValueString()),
+			TerraformVersion:   terraformVersion,
 			PreventDestroyPlan: ptr.Bool(plan.PreventDestroyPlan.ValueBool()),
 		})
 	if err != nil {
