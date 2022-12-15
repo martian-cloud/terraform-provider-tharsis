@@ -150,23 +150,23 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	accessRule.RunStage = types.StringValue(string(created.RunStage))
 	accessRule.ManagedIdentityID = types.StringValue(created.ManagedIdentityID)
 
-	allowedUsers := []types.String{}
+	allowedUsers := []string{}
 	for _, user := range created.AllowedUsers {
-		allowedUsers = append(allowedUsers, types.StringValue(user.Username))
+		allowedUsers = append(allowedUsers, user.Username)
 	}
-	accessRule.AllowedUsers = allowedUsers
+	accessRule.AllowedUsers = t.stringValues(allowedUsers)
 
-	allowedServiceAccounts := []types.String{}
+	allowedServiceAccounts := []string{}
 	for _, serviceAccount := range created.AllowedServiceAccounts {
-		allowedServiceAccounts = append(allowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
+		allowedServiceAccounts = append(allowedServiceAccounts, serviceAccount.ResourcePath)
 	}
-	accessRule.AllowedServiceAccounts = allowedServiceAccounts
+	accessRule.AllowedServiceAccounts = t.stringValues(allowedServiceAccounts)
 
-	allowedTeams := []types.String{}
+	allowedTeams := []string{}
 	for _, team := range created.AllowedTeams {
-		allowedTeams = append(allowedTeams, types.StringValue(team.Name))
+		allowedTeams = append(allowedTeams, team.Name)
 	}
-	accessRule.AllowedTeams = allowedTeams
+	accessRule.AllowedTeams = t.stringValues(allowedTeams)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, accessRule)...)
@@ -211,21 +211,23 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
 	}
 
-	state.AllowedUsers = []types.String{}
+	allowedUsers := []string{}
 	for _, user := range found.AllowedUsers {
-		state.AllowedUsers = append(state.AllowedUsers, types.StringValue(user.Username))
+		allowedUsers = append(allowedUsers, user.Username)
 	}
+	state.AllowedUsers = t.stringValues(allowedUsers)
 
-	state.AllowedServiceAccounts = []types.String{}
+	allowedServiceAccounts := []string{}
 	for _, serviceAccount := range found.AllowedServiceAccounts {
-		state.AllowedServiceAccounts = append(state.AllowedServiceAccounts,
-			types.StringValue(serviceAccount.ResourcePath))
+		allowedServiceAccounts = append(allowedServiceAccounts, serviceAccount.ResourcePath)
 	}
+	state.AllowedServiceAccounts = t.stringValues(allowedServiceAccounts)
 
-	state.AllowedTeams = []types.String{}
+	allowedTeams := []string{}
 	for _, team := range found.AllowedTeams {
-		state.AllowedTeams = append(state.AllowedTeams, types.StringValue(team.Name))
+		allowedTeams = append(allowedTeams, team.Name)
 	}
+	state.AllowedTeams = t.stringValues(allowedTeams)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -263,20 +265,23 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	// Copy fields returned by Tharsis to the plan.  Apparently, must copy all fields, not just the computed fields.
 	plan.RunStage = types.StringValue(string(updated.RunStage))
 
-	plan.AllowedUsers = []types.String{}
+	allowedUsers := []string{}
 	for _, user := range updated.AllowedUsers {
-		plan.AllowedUsers = append(plan.AllowedUsers, types.StringValue(user.Username))
+		allowedUsers = append(allowedUsers, user.Username)
 	}
+	plan.AllowedUsers = t.stringValues(allowedUsers)
 
-	plan.AllowedServiceAccounts = []types.String{}
+	allowedServiceAccounts := []string{}
 	for _, serviceAccount := range updated.AllowedServiceAccounts {
-		plan.AllowedServiceAccounts = append(plan.AllowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
+		allowedServiceAccounts = append(allowedServiceAccounts, serviceAccount.ResourcePath)
 	}
+	plan.AllowedServiceAccounts = t.stringValues(allowedServiceAccounts)
 
-	plan.AllowedTeams = []types.String{}
+	allowedTeams := []string{}
 	for _, team := range updated.AllowedTeams {
-		plan.AllowedTeams = append(plan.AllowedTeams, types.StringValue(team.Name))
+		allowedTeams = append(allowedTeams, team.Name)
 	}
+	plan.AllowedTeams = t.stringValues(allowedTeams)
 
 	// Set the response state to the fully-populated plan, error or not.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -329,6 +334,22 @@ func (t *managedIdentityAccessRuleResource) valueStrings(arg []types.String) []s
 	result := make([]string, len(arg))
 	for ix, bigSValue := range arg {
 		result[ix] = bigSValue.ValueString()
+	}
+	return result
+}
+
+// stringValues converts a slice of strings to a slice of types.String
+func (t *managedIdentityAccessRuleResource) stringValues(arg []string) []types.String {
+	argLength := len(arg)
+
+	if argLength == 0 {
+		// Terraform wants nil rather than an empty slice.
+		return nil
+	}
+
+	result := make([]types.String, argLength)
+	for ix, bigSValue := range arg {
+		result[ix] = types.StringValue(bigSValue)
 	}
 	return result
 }
