@@ -109,9 +109,6 @@ func testManagedIdentityAccessRulesConfigurationRule() string {
 resource "tharsis_managed_identity_access_rule" "rule01" {
 	run_stage                = "%s"
 	managed_identity_id      = %s
-	allowed_users            = []
-	allowed_service_accounts = []
-	allowed_teams            = []
 }
 
 `, ruleStage, ruleParentID)
