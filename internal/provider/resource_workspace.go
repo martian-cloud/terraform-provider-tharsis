@@ -151,12 +151,16 @@ func (t *workspaceResource) Create(ctx context.Context,
 	}
 
 	// Create the workspace.
+	var maxJobDuration *int32
+	if workspace.MaxJobDuration.ValueInt64() != 0 {
+		maxJobDuration = ptr.Int32(int32(workspace.MaxJobDuration.ValueInt64()))
+	}
 	created, err := t.client.Workspaces.CreateWorkspace(ctx,
 		&ttypes.CreateWorkspaceInput{
 			Name:               workspace.Name.ValueString(),
 			Description:        workspace.Description.ValueString(),
 			GroupPath:          workspace.GroupPath.ValueString(),
-			MaxJobDuration:     ptr.Int32(int32(workspace.MaxJobDuration.ValueInt64())),
+			MaxJobDuration:     maxJobDuration,
 			TerraformVersion:   ptr.String(workspace.TerraformVersion.ValueString()),
 			PreventDestroyPlan: ptr.Bool(workspace.PreventDestroyPlan.ValueBool()),
 		})
@@ -223,12 +227,16 @@ func (t *workspaceResource) Update(ctx context.Context,
 	// Update the workspace via Tharsis.
 	// The ID is used to find the record to update.
 	// The description is modified.
+	var maxJobDuration *int32
+	if plan.MaxJobDuration.ValueInt64() != 0 {
+		maxJobDuration = ptr.Int32(int32(plan.MaxJobDuration.ValueInt64()))
+	}
 	updated, err := t.client.Workspaces.UpdateWorkspace(ctx,
 		&ttypes.UpdateWorkspaceInput{
 			ID:                 ptr.String(plan.ID.ValueString()),
 			Description:        plan.Description.ValueString(),
 			WorkspacePath:      ptr.String(plan.FullPath.ValueString()),
-			MaxJobDuration:     ptr.Int32(int32(plan.MaxJobDuration.ValueInt64())),
+			MaxJobDuration:     maxJobDuration,
 			TerraformVersion:   ptr.String(plan.TerraformVersion.ValueString()),
 			PreventDestroyPlan: ptr.Bool(plan.PreventDestroyPlan.ValueBool()),
 		})
