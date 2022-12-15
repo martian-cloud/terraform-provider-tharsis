@@ -124,11 +124,15 @@ func (t *groupResource) Create(ctx context.Context,
 	}
 
 	// Create the group.
+	var parentPath *string
+	if group.ParentPath.ValueString() != "" {
+		parentPath = ptr.String(group.ParentPath.ValueString())
+	}
 	created, err := t.client.Group.CreateGroup(ctx,
 		&ttypes.CreateGroupInput{
 			Name:        group.Name.ValueString(),
 			Description: group.Description.ValueString(),
-			ParentPath:  ptr.String(group.ParentPath.ValueString()),
+			ParentPath:  parentPath,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -258,7 +262,10 @@ func (t *groupResource) copyGroup(src ttypes.Group, dest *GroupModel) error {
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
-	dest.ParentPath = types.StringValue(t.getParentPath(src.FullPath))
+	parentPath := t.getParentPath(src.FullPath)
+	if parentPath != "" {
+		dest.ParentPath = types.StringValue(parentPath)
+	}
 	dest.FullPath = types.StringValue(src.FullPath)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
@@ -269,7 +276,12 @@ func (t *groupResource) copyGroup(src ttypes.Group, dest *GroupModel) error {
 
 // getParentPath returns the parent path
 func (t *groupResource) getParentPath(fullPath string) string {
-	return fullPath[:strings.LastIndex(fullPath, "/")]
+	if strings.Contains(fullPath, "/") {
+		return fullPath[:strings.LastIndex(fullPath, "/")]
+	}
+
+	// A root group has no non-empty parent path.
+	return ""
 }
 
 // isErrorGroupNotFound returns true iff the error message is that a group was not found.

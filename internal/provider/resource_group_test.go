@@ -7,7 +7,65 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-// Test only a nested group, because top-level group creation is privileged.
+func TestRootGroup(t *testing.T) {
+	createName := "trg_name"
+	createDescription := "this is trg, a test root group"
+	updatedDescription := "this is an updated description for trg, a test root group"
+
+	resource.Test(t, resource.TestCase{
+
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+
+			// Create and read back a root group.
+			{
+				Config: testGroupRootConfigurationCreate(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_group.trg", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_group.trg", "description", createDescription),
+					resource.TestCheckResourceAttr("tharsis_group.trg", "full_path", createName),
+
+					// Verify that the parent path is _NOT_ set.
+					resource.TestCheckNoResourceAttr("tharsis_group.trg", "parent_path"),
+
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttrSet("tharsis_group.trg", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_group.trg", "last_updated"),
+				),
+			},
+
+			// Import the state.
+			{
+				ResourceName:      "tharsis_group.trg",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Update and read.
+			{
+				Config: testGroupRootConfigurationUpdate(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_group.trg", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_group.trg", "description", updatedDescription),
+					resource.TestCheckResourceAttr("tharsis_group.trg", "full_path", createName),
+
+					// Verify that the parent path is _NOT_ set.
+					resource.TestCheckNoResourceAttr("tharsis_group.trg", "parent_path"),
+
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttrSet("tharsis_group.trg", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_group.trg", "last_updated"),
+				),
+			},
+
+			// Destroy should be covered automatically by TestCase.
+
+		},
+	})
+}
+
 func TestNestedGroup(t *testing.T) {
 	createName := "tng_name"
 	createDescription := "this is tng, a test nested group"
@@ -63,6 +121,32 @@ func TestNestedGroup(t *testing.T) {
 
 		},
 	})
+}
+
+func testGroupRootConfigurationCreate() string {
+	createName := "trg_name"
+	createDescription := "this is trg, a test root group"
+
+	return fmt.Sprintf(`
+
+resource "tharsis_group" "trg" {
+	name = "%s"
+	description = "%s"
+}
+	`, createName, createDescription)
+}
+
+func testGroupRootConfigurationUpdate() string {
+	createName := "trg_name"
+	updatedDescription := "this is an updated description for trg, a test root group"
+
+	return fmt.Sprintf(`
+
+	resource "tharsis_group" "trg" {
+		name = "%s"
+		description = "%s"
+	}
+		`, createName, updatedDescription)
 }
 
 func testGroupNestedConfigurationCreate() string {
