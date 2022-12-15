@@ -81,8 +81,8 @@ func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.
 				Type: types.SetType{
 					ElemType: types.StringType,
 				},
-				MarkdownDescription: "List of email addresses of users allowed to use the managed identity associated with this rule.",
-				Description:         "List of email addresses of users allowed to use the managed identity associated with this rule.",
+				MarkdownDescription: "List of usernames allowed to use the managed identity associated with this rule.",
+				Description:         "List of usernames allowed to use the managed identity associated with this rule.",
 				Optional:            true,
 			},
 			"allowed_service_accounts": {
