@@ -227,6 +227,10 @@ func (t *workspaceResource) Update(ctx context.Context,
 	// Update the workspace via Tharsis.
 	// The ID is used to find the record to update.
 	// The description is modified.
+	var workspacePath *string
+	if plan.FullPath.ValueString() != "" {
+		workspacePath = ptr.String(plan.FullPath.ValueString())
+	}
 	var maxJobDuration *int32
 	if plan.MaxJobDuration.ValueInt64() != 0 {
 		maxJobDuration = ptr.Int32(int32(plan.MaxJobDuration.ValueInt64()))
@@ -239,7 +243,7 @@ func (t *workspaceResource) Update(ctx context.Context,
 		&ttypes.UpdateWorkspaceInput{
 			ID:                 ptr.String(plan.ID.ValueString()),
 			Description:        plan.Description.ValueString(),
-			WorkspacePath:      ptr.String(plan.FullPath.ValueString()),
+			WorkspacePath:      workspacePath,
 			MaxJobDuration:     maxJobDuration,
 			TerraformVersion:   terraformVersion,
 			PreventDestroyPlan: ptr.Bool(plan.PreventDestroyPlan.ValueBool()),
