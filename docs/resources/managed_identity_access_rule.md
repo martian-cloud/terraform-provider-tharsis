@@ -24,7 +24,7 @@ Defines and manages a managed identity access rule.
 
 - `allowed_service_accounts` (Set of String) List of resource paths of service accounts allowed to use the managed identity associated with this rule.
 - `allowed_teams` (Set of String) List of names of teams allowed to use the managed identity associated with this rule.
-- `allowed_users` (Set of String) List of email addresses of users allowed to use the managed identity associated with this rule.
+- `allowed_users` (Set of String) List of usernames allowed to use the managed identity associated with this rule.
 
 ### Read-Only
 
