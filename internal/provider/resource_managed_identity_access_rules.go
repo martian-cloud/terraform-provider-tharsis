@@ -83,7 +83,7 @@ func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.
 				},
 				MarkdownDescription: "List of usernames allowed to use the managed identity associated with this rule.",
 				Description:         "List of usernames allowed to use the managed identity associated with this rule.",
-				Optional:            true,
+				Required:            true,
 			},
 			"allowed_service_accounts": {
 				Type: types.SetType{
@@ -91,7 +91,7 @@ func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.
 				},
 				MarkdownDescription: "List of resource paths of service accounts allowed to use the managed identity associated with this rule.",
 				Description:         "List of resource paths of service accounts allowed to use the managed identity associated with this rule.",
-				Optional:            true,
+				Required:            true,
 			},
 			"allowed_teams": {
 				Type: types.SetType{
@@ -99,7 +99,7 @@ func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.
 				},
 				MarkdownDescription: "List of names of teams allowed to use the managed identity associated with this rule.",
 				Description:         "List of names of teams allowed to use the managed identity associated with this rule.",
-				Optional:            true,
+				Required:            true,
 			},
 		},
 	}, nil
@@ -150,23 +150,21 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	accessRule.RunStage = types.StringValue(string(created.RunStage))
 	accessRule.ManagedIdentityID = types.StringValue(created.ManagedIdentityID)
 
-	allowedUsers := []string{}
+	accessRule.AllowedUsers = []types.String{}
 	for _, user := range created.AllowedUsers {
-		allowedUsers = append(allowedUsers, user.Username)
+		accessRule.AllowedUsers = append(accessRule.AllowedUsers, types.StringValue(user.Username))
 	}
-	accessRule.AllowedUsers = t.stringValues(allowedUsers)
 
-	allowedServiceAccounts := []string{}
+	accessRule.AllowedServiceAccounts = []types.String{}
 	for _, serviceAccount := range created.AllowedServiceAccounts {
-		allowedServiceAccounts = append(allowedServiceAccounts, serviceAccount.ResourcePath)
+		accessRule.AllowedServiceAccounts = append(accessRule.AllowedServiceAccounts,
+			types.StringValue(serviceAccount.ResourcePath))
 	}
-	accessRule.AllowedServiceAccounts = t.stringValues(allowedServiceAccounts)
 
-	allowedTeams := []string{}
+	accessRule.AllowedTeams = []types.String{}
 	for _, team := range created.AllowedTeams {
-		allowedTeams = append(allowedTeams, team.Name)
+		accessRule.AllowedTeams = append(accessRule.AllowedTeams, types.StringValue(team.Name))
 	}
-	accessRule.AllowedTeams = t.stringValues(allowedTeams)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, accessRule)...)
@@ -211,23 +209,20 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
 	}
 
-	allowedUsers := []string{}
+	state.AllowedUsers = []types.String{}
 	for _, user := range found.AllowedUsers {
-		allowedUsers = append(allowedUsers, user.Username)
+		state.AllowedUsers = append(state.AllowedUsers, types.StringValue(user.Username))
 	}
-	state.AllowedUsers = t.stringValues(allowedUsers)
 
-	allowedServiceAccounts := []string{}
+	state.AllowedServiceAccounts = []types.String{}
 	for _, serviceAccount := range found.AllowedServiceAccounts {
-		allowedServiceAccounts = append(allowedServiceAccounts, serviceAccount.ResourcePath)
+		state.AllowedServiceAccounts = append(state.AllowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
 	}
-	state.AllowedServiceAccounts = t.stringValues(allowedServiceAccounts)
 
-	allowedTeams := []string{}
+	state.AllowedTeams = []types.String{}
 	for _, team := range found.AllowedTeams {
-		allowedTeams = append(allowedTeams, team.Name)
+		state.AllowedTeams = append(state.AllowedTeams, types.StringValue(team.Name))
 	}
-	state.AllowedTeams = t.stringValues(allowedTeams)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -265,23 +260,20 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	// Copy fields returned by Tharsis to the plan.  Apparently, must copy all fields, not just the computed fields.
 	plan.RunStage = types.StringValue(string(updated.RunStage))
 
-	allowedUsers := []string{}
+	plan.AllowedUsers = []types.String{}
 	for _, user := range updated.AllowedUsers {
-		allowedUsers = append(allowedUsers, user.Username)
+		plan.AllowedUsers = append(plan.AllowedUsers, types.StringValue(user.Username))
 	}
-	plan.AllowedUsers = t.stringValues(allowedUsers)
 
-	allowedServiceAccounts := []string{}
+	plan.AllowedServiceAccounts = []types.String{}
 	for _, serviceAccount := range updated.AllowedServiceAccounts {
-		allowedServiceAccounts = append(allowedServiceAccounts, serviceAccount.ResourcePath)
+		plan.AllowedServiceAccounts = append(plan.AllowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
 	}
-	plan.AllowedServiceAccounts = t.stringValues(allowedServiceAccounts)
 
-	allowedTeams := []string{}
+	plan.AllowedTeams = []types.String{}
 	for _, team := range updated.AllowedTeams {
-		allowedTeams = append(allowedTeams, team.Name)
+		plan.AllowedTeams = append(plan.AllowedTeams, types.StringValue(team.Name))
 	}
-	plan.AllowedTeams = t.stringValues(allowedTeams)
 
 	// Set the response state to the fully-populated plan, error or not.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -334,22 +326,6 @@ func (t *managedIdentityAccessRuleResource) valueStrings(arg []types.String) []s
 	result := make([]string, len(arg))
 	for ix, bigSValue := range arg {
 		result[ix] = bigSValue.ValueString()
-	}
-	return result
-}
-
-// stringValues converts a slice of strings to a slice of types.String
-func (t *managedIdentityAccessRuleResource) stringValues(arg []string) []types.String {
-	argLength := len(arg)
-
-	if argLength == 0 {
-		// Terraform wants nil rather than an empty slice.
-		return nil
-	}
-
-	result := make([]types.String, argLength)
-	for ix, bigSValue := range arg {
-		result[ix] = types.StringValue(bigSValue)
 	}
 	return result
 }
