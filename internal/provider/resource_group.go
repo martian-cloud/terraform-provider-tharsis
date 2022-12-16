@@ -160,23 +160,9 @@ func (t *groupResource) Read(ctx context.Context,
 		return
 	}
 
-	// Determine whether Terraform has supplied ID or full path.
-	// It's usually an ID, but ImportState sets the full path.
-	var (
-		byID   *string
-		byPath *string
-	)
-	if state.ID.ValueString() != "" {
-		byID = ptr.String(state.ID.ValueString())
-	}
-	if state.FullPath.ValueString() != "" {
-		byPath = ptr.String(state.FullPath.ValueString())
-	}
-
 	// Get the group from Tharsis.
 	found, err := t.client.Group.GetGroup(ctx, &ttypes.GetGroupInput{
-		ID:   byID,
-		Path: byPath,
+		ID: ptr.String(state.ID.ValueString()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -187,18 +173,6 @@ func (t *groupResource) Read(ctx context.Context,
 	}
 
 	if found == nil {
-
-		if byPath != nil {
-			// An attempt to import by path has failed to find the specified resource.  Error out.
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Group not found: "+*byPath,
-					err.Error(),
-				)
-				return
-			}
-		}
-
 		// Handle the case that the group no longer exists if that fact is reported by returning nil.
 		resp.State.RemoveResource(ctx)
 		return
@@ -278,8 +252,20 @@ func (t *groupResource) Delete(ctx context.Context,
 func (t *groupResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
+	// Get the group by full path from Tharsis.
+	found, err := t.client.Group.GetGroup(ctx, &ttypes.GetGroupInput{
+		Path: &req.ID,
+	})
+	if (err != nil) || (found == nil) {
+		resp.Diagnostics.AddError(
+			"Import group not found: "+req.ID,
+			err.Error(),
+		)
+		return
+	}
+
 	// Import by full path.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("full_path"), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.ID)...)
 }
 
 // copyGroup copies the contents of a group.

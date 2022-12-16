@@ -155,14 +155,22 @@ func (t *workspaceResource) Create(ctx context.Context,
 	if workspace.MaxJobDuration.ValueInt64() != 0 {
 		maxJobDuration = ptr.Int32(int32(workspace.MaxJobDuration.ValueInt64()))
 	}
+	var terraformVersion *string
+	if workspace.TerraformVersion.ValueString() != "" {
+		terraformVersion = ptr.String(workspace.TerraformVersion.ValueString())
+	}
+	var preventDestroyPlan *bool
+	if !(workspace.PreventDestroyPlan.IsUnknown() || workspace.PreventDestroyPlan.IsNull()) {
+		preventDestroyPlan = ptr.Bool(workspace.PreventDestroyPlan.ValueBool())
+	}
 	created, err := t.client.Workspaces.CreateWorkspace(ctx,
 		&ttypes.CreateWorkspaceInput{
 			Name:               workspace.Name.ValueString(),
 			Description:        workspace.Description.ValueString(),
 			GroupPath:          workspace.GroupPath.ValueString(),
 			MaxJobDuration:     maxJobDuration,
-			TerraformVersion:   ptr.String(workspace.TerraformVersion.ValueString()),
-			PreventDestroyPlan: ptr.Bool(workspace.PreventDestroyPlan.ValueBool()),
+			TerraformVersion:   terraformVersion,
+			PreventDestroyPlan: preventDestroyPlan,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -190,23 +198,9 @@ func (t *workspaceResource) Read(ctx context.Context,
 		return
 	}
 
-	// Determine whether Terraform has supplied ID or full path.
-	// It's usually an ID, but ImportState sets the full path.
-	var (
-		byID   *string
-		byPath *string
-	)
-	if state.ID.ValueString() != "" {
-		byID = ptr.String(state.ID.ValueString())
-	}
-	if state.FullPath.ValueString() != "" {
-		byPath = ptr.String(state.FullPath.ValueString())
-	}
-
 	// Get the workspace from Tharsis.
 	found, err := t.client.Workspaces.GetWorkspace(ctx, &ttypes.GetWorkspaceInput{
-		ID:   byID,
-		Path: byPath,
+		ID: ptr.String(state.ID.ValueString()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -217,18 +211,6 @@ func (t *workspaceResource) Read(ctx context.Context,
 	}
 
 	if found == nil {
-
-		if byPath != nil {
-			// An attempt to import by path has failed to find the specified resource.  Error out.
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Workspace not found: "+*byPath,
-					err.Error(),
-				)
-				return
-			}
-		}
-
 		// Handle the case that the workspace no longer exists if that fact is reported by returning nil.
 		resp.State.RemoveResource(ctx)
 		return
@@ -266,6 +248,10 @@ func (t *workspaceResource) Update(ctx context.Context,
 	if plan.TerraformVersion.ValueString() != "" {
 		terraformVersion = ptr.String(plan.TerraformVersion.ValueString())
 	}
+	var preventDestroyPlan *bool
+	if !(plan.PreventDestroyPlan.IsUnknown() || plan.PreventDestroyPlan.IsNull()) {
+		preventDestroyPlan = ptr.Bool(plan.PreventDestroyPlan.ValueBool())
+	}
 	updated, err := t.client.Workspaces.UpdateWorkspace(ctx,
 		&ttypes.UpdateWorkspaceInput{
 			ID:                 ptr.String(plan.ID.ValueString()),
@@ -273,7 +259,7 @@ func (t *workspaceResource) Update(ctx context.Context,
 			WorkspacePath:      workspacePath,
 			MaxJobDuration:     maxJobDuration,
 			TerraformVersion:   terraformVersion,
-			PreventDestroyPlan: ptr.Bool(plan.PreventDestroyPlan.ValueBool()),
+			PreventDestroyPlan: preventDestroyPlan,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -324,8 +310,20 @@ func (t *workspaceResource) Delete(ctx context.Context,
 func (t *workspaceResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
+	// Get the workspace by full path from Tharsis.
+	found, err := t.client.Workspaces.GetWorkspace(ctx, &ttypes.GetWorkspaceInput{
+		Path: &req.ID,
+	})
+	if (err != nil) || (found == nil) {
+		resp.Diagnostics.AddError(
+			"Import workspace not found: "+req.ID,
+			err.Error(),
+		)
+		return
+	}
+
 	// Import by full path.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("full_path"), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.ID)...)
 }
 
 // copyWorkspace copies the contents of a workspace.
