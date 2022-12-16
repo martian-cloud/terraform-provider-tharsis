@@ -200,28 +200,30 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		return
 	}
 
-	// Copy the from-Tharsis run stage to the state.
-	state.RunStage = types.StringValue(string(found.RunStage))
+	if found != nil {
+		// Copy the from-Tharsis run stage to the state, but not if it no longer exists.
+		state.RunStage = types.StringValue(string(found.RunStage))
 
-	// When this Read method is called during a "terraform import" operation, state.ManagedIdentityID is null.
-	// In that case, it is necessary to copy ManagedIdentityID from found to state.
-	if state.ManagedIdentityID.Null {
-		state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
-	}
+		// When this Read method is called during a "terraform import" operation, state.ManagedIdentityID is null.
+		// In that case, it is necessary to copy ManagedIdentityID from found to state.
+		if state.ManagedIdentityID.Null {
+			state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
+		}
 
-	state.AllowedUsers = []types.String{}
-	for _, user := range found.AllowedUsers {
-		state.AllowedUsers = append(state.AllowedUsers, types.StringValue(user.Username))
-	}
+		state.AllowedUsers = []types.String{}
+		for _, user := range found.AllowedUsers {
+			state.AllowedUsers = append(state.AllowedUsers, types.StringValue(user.Username))
+		}
 
-	state.AllowedServiceAccounts = []types.String{}
-	for _, serviceAccount := range found.AllowedServiceAccounts {
-		state.AllowedServiceAccounts = append(state.AllowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
-	}
+		state.AllowedServiceAccounts = []types.String{}
+		for _, serviceAccount := range found.AllowedServiceAccounts {
+			state.AllowedServiceAccounts = append(state.AllowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
+		}
 
-	state.AllowedTeams = []types.String{}
-	for _, team := range found.AllowedTeams {
-		state.AllowedTeams = append(state.AllowedTeams, types.StringValue(team.Name))
+		state.AllowedTeams = []types.String{}
+		for _, team := range found.AllowedTeams {
+			state.AllowedTeams = append(state.AllowedTeams, types.StringValue(team.Name))
+		}
 	}
 
 	// Set the refreshed state, whether or not there is an error.

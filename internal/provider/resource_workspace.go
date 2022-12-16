@@ -190,9 +190,23 @@ func (t *workspaceResource) Read(ctx context.Context,
 		return
 	}
 
+	// Determine whether Terraform has supplied ID or full path.
+	// It's usually an ID, but ImportState sets the full path.
+	var (
+		byID   *string
+		byPath *string
+	)
+	if state.ID.ValueString() != "" {
+		byID = ptr.String(state.ID.ValueString())
+	}
+	if state.FullPath.ValueString() != "" {
+		byPath = ptr.String(state.FullPath.ValueString())
+	}
+
 	// Get the workspace from Tharsis.
 	found, err := t.client.Workspaces.GetWorkspace(ctx, &ttypes.GetWorkspaceInput{
-		ID: ptr.String(state.ID.ValueString()),
+		ID:   byID,
+		Path: byPath,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -203,8 +217,21 @@ func (t *workspaceResource) Read(ctx context.Context,
 	}
 
 	if found == nil {
+
+		if byPath != nil {
+			// An attempt to import by path has failed to find the specified resource.  Error out.
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Workspace not found: "+*byPath,
+					err.Error(),
+				)
+				return
+			}
+		}
+
 		// Handle the case that the workspace no longer exists if that fact is reported by returning nil.
 		resp.State.RemoveResource(ctx)
+		return
 	}
 
 	// Copy the from-Tharsis struct to the state.
@@ -297,8 +324,8 @@ func (t *workspaceResource) Delete(ctx context.Context,
 func (t *workspaceResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
-	// Retrieve import ID and save to id attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	// Import by full path.
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("full_path"), req.ID)...)
 }
 
 // copyWorkspace copies the contents of a workspace.

@@ -237,6 +237,7 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 	if found == nil {
 		// Handle the case that the managed identity no longer exists if that fact is reported by returning nil.
 		resp.State.RemoveResource(ctx)
+		return
 	}
 
 	// Copy the from-Tharsis struct to the state.

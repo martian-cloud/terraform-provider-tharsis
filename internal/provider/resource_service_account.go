@@ -190,6 +190,7 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 	if found == nil {
 		// Handle the case that the service account no longer exists if that fact is reported by returning nil.
 		resp.State.RemoveResource(ctx)
+		return
 	}
 
 	// Copy the from-Tharsis struct to the state.
