@@ -38,6 +38,7 @@ func TestRootGroup(t *testing.T) {
 			// Import the state.
 			{
 				ResourceName:      "tharsis_group.trg",
+				ImportStateId:     createName,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -97,6 +98,7 @@ func TestNestedGroup(t *testing.T) {
 			// Import the state.
 			{
 				ResourceName:      "tharsis_group.tng",
+				ImportStateId:     createFullPath,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},

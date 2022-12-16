@@ -48,6 +48,7 @@ func TestWorkspace(t *testing.T) {
 			// Import the state.
 			{
 				ResourceName:      "tharsis_workspace.tw",
+				ImportStateId:     createFullPath,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
