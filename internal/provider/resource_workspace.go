@@ -314,10 +314,17 @@ func (t *workspaceResource) ImportState(ctx context.Context,
 	found, err := t.client.Workspaces.GetWorkspace(ctx, &ttypes.GetWorkspaceInput{
 		Path: &req.ID,
 	})
-	if (err != nil) || (found == nil) {
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Import workspace not found: "+req.ID,
 			err.Error(),
+		)
+		return
+	}
+	if found == nil {
+		resp.Diagnostics.AddError(
+			"Import workspace not found: "+req.ID,
+			"",
 		)
 		return
 	}
