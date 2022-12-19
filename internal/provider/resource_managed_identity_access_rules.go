@@ -187,7 +187,7 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		})
 	if err != nil {
 
-		// Handle the case that the access rule no longer exists.
+		// Handle the case that the access rule no longer exists if that fact is reported by returning an error.
 		if t.isErrorRuleNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
@@ -200,30 +200,34 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		return
 	}
 
-	if found != nil {
-		// Copy the from-Tharsis run stage to the state, but not if it no longer exists.
-		state.RunStage = types.StringValue(string(found.RunStage))
+	if found == nil {
+		// Handle the case that the access rule no longer exists if that fact is reported by returning nil.
+		resp.State.RemoveResource(ctx)
+		return
+	}
 
-		// When this Read method is called during a "terraform import" operation, state.ManagedIdentityID is null.
-		// In that case, it is necessary to copy ManagedIdentityID from found to state.
-		if state.ManagedIdentityID.Null {
-			state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
-		}
+	// Copy the from-Tharsis run stage to the state, but not if it no longer exists.
+	state.RunStage = types.StringValue(string(found.RunStage))
 
-		state.AllowedUsers = []types.String{}
-		for _, user := range found.AllowedUsers {
-			state.AllowedUsers = append(state.AllowedUsers, types.StringValue(user.Username))
-		}
+	// When this Read method is called during a "terraform import" operation, state.ManagedIdentityID is null.
+	// In that case, it is necessary to copy ManagedIdentityID from found to state.
+	if state.ManagedIdentityID.Null {
+		state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
+	}
 
-		state.AllowedServiceAccounts = []types.String{}
-		for _, serviceAccount := range found.AllowedServiceAccounts {
-			state.AllowedServiceAccounts = append(state.AllowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
-		}
+	state.AllowedUsers = []types.String{}
+	for _, user := range found.AllowedUsers {
+		state.AllowedUsers = append(state.AllowedUsers, types.StringValue(user.Username))
+	}
 
-		state.AllowedTeams = []types.String{}
-		for _, team := range found.AllowedTeams {
-			state.AllowedTeams = append(state.AllowedTeams, types.StringValue(team.Name))
-		}
+	state.AllowedServiceAccounts = []types.String{}
+	for _, serviceAccount := range found.AllowedServiceAccounts {
+		state.AllowedServiceAccounts = append(state.AllowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
+	}
+
+	state.AllowedTeams = []types.String{}
+	for _, team := range found.AllowedTeams {
+		state.AllowedTeams = append(state.AllowedTeams, types.StringValue(team.Name))
 	}
 
 	// Set the refreshed state, whether or not there is an error.
