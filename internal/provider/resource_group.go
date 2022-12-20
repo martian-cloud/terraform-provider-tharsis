@@ -256,10 +256,17 @@ func (t *groupResource) ImportState(ctx context.Context,
 	found, err := t.client.Group.GetGroup(ctx, &ttypes.GetGroupInput{
 		Path: &req.ID,
 	})
-	if (err != nil) || (found == nil) {
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Import group not found: "+req.ID,
 			err.Error(),
+		)
+		return
+	}
+	if found == nil {
+		resp.Diagnostics.AddError(
+			"Import group not found: "+req.ID,
+			"",
 		)
 		return
 	}
