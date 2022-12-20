@@ -25,9 +25,9 @@ type ManagedIdentityAccessRuleModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = &managedIdentityAccessRuleResource{}
-	_ resource.ResourceWithConfigure   = &managedIdentityAccessRuleResource{}
-	_ resource.ResourceWithImportState = &managedIdentityAccessRuleResource{}
+	_ resource.Resource                = (*managedIdentityAccessRuleResource)(nil)
+	_ resource.ResourceWithConfigure   = (*managedIdentityAccessRuleResource)(nil)
+	_ resource.ResourceWithImportState = (*managedIdentityAccessRuleResource)(nil)
 )
 
 // NewManagedIdentityAccessRuleResource is a helper function to simplify the provider implementation.
@@ -81,9 +81,9 @@ func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.
 				Type: types.SetType{
 					ElemType: types.StringType,
 				},
-				MarkdownDescription: "List of email addresses of users allowed to use the managed identity associated with this rule.",
-				Description:         "List of email addresses of users allowed to use the managed identity associated with this rule.",
-				Optional:            true,
+				MarkdownDescription: "List of usernames allowed to use the managed identity associated with this rule.",
+				Description:         "List of usernames allowed to use the managed identity associated with this rule.",
+				Required:            true,
 			},
 			"allowed_service_accounts": {
 				Type: types.SetType{
@@ -91,7 +91,7 @@ func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.
 				},
 				MarkdownDescription: "List of resource paths of service accounts allowed to use the managed identity associated with this rule.",
 				Description:         "List of resource paths of service accounts allowed to use the managed identity associated with this rule.",
-				Optional:            true,
+				Required:            true,
 			},
 			"allowed_teams": {
 				Type: types.SetType{
@@ -99,7 +99,7 @@ func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.
 				},
 				MarkdownDescription: "List of names of teams allowed to use the managed identity associated with this rule.",
 				Description:         "List of names of teams allowed to use the managed identity associated with this rule.",
-				Optional:            true,
+				Required:            true,
 			},
 		},
 	}, nil
@@ -150,29 +150,24 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	accessRule.RunStage = types.StringValue(string(created.RunStage))
 	accessRule.ManagedIdentityID = types.StringValue(created.ManagedIdentityID)
 
-	allowedUsers := []types.String{}
+	accessRule.AllowedUsers = []types.String{}
 	for _, user := range created.AllowedUsers {
-		allowedUsers = append(allowedUsers, types.StringValue(user.Username))
+		accessRule.AllowedUsers = append(accessRule.AllowedUsers, types.StringValue(user.Username))
 	}
-	accessRule.AllowedUsers = allowedUsers
 
-	allowedServiceAccounts := []types.String{}
+	accessRule.AllowedServiceAccounts = []types.String{}
 	for _, serviceAccount := range created.AllowedServiceAccounts {
-		allowedServiceAccounts = append(allowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
+		accessRule.AllowedServiceAccounts = append(accessRule.AllowedServiceAccounts,
+			types.StringValue(serviceAccount.ResourcePath))
 	}
-	accessRule.AllowedServiceAccounts = allowedServiceAccounts
 
-	allowedTeams := []types.String{}
+	accessRule.AllowedTeams = []types.String{}
 	for _, team := range created.AllowedTeams {
-		allowedTeams = append(allowedTeams, types.StringValue(team.Name))
+		accessRule.AllowedTeams = append(accessRule.AllowedTeams, types.StringValue(team.Name))
 	}
-	accessRule.AllowedTeams = allowedTeams
 
-	// Set the response state to the fully-populated plan.
+	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, accessRule)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
@@ -192,7 +187,7 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		})
 	if err != nil {
 
-		// Handle the case that the access rule no longer exists.
+		// Handle the case that the access rule no longer exists if that fact is reported by returning an error.
 		if t.isErrorRuleNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
@@ -205,7 +200,13 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		return
 	}
 
-	// Copy the from-Tharsis run stage to the state.
+	if found == nil {
+		// Handle the case that the access rule no longer exists if that fact is reported by returning nil.
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	// Copy the from-Tharsis run stage to the state, but not if it no longer exists.
 	state.RunStage = types.StringValue(string(found.RunStage))
 
 	// When this Read method is called during a "terraform import" operation, state.ManagedIdentityID is null.
@@ -221,8 +222,7 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 
 	state.AllowedServiceAccounts = []types.String{}
 	for _, serviceAccount := range found.AllowedServiceAccounts {
-		state.AllowedServiceAccounts = append(state.AllowedServiceAccounts,
-			types.StringValue(serviceAccount.ResourcePath))
+		state.AllowedServiceAccounts = append(state.AllowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
 	}
 
 	state.AllowedTeams = []types.String{}
@@ -230,11 +230,8 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		state.AllowedTeams = append(state.AllowedTeams, types.StringValue(team.Name))
 	}
 
-	// Set the refreshed state.
+	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
@@ -316,7 +313,6 @@ func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
 			"Error deleting managed identity access rule",
 			err.Error(),
 		)
-		return
 	}
 }
 

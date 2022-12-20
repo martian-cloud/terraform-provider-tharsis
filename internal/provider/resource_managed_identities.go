@@ -51,9 +51,9 @@ type managedIdentityData struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = &managedIdentityResource{}
-	_ resource.ResourceWithConfigure   = &managedIdentityResource{}
-	_ resource.ResourceWithImportState = &managedIdentityResource{}
+	_ resource.Resource                = (*managedIdentityResource)(nil)
+	_ resource.ResourceWithConfigure   = (*managedIdentityResource)(nil)
+	_ resource.ResourceWithImportState = (*managedIdentityResource)(nil)
 )
 
 // NewManagedIdentityResource is a helper function to simplify the provider implementation.
@@ -102,6 +102,9 @@ func (t *managedIdentityResource) GetSchema(ctx context.Context) (tfsdk.Schema, 
 				MarkdownDescription: "The path of the parent group plus the name of the managed identity.",
 				Description:         "The path of the parent group plus the name of the managed identity.",
 				Computed:            true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{
+					resource.UseStateForUnknown(),
+				},
 			},
 			"name": {
 				Type:                types.StringType,
@@ -205,11 +208,8 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
 	t.copyManagedIdentity(*created, &managedIdentity)
 
-	// Set the response state to the fully-populated plan.
+	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, managedIdentity)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *managedIdentityResource) Read(ctx context.Context,
@@ -227,13 +227,6 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
-
-		// Handle the case that the managed identity no longer exists if that fact is reported as an error.
-		if t.isErrorIdentityNotFound(err) {
-			resp.State.RemoveResource(ctx)
-			return
-		}
-
 		resp.Diagnostics.AddError(
 			"Error reading managed identity",
 			err.Error(),
@@ -244,16 +237,14 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 	if found == nil {
 		// Handle the case that the managed identity no longer exists if that fact is reported by returning nil.
 		resp.State.RemoveResource(ctx)
+		return
 	}
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyManagedIdentity(*found, &state)
 
-	// Set the refreshed state.
+	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (t *managedIdentityResource) Update(ctx context.Context,
@@ -332,7 +323,6 @@ func (t *managedIdentityResource) Delete(ctx context.Context,
 			"Error deleting managed identity",
 			err.Error(),
 		)
-		return
 	}
 }
 
