@@ -25,9 +25,9 @@ type ManagedIdentityAccessRuleModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = &managedIdentityAccessRuleResource{}
-	_ resource.ResourceWithConfigure   = &managedIdentityAccessRuleResource{}
-	_ resource.ResourceWithImportState = &managedIdentityAccessRuleResource{}
+	_ resource.Resource                = (*managedIdentityAccessRuleResource)(nil)
+	_ resource.ResourceWithConfigure   = (*managedIdentityAccessRuleResource)(nil)
+	_ resource.ResourceWithImportState = (*managedIdentityAccessRuleResource)(nil)
 )
 
 // NewManagedIdentityAccessRuleResource is a helper function to simplify the provider implementation.

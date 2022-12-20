@@ -51,9 +51,9 @@ type managedIdentityData struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = &managedIdentityResource{}
-	_ resource.ResourceWithConfigure   = &managedIdentityResource{}
-	_ resource.ResourceWithImportState = &managedIdentityResource{}
+	_ resource.Resource                = (*managedIdentityResource)(nil)
+	_ resource.ResourceWithConfigure   = (*managedIdentityResource)(nil)
+	_ resource.ResourceWithImportState = (*managedIdentityResource)(nil)
 )
 
 // NewManagedIdentityResource is a helper function to simplify the provider implementation.

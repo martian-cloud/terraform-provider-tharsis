@@ -27,9 +27,9 @@ type GroupModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = &groupResource{}
-	_ resource.ResourceWithConfigure   = &groupResource{}
-	_ resource.ResourceWithImportState = &groupResource{}
+	_ resource.Resource                = (*groupResource)(nil)
+	_ resource.ResourceWithConfigure   = (*groupResource)(nil)
+	_ resource.ResourceWithImportState = (*groupResource)(nil)
 )
 
 // NewGroupResource is a helper function to simplify the provider implementation.

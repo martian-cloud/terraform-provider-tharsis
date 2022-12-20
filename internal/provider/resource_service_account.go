@@ -32,9 +32,9 @@ type ServiceAccountModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = &serviceAccountResource{}
-	_ resource.ResourceWithConfigure   = &serviceAccountResource{}
-	_ resource.ResourceWithImportState = &serviceAccountResource{}
+	_ resource.Resource                = (*serviceAccountResource)(nil)
+	_ resource.ResourceWithConfigure   = (*serviceAccountResource)(nil)
+	_ resource.ResourceWithImportState = (*serviceAccountResource)(nil)
 )
 
 // NewServiceAccountResource is a helper function to simplify the provider implementation.

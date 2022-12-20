@@ -26,9 +26,9 @@ type VariableModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = &variableResource{}
-	_ resource.ResourceWithConfigure   = &variableResource{}
-	_ resource.ResourceWithImportState = &variableResource{}
+	_ resource.Resource                = (*variableResource)(nil)
+	_ resource.ResourceWithConfigure   = (*variableResource)(nil)
+	_ resource.ResourceWithImportState = (*variableResource)(nil)
 )
 
 // NewVariableResource is a helper function to simplify the provider implementation.

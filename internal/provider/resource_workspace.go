@@ -33,9 +33,9 @@ type WorkspaceModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = &workspaceResource{}
-	_ resource.ResourceWithConfigure   = &workspaceResource{}
-	_ resource.ResourceWithImportState = &workspaceResource{}
+	_ resource.Resource                = (*workspaceResource)(nil)
+	_ resource.ResourceWithConfigure   = (*workspaceResource)(nil)
+	_ resource.ResourceWithImportState = (*workspaceResource)(nil)
 )
 
 // NewWorkspaceResource is a helper function to simplify the provider implementation.
