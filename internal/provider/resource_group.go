@@ -165,16 +165,14 @@ func (t *groupResource) Read(ctx context.Context,
 		ID: ptr.String(state.ID.ValueString()),
 	})
 	if err != nil {
+		if tharsis.NotFoundError(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error reading group",
 			err.Error(),
 		)
-		return
-	}
-
-	if found == nil {
-		// Handle the case that the group no longer exists if that fact is reported by returning nil.
-		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -234,9 +232,8 @@ func (t *groupResource) Delete(ctx context.Context,
 			ID: ptr.String(state.ID.ValueString()),
 		})
 	if err != nil {
-
 		// Handle the case that the group no longer exists.
-		if t.isErrorGroupNotFound(err) {
+		if tharsis.NotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -257,16 +254,16 @@ func (t *groupResource) ImportState(ctx context.Context,
 		Path: &req.ID,
 	})
 	if err != nil {
+		if tharsis.NotFoundError(err) {
+			resp.Diagnostics.AddError(
+				"Import group not found: "+req.ID,
+				"",
+			)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Import group not found: "+req.ID,
 			err.Error(),
-		)
-		return
-	}
-	if found == nil {
-		resp.Diagnostics.AddError(
-			"Import group not found: "+req.ID,
-			"",
 		)
 		return
 	}
@@ -277,8 +274,7 @@ func (t *groupResource) ImportState(ctx context.Context,
 
 // copyGroup copies the contents of a group.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *groupResource) copyGroup(src ttypes.Group, dest *GroupModel) error {
-
+func (t *groupResource) copyGroup(src ttypes.Group, dest *GroupModel) {
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
@@ -290,8 +286,6 @@ func (t *groupResource) copyGroup(src ttypes.Group, dest *GroupModel) error {
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
-
-	return nil
 }
 
 // getParentPath returns the parent path
@@ -302,14 +296,6 @@ func (t *groupResource) getParentPath(fullPath string) string {
 
 	// A root group has no non-empty parent path.
 	return ""
-}
-
-// isErrorGroupNotFound returns true iff the error message is that a group was not found.
-// In theory, we should never see a message that some other ID was not found.
-func (t *groupResource) isErrorGroupNotFound(e error) bool {
-	lowerError := strings.ToLower(e.Error())
-	return strings.Contains(lowerError, "group with id ") &&
-		strings.Contains(lowerError, " not found")
 }
 
 // The End.

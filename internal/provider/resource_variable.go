@@ -2,7 +2,7 @@ package provider
 
 import (
 	"context"
-	"strings"
+	"errors"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -19,9 +19,9 @@ type VariableModel struct {
 	ID            types.String `tfsdk:"id"`
 	NamespacePath types.String `tfsdk:"namespace_path"`
 	Category      types.String `tfsdk:"category"`
-	Hcl           types.Bool   `tfsdk:"hcl"`
 	Key           types.String `tfsdk:"key"`
 	Value         types.String `tfsdk:"value"`
+	Hcl           types.Bool   `tfsdk:"hcl"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -94,7 +94,7 @@ func (t *variableResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Di
 				Type:                types.StringType,
 				MarkdownDescription: "This variable's value.",
 				Description:         "This variable's value.",
-				Optional:            true,
+				Required:            true,
 			},
 		},
 	}, nil
@@ -138,7 +138,13 @@ func (t *variableResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	t.copyVariable(*created, &variable)
+	if err = t.copyVariable(*created, &variable); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting state for variable",
+			err.Error(),
+		)
+		return
+	}
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, variable)...)
@@ -159,6 +165,11 @@ func (t *variableResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
+		if tharsis.NotFoundError(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
 		resp.Diagnostics.AddError(
 			"Error reading namespace variable",
 			err.Error(),
@@ -166,14 +177,14 @@ func (t *variableResource) Read(ctx context.Context,
 		return
 	}
 
-	if found == nil {
-		// Handle the case that the namespace variable no longer exists if that fact is reported by returning nil.
-		resp.State.RemoveResource(ctx)
+	// Copy the from-Tharsis struct to the state.
+	if err = t.copyVariable(*found, &state); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting state for variable",
+			err.Error(),
+		)
 		return
 	}
-
-	// Copy the from-Tharsis struct to the state.
-	t.copyVariable(*found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -208,7 +219,13 @@ func (t *variableResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyVariable(*updated, &plan)
+	if err = t.copyVariable(*updated, &plan); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting state for variable",
+			err.Error(),
+		)
+		return
+	}
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -232,7 +249,7 @@ func (t *variableResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the namespace variable no longer exists.
-		if t.isErrorVariableNotFound(err) {
+		if tharsis.NotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -255,29 +272,18 @@ func (t *variableResource) ImportState(ctx context.Context,
 // copyVariable copies the contents of a namespace variable.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
 func (t *variableResource) copyVariable(src ttypes.NamespaceVariable, dest *VariableModel) error {
+	if src.Value == nil {
+		return errors.New("could not read variable value, ensure that you have the correct permissions to view this variable's value")
+	}
+
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.NamespacePath = types.StringValue(src.NamespacePath)
 	dest.Category = types.StringValue(string(src.Category))
 	dest.Hcl = types.BoolValue(src.HCL)
 	dest.Key = types.StringValue(src.Key)
-	if src.Value != nil {
-		dest.Value = types.StringValue(*src.Value)
-	}
+	dest.Value = types.StringValue(*src.Value)
 
 	return nil
-}
-
-// getParentPath returns the parent path
-func (t *variableResource) getParentPath(fullPath string) string {
-	return fullPath[:strings.LastIndex(fullPath, "/")]
-}
-
-// isErrorVariableNotFound returns true iff the error message is that a namespace variable was not found.
-// In theory, we should never see a message that some other ID was not found.
-func (t *variableResource) isErrorVariableNotFound(e error) bool {
-	lowerError := strings.ToLower(e.Error())
-	return strings.Contains(lowerError, "namespace variable with id ") &&
-		strings.Contains(lowerError, " not found")
 }
 
 // The End.

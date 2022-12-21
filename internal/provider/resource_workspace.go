@@ -25,10 +25,10 @@ type WorkspaceModel struct {
 	Description        types.String `tfsdk:"description"`
 	FullPath           types.String `tfsdk:"full_path"`
 	GroupPath          types.String `tfsdk:"group_path"`
-	MaxJobDuration     types.Int64  `tfsdk:"max_job_duration"`
 	TerraformVersion   types.String `tfsdk:"terraform_version"`
-	PreventDestroyPlan types.Bool   `tfsdk:"prevent_destroy_plan"`
 	LastUpdated        types.String `tfsdk:"last_updated"`
+	MaxJobDuration     types.Int64  `tfsdk:"max_job_duration"`
+	PreventDestroyPlan types.Bool   `tfsdk:"prevent_destroy_plan"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -203,16 +203,15 @@ func (t *workspaceResource) Read(ctx context.Context,
 		ID: ptr.String(state.ID.ValueString()),
 	})
 	if err != nil {
+		if tharsis.NotFoundError(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
 		resp.Diagnostics.AddError(
 			"Error reading workspace",
 			err.Error(),
 		)
-		return
-	}
-
-	if found == nil {
-		// Handle the case that the workspace no longer exists if that fact is reported by returning nil.
-		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -294,7 +293,7 @@ func (t *workspaceResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the workspace no longer exists.
-		if t.isErrorWorkspaceNotFound(err) {
+		if tharsis.NotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -315,16 +314,17 @@ func (t *workspaceResource) ImportState(ctx context.Context,
 		Path: &req.ID,
 	})
 	if err != nil {
+		if tharsis.NotFoundError(err) {
+			resp.Diagnostics.AddError(
+				"Import workspace not found: "+req.ID,
+				"",
+			)
+			return
+		}
+
 		resp.Diagnostics.AddError(
 			"Import workspace not found: "+req.ID,
 			err.Error(),
-		)
-		return
-	}
-	if found == nil {
-		resp.Diagnostics.AddError(
-			"Import workspace not found: "+req.ID,
-			"",
 		)
 		return
 	}
@@ -335,7 +335,7 @@ func (t *workspaceResource) ImportState(ctx context.Context,
 
 // copyWorkspace copies the contents of a workspace.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *workspaceResource) copyWorkspace(src ttypes.Workspace, dest *WorkspaceModel) error {
+func (t *workspaceResource) copyWorkspace(src ttypes.Workspace, dest *WorkspaceModel) {
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
@@ -347,21 +347,11 @@ func (t *workspaceResource) copyWorkspace(src ttypes.Workspace, dest *WorkspaceM
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
-
-	return nil
 }
 
 // getParentPath returns the parent path
 func (t *workspaceResource) getParentPath(fullPath string) string {
 	return fullPath[:strings.LastIndex(fullPath, "/")]
-}
-
-// isErrorWorkspaceNotFound returns true iff the error message is that a workspace was not found.
-// In theory, we should never see a message that some other ID was not found.
-func (t *workspaceResource) isErrorWorkspaceNotFound(e error) bool {
-	lowerError := strings.ToLower(e.Error())
-	return strings.Contains(lowerError, "workspace with id ") &&
-		strings.Contains(lowerError, " not found")
 }
 
 // The End.
