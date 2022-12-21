@@ -226,7 +226,7 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 	}
 
 	if host == "" {
-		return nil, fmt.Errorf("Host cannot be an empty string")
+		return nil, fmt.Errorf("host cannot be an empty string")
 	}
 	optFn = append(optFn, config.WithEndpoint(host))
 
@@ -234,7 +234,7 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 	if token := getTFTokenForHost(host); token != "" {
 		tokenProvider, err := auth.NewStaticTokenProvider(token)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to obtain a token provider for host \"%s\" using \"TF_TOKEN_\" environment variable: %v", host, err)
+			return nil, fmt.Errorf("failed to obtain a token provider for host \"%s\" using \"TF_TOKEN_\" environment variable: %v", host, err)
 		}
 		optFn = append(optFn, config.WithTokenProvider(tokenProvider))
 	}
@@ -248,7 +248,7 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 	if staticToken != "" {
 		tokenProvider, err := auth.NewStaticTokenProvider(staticToken)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to obtain a token provider for static token: %v", err)
+			return nil, fmt.Errorf("failed to obtain a token provider for static token: %v", err)
 		}
 		optFn = append(optFn, config.WithTokenProvider(tokenProvider))
 	}
@@ -268,7 +268,7 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 	if (serviceAccountPath != "") && (serviceAccountToken != "") {
 		tokenProvider, err := auth.NewServiceAccountTokenProvider(host, serviceAccountPath, serviceAccountToken)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to obtain a token provider for service account %s: %v", serviceAccountPath, err)
+			return nil, fmt.Errorf("failed to obtain a token provider for service account %s: %v", serviceAccountPath, err)
 		}
 		optFn = append(optFn, config.WithTokenProvider(tokenProvider))
 	}
@@ -279,35 +279,6 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 	}
 
 	return tharsis.NewClient(sdkConfig)
-}
-
-// convertProviderType is a helper function for NewResource and NewDataSource
-// implementations to associate the concrete provider type. Alternatively,
-// this helper can be skipped and the provider type can be directly type
-// asserted (e.g. provider: in.(*provider)), however using this can prevent
-// potential panics.
-func convertProviderType(in provider.Provider) (tharsisProvider, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	p, ok := in.(*tharsisProvider)
-
-	if !ok {
-		diags.AddError(
-			"Unexpected Provider Instance Type",
-			fmt.Sprintf("While creating the data source or resource, an unexpected provider type (%T) was received. This is always a bug in the provider code and should be reported to the provider developers.", p),
-		)
-		return tharsisProvider{}, diags
-	}
-
-	if p == nil {
-		diags.AddError(
-			"Unexpected Provider Instance Type",
-			"While creating the data source or resource, an unexpected empty provider instance was received. This is always a bug in the provider code and should be reported to the provider developers.",
-		)
-		return tharsisProvider{}, diags
-	}
-
-	return *p, diags
 }
 
 func getTFTokenForHost(host string) string {

@@ -206,7 +206,13 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	t.copyManagedIdentity(*created, &managedIdentity)
+	if err = t.copyManagedIdentity(*created, &managedIdentity); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting state",
+			err.Error(),
+		)
+		return
+	}
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, managedIdentity)...)
@@ -227,6 +233,11 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
+		if tharsis.NotFoundError(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
 		resp.Diagnostics.AddError(
 			"Error reading managed identity",
 			err.Error(),
@@ -234,14 +245,14 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 		return
 	}
 
-	if found == nil {
-		// Handle the case that the managed identity no longer exists if that fact is reported by returning nil.
-		resp.State.RemoveResource(ctx)
+	// Copy the from-Tharsis struct to the state.
+	if err = t.copyManagedIdentity(*found, &state); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting state",
+			err.Error(),
+		)
 		return
 	}
-
-	// Copy the from-Tharsis struct to the state.
-	t.copyManagedIdentity(*found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -289,7 +300,13 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyManagedIdentity(*updated, &plan)
+	if err = t.copyManagedIdentity(*updated, &plan); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting state",
+			err.Error(),
+		)
+		return
+	}
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -314,7 +331,7 @@ func (t *managedIdentityResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the managed identity no longer exists.
-		if t.isErrorIdentityNotFound(err) {
+		if tharsis.NotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -427,15 +444,6 @@ func (t *managedIdentityResource) decodeDataString(encoded string) (*managedIden
 // getGroupPath returns the group path
 func (t *managedIdentityResource) getGroupPath(resourcePath string) string {
 	return resourcePath[:strings.LastIndex(resourcePath, "/")]
-}
-
-// isErrorIdentityNotFound returns true iff the error message is that a managed identity was not found.
-// Don't check the ID, because the available ID is the global id, while the ID in the message is a local ID.
-// In theory, we should never see a message that some other ID was not found.
-func (t *managedIdentityResource) isErrorIdentityNotFound(e error) bool {
-	// Omission of the leading 'M' is intentional in case the SDK changes to lowercase.
-	return strings.Contains(e.Error(), "anaged identity with ID ") &&
-		strings.Contains(e.Error(), " not found")
 }
 
 // The End.

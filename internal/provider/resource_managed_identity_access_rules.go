@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -188,7 +187,7 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the access rule no longer exists if that fact is reported by returning an error.
-		if t.isErrorRuleNotFound(err) {
+		if tharsis.NotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -200,18 +199,12 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		return
 	}
 
-	if found == nil {
-		// Handle the case that the access rule no longer exists if that fact is reported by returning nil.
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
 	// Copy the from-Tharsis run stage to the state, but not if it no longer exists.
 	state.RunStage = types.StringValue(string(found.RunStage))
 
 	// When this Read method is called during a "terraform import" operation, state.ManagedIdentityID is null.
 	// In that case, it is necessary to copy ManagedIdentityID from found to state.
-	if state.ManagedIdentityID.Null {
+	if state.ManagedIdentityID.IsNull() {
 		state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
 	}
 
@@ -304,7 +297,7 @@ func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the access rule no longer exists.
-		if t.isErrorRuleNotFound(err) {
+		if tharsis.NotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -334,15 +327,6 @@ func (t *managedIdentityAccessRuleResource) valueStrings(arg []types.String) []s
 		result[ix] = bigSValue.ValueString()
 	}
 	return result
-}
-
-// isErrorRuleNotFound returns true iff the error message is that an access rule was not found.
-// Don't check the ID, because the available ID is the global id, while the ID in the message is a local ID.
-// In theory, we should never see a message that some other ID was not found.
-func (t *managedIdentityAccessRuleResource) isErrorRuleNotFound(e error) bool {
-	// Omission of the leading 'M' is intentional in case the SDK changes to lowercase.
-	return strings.Contains(e.Error(), "anaged identity access rule with ID ") &&
-		strings.Contains(e.Error(), " not found")
 }
 
 // The End.

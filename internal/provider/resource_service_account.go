@@ -180,16 +180,15 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
+		if tharsis.NotFoundError(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
 		resp.Diagnostics.AddError(
 			"Error reading service account",
 			err.Error(),
 		)
-		return
-	}
-
-	if found == nil {
-		// Handle the case that the service account no longer exists if that fact is reported by returning nil.
-		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -252,7 +251,7 @@ func (t *serviceAccountResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the service account no longer exists.
-		if t.isErrorServiceAccountNotFound(err) {
+		if tharsis.NotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -274,7 +273,7 @@ func (t *serviceAccountResource) ImportState(ctx context.Context,
 
 // copyServiceAccount copies the contents of a service account.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *serviceAccountResource) copyServiceAccount(src ttypes.ServiceAccount, dest *ServiceAccountModel) error {
+func (t *serviceAccountResource) copyServiceAccount(src ttypes.ServiceAccount, dest *ServiceAccountModel) {
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.Name = types.StringValue(src.Name)
@@ -293,8 +292,6 @@ func (t *serviceAccountResource) copyServiceAccount(src ttypes.ServiceAccount, d
 		newPolicies = append(newPolicies, newPolicy)
 	}
 	dest.OIDCTrustPolicies = newPolicies
-
-	return nil
 }
 
 // copyTrustPoliciesToInput copies a slice of OIDCTrustPolicyModel to a slice of ttypes.OIDCTrustPolicyInput.
@@ -324,14 +321,6 @@ func (t *serviceAccountResource) copyTrustPoliciesToInput(models []OIDCTrustPoli
 // getParentPath returns the parent path
 func (t *serviceAccountResource) getParentPath(fullPath string) string {
 	return fullPath[:strings.LastIndex(fullPath, "/")]
-}
-
-// isErrorServiceAccountNotFound returns true iff the error message is that a service account was not found.
-// In theory, we should never see a message that some other ID was not found.
-func (t *serviceAccountResource) isErrorServiceAccountNotFound(e error) bool {
-	lowerError := strings.ToLower(e.Error())
-	return strings.Contains(lowerError, "service account with id ") &&
-		strings.Contains(lowerError, " not found")
 }
 
 // The End.

@@ -113,7 +113,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 		return
 	}
 
-	if data.Path.Unknown || data.Path.Null {
+	if data.Path.IsUnknown() || data.Path.IsNull() {
 		resp.Diagnostics.AddError(
 			"Path is required",
 			"Path cannot be null or unknown",
@@ -214,12 +214,12 @@ func resolvePath(path string) (string, error) {
 	// If the environment variable isn't present, we need to error
 	// because relative paths cannot be resolved.
 	if !present {
-		return "", fmt.Errorf("Relative path was provided but the environment variable %s was undefined", tharsisGroupPathEnvVar)
+		return "", fmt.Errorf("relative path was provided but the environment variable %s was undefined", tharsisGroupPathEnvVar)
 	}
 
 	// If the environment variable is an empty string, it is invalid
 	if val == "" {
-		return "", fmt.Errorf("Received an invalid Tharsis Group Path value")
+		return "", fmt.Errorf("received an invalid Tharsis Group Path value")
 	}
 
 	// Add a leading '/' to the beginning so that it resolves to a full path and not relative
@@ -227,7 +227,7 @@ func resolvePath(path string) (string, error) {
 	path = filepath.Clean(filepath.Join("/", val, path))[1:]
 
 	if !strings.Contains(path, "/") {
-		return "", fmt.Errorf("Workspace must exist under at least one parent group")
+		return "", fmt.Errorf("workspace must exist under at least one parent group")
 	}
 
 	return path, nil

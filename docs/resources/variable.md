@@ -21,9 +21,6 @@ Defines and manages a namespace variable.
 - `hcl` (Boolean) Whether this variable has an HCL value.
 - `key` (String) This variable's key (within its namespace).
 - `namespace_path` (String) The path to this variable's namespace.
-
-### Optional
-
 - `value` (String) This variable's value.
 
 ### Read-Only
