@@ -12,7 +12,7 @@ import (
 func TestManagedIdentityAWS(t *testing.T) {
 	createType := string(ttypes.ManagedIdentityAWSFederated)
 	createName := "tmi_aws_name"
-	createDescription := "this is tmi_aws, a Tharsis managed identity"
+	createDescription := "this is tmi_aws, a Tharsis managed identity of AWS type"
 	createResourcePath := testGroupPath + "/" + createName
 	createAWSRole := "some-iam-role"
 
@@ -82,7 +82,7 @@ func TestManagedIdentityAWS(t *testing.T) {
 func TestManagedIdentityAzure(t *testing.T) {
 	createType := string(ttypes.ManagedIdentityAzureFederated)
 	createName := "tmi_azure_name"
-	createDescription := "this is tmi_azure, a Tharsis managed identity"
+	createDescription := "this is tmi_azure, a Tharsis managed identity of Azure type"
 	createResourcePath := testGroupPath + "/" + createName
 	createAzureClientID := "some-azure-client-id"
 	createAzureTenantID := "some-azure-tenant-id"
@@ -150,10 +150,80 @@ func TestManagedIdentityAzure(t *testing.T) {
 	})
 }
 
+// TestManagedIdentityTharsis tests creation, reading, updating, and deletion of a Tharsis managed identity resource.
+func TestManagedIdentityTharsis(t *testing.T) {
+	createType := string(ttypes.ManagedIdentityTharsisFederated)
+	createName := "tmi_tharsis_name"
+	createDescription := "this is tmi_tharsis, a Tharsis managed identity of Tharsis type"
+	createResourcePath := testGroupPath + "/" + createName
+	createTharsisServiceAccountPath := "some-tharsis-service-account-path"
+
+	updatedDescription := "this is an updated description for tmi_tharsis"
+	updatedTharsisServiceAccountPath := "updated-tharsis-service-account-path"
+
+	resource.Test(t, resource.TestCase{
+
+		// Tharsis managed identities
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+
+			// Create and read back a managed identity.
+			{
+				Config: testSharedProviderConfiguration() + testManagedIdentityTharsisConfigurationCreate(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "type", createType),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "resource_path", createResourcePath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "description", createDescription),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "group_path", testGroupPath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "tharsis_service_account_path",
+						createTharsisServiceAccountPath),
+
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_tharsis", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_tharsis", "subject"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_tharsis", "last_updated"),
+				),
+			},
+
+			// Import state.
+			{
+				ResourceName:      "tharsis_managed_identity.tmi_tharsis",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Update and read.
+			{
+				// Update and read back a managed identity.
+				Config: testSharedProviderConfiguration() + testManagedIdentityTharsisConfigurationUpdate(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "type", createType),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "resource_path", createResourcePath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "description", updatedDescription),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "group_path", testGroupPath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_tharsis", "tharsis_service_account_path",
+						updatedTharsisServiceAccountPath),
+
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_tharsis", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_tharsis", "subject"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_tharsis", "last_updated"),
+				),
+			},
+
+			// Destroy should be covered automatically by TestCase.
+		},
+	})
+}
+
 func testManagedIdentityAWSConfigurationCreate() string {
 	createType := string(ttypes.ManagedIdentityAWSFederated)
 	createName := "tmi_aws_name"
-	createDescription := "this is tmi_aws, a Tharsis managed identity"
+	createDescription := "this is tmi_aws, a Tharsis managed identity of AWS type"
 	createAWSRole := "some-iam-role"
 	return fmt.Sprintf(`
 
@@ -189,7 +259,7 @@ func testManagedIdentityAWSConfigurationUpdate() string {
 func testManagedIdentityAzureConfigurationCreate() string {
 	createType := string(ttypes.ManagedIdentityAzureFederated)
 	createName := "tmi_azure_name"
-	createDescription := "this is tmi_azure, a Tharsis managed identity"
+	createDescription := "this is tmi_azure, a Tharsis managed identity of Azure type"
 	createAzureClientID := "some-azure-client-id"
 	createAzureTenantID := "some-azure-tenant-id"
 	return fmt.Sprintf(`
@@ -224,6 +294,42 @@ func testManagedIdentityAzureConfigurationUpdate() string {
 	}
 
 	`, createType, createName, updatedDescription, testGroupPath, updatedAzureClientID, updatedAzureTenantID)
+}
+
+func testManagedIdentityTharsisConfigurationCreate() string {
+	createType := string(ttypes.ManagedIdentityTharsisFederated)
+	createName := "tmi_tharsis_name"
+	createDescription := "this is tmi_tharsis, a Tharsis managed identity of Tharsis type"
+	createTharsisServiceAccountPath := "some-tharsis-service-account-path"
+	return fmt.Sprintf(`
+
+resource "tharsis_managed_identity" "tmi_tharsis" {
+	type                         = "%s"
+	name                         = "%s"
+	description                  = "%s"
+	group_path                   = "%s"
+	tharsis_service_account_path = "%s"
+}
+
+	`, createType, createName, createDescription, testGroupPath, createTharsisServiceAccountPath)
+}
+
+func testManagedIdentityTharsisConfigurationUpdate() string {
+	createType := string(ttypes.ManagedIdentityTharsisFederated)
+	createName := "tmi_tharsis_name"
+	updatedDescription := "this is an updated description for tmi_tharsis"
+	updatedTharsisServiceAccountPath := "updated-tharsis-service-account-path"
+	return fmt.Sprintf(`
+
+	resource "tharsis_managed_identity" "tmi_tharsis" {
+		type                         = "%s"
+		name                         = "%s"
+		description                  = "%s"
+		group_path                   = "%s"
+		tharsis_service_account_path = "%s"
+	}
+
+	`, createType, createName, updatedDescription, testGroupPath, updatedTharsisServiceAccountPath)
 }
 
 // The End.

@@ -19,34 +19,37 @@ import (
 
 // ManagedIdentityModel is the model for a managed identity.
 type ManagedIdentityModel struct {
-	ID            types.String `tfsdk:"id"`
-	Type          types.String `tfsdk:"type"`
-	ResourcePath  types.String `tfsdk:"resource_path"`
-	Name          types.String `tfsdk:"name"`
-	Description   types.String `tfsdk:"description"`
-	GroupPath     types.String `tfsdk:"group_path"`
-	AWSRole       types.String `tfsdk:"aws_role"`
-	AzureClientID types.String `tfsdk:"azure_client_id"`
-	AzureTenantID types.String `tfsdk:"azure_tenant_id"`
-	Subject       types.String `tfsdk:"subject"`
-	LastUpdated   types.String `tfsdk:"last_updated"`
+	ID                        types.String `tfsdk:"id"`
+	Type                      types.String `tfsdk:"type"`
+	ResourcePath              types.String `tfsdk:"resource_path"`
+	Name                      types.String `tfsdk:"name"`
+	Description               types.String `tfsdk:"description"`
+	GroupPath                 types.String `tfsdk:"group_path"`
+	AWSRole                   types.String `tfsdk:"aws_role"`
+	AzureClientID             types.String `tfsdk:"azure_client_id"`
+	AzureTenantID             types.String `tfsdk:"azure_tenant_id"`
+	TharsisServiceAccountPath types.String `tfsdk:"tharsis_service_account_path"`
+	Subject                   types.String `tfsdk:"subject"`
+	LastUpdated               types.String `tfsdk:"last_updated"`
 }
 
 // managedIdentityDataInput has all fields required for input to the encoded data string.
 // The vendor-specific prefixes are not used in the SDK, so they are omitted from the JSON tags.
 type managedIdentityDataInput struct {
-	AWSRole       string `json:"role,omitempty"`
-	AzureClientID string `json:"clientId,omitempty"`
-	AzureTenantID string `json:"tenantId,omitempty"`
+	AWSRole                   string `json:"role,omitempty"`
+	AzureClientID             string `json:"clientId,omitempty"`
+	AzureTenantID             string `json:"tenantId,omitempty"`
+	TharsisServiceAccountPath string `json:"serviceAccountPath,omitempty"`
 }
 
 // managedIdentityData has all fields required for output from the encoded data string.
 // The vendor-specific prefixes are not used in the SDK, so they are omitted from the JSON tags.
 type managedIdentityData struct {
-	AWSRole       *string `json:"role,omitempty"`
-	AzureClientID *string `json:"clientId,omitempty"`
-	AzureTenantID *string `json:"tenantId,omitempty"`
-	Subject       string  `json:"subject,omitempty"`
+	AWSRole                   *string `json:"role,omitempty"`
+	AzureClientID             *string `json:"clientId,omitempty"`
+	AzureTenantID             *string `json:"tenantId,omitempty"`
+	TharsisServiceAccountPath *string `json:"serviceAccountPath,omitempty"`
+	Subject                   string  `json:"subject,omitempty"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -93,8 +96,8 @@ func (t *managedIdentityResource) GetSchema(ctx context.Context) (tfsdk.Schema, 
 			},
 			"type": {
 				Type:                types.StringType,
-				MarkdownDescription: "Type of managed identity, AWS or Azure.",
-				Description:         "Type of managed identity, AWS or Azure.",
+				MarkdownDescription: "Type of managed identity: AWS, Azure, or Tharsis.",
+				Description:         "Type of managed identity: AWS, Azure, or Tharsis.",
 				Required:            true,
 			},
 			"resource_path": {
@@ -139,9 +142,14 @@ func (t *managedIdentityResource) GetSchema(ctx context.Context) (tfsdk.Schema, 
 				Description:         "Azure tenant ID",
 				Optional:            true,
 			},
+			"tharsis_service_account_path": {Type: types.StringType,
+				MarkdownDescription: "Tharsis service account path",
+				Description:         "Tharsis service account path",
+				Optional:            true,
+			},
 			"subject": {Type: types.StringType,
-				MarkdownDescription: "subject string for AWS and Azure",
-				Description:         "subject string for AWS and Azure",
+				MarkdownDescription: "subject string for AWS, Azure, and Tharsis",
+				Description:         "subject string for AWS. Azure, and Tharsis",
 				Computed:            true,
 			},
 			"last_updated": {
@@ -175,9 +183,10 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 
 	encodedData, err := t.encodeDataString(managedIdentity.Type,
 		managedIdentityDataInput{
-			AWSRole:       managedIdentity.AWSRole.ValueString(),
-			AzureClientID: managedIdentity.AzureClientID.ValueString(),
-			AzureTenantID: managedIdentity.AzureTenantID.ValueString(),
+			AWSRole:                   managedIdentity.AWSRole.ValueString(),
+			AzureClientID:             managedIdentity.AzureClientID.ValueString(),
+			AzureTenantID:             managedIdentity.AzureTenantID.ValueString(),
+			TharsisServiceAccountPath: managedIdentity.TharsisServiceAccountPath.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -270,9 +279,10 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 
 	encodedData, err := t.encodeDataString(plan.Type,
 		managedIdentityDataInput{
-			AWSRole:       plan.AWSRole.ValueString(),
-			AzureClientID: plan.AzureClientID.ValueString(),
-			AzureTenantID: plan.AzureTenantID.ValueString(),
+			AWSRole:                   plan.AWSRole.ValueString(),
+			AzureClientID:             plan.AzureClientID.ValueString(),
+			AzureTenantID:             plan.AzureTenantID.ValueString(),
+			TharsisServiceAccountPath: plan.TharsisServiceAccountPath.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -375,6 +385,9 @@ func (t *managedIdentityResource) copyManagedIdentity(src ttypes.ManagedIdentity
 	if decodedData.AzureTenantID != nil {
 		dest.AzureTenantID = types.StringValue(*decodedData.AzureTenantID)
 	}
+	if decodedData.TharsisServiceAccountPath != nil {
+		dest.TharsisServiceAccountPath = types.StringValue(*decodedData.TharsisServiceAccountPath)
+	}
 	dest.Subject = types.StringValue(decodedData.Subject)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
@@ -383,8 +396,8 @@ func (t *managedIdentityResource) copyManagedIdentity(src ttypes.ManagedIdentity
 	return nil
 }
 
-// encodeDataString checks the AWS role, Azure client ID, Azure tenant ID, and subject fields
-// and then marshals them into the appropriate type and base64 encodes that.
+// encodeDataString checks the AWS role, Azure client ID, Azure tenant ID, Tharsis service account path,
+// and subject fields and then marshals them into the appropriate type and base64 encodes that.
 func (t *managedIdentityResource) encodeDataString(managedIdentityType types.String, input managedIdentityDataInput) (string, error) {
 	type2 := ttypes.ManagedIdentityType(managedIdentityType.ValueString())
 
@@ -410,6 +423,10 @@ func (t *managedIdentityResource) encodeDataString(managedIdentityType types.Str
 		if input.AzureTenantID == "" {
 			return "", fmt.Errorf("non-empty tenant ID is required for Azure managed identity")
 		}
+	case ttypes.ManagedIdentityTharsisFederated:
+		if input.TharsisServiceAccountPath == "" {
+			return "", fmt.Errorf("non-empty service account path is required for Tharsis managed identity")
+		}
 	default:
 		return "", fmt.Errorf("invalid managed identity type: %s", type2)
 	}
@@ -425,7 +442,7 @@ func (t *managedIdentityResource) encodeDataString(managedIdentityType types.Str
 }
 
 // decodeDataString base64 decodes and then unmarshals the
-// AWS role, Azure client ID, Azure tenant ID, and subject fields
+// AWS role, Azure client ID, Azure tenant ID, Tharsis service account path, and subject fields
 func (t *managedIdentityResource) decodeDataString(encoded string) (*managedIdentityData, error) {
 
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
