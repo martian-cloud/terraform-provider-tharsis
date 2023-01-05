@@ -227,15 +227,17 @@ func testManagedIdentityAWSConfigurationCreate() string {
 	createAWSRole := "some-iam-role"
 	return fmt.Sprintf(`
 
+%s
+
 resource "tharsis_managed_identity" "tmi_aws" {
 	type        = "%s"
 	name        = "%s"
 	description = "%s"
-	group_path  = "%s"
+	group_path  = tharsis_group.root-group.full_path
 	aws_role    = "%s"
 }
 
-	`, createType, createName, createDescription, testGroupPath, createAWSRole)
+	`, createRootGroup(), createType, createName, createDescription, createAWSRole)
 }
 
 func testManagedIdentityAWSConfigurationUpdate() string {
@@ -249,11 +251,11 @@ func testManagedIdentityAWSConfigurationUpdate() string {
 		type        = "%s"
 		name        = "%s"
 		description = "%s"
-		group_path  = "%s"
+		group_path  = tharsis_group.root-group.full_path
 		aws_role    = "%s"
 	}
 
-	`, createType, createName, updatedDescription, testGroupPath, updatedAWSRole)
+	`, createType, createName, updatedDescription, updatedAWSRole)
 }
 
 func testManagedIdentityAzureConfigurationCreate() string {
@@ -264,16 +266,18 @@ func testManagedIdentityAzureConfigurationCreate() string {
 	createAzureTenantID := "some-azure-tenant-id"
 	return fmt.Sprintf(`
 
+%s
+
 resource "tharsis_managed_identity" "tmi_azure" {
 	type            = "%s"
 	name            = "%s"
 	description     = "%s"
-	group_path      = "%s"
+	group_path      = tharsis_group.root-group.full_path
 	azure_client_id = "%s"
 	azure_tenant_id = "%s"
 }
 
-	`, createType, createName, createDescription, testGroupPath, createAzureClientID, createAzureTenantID)
+	`, createRootGroup(), createType, createName, createDescription, createAzureClientID, createAzureTenantID)
 }
 
 func testManagedIdentityAzureConfigurationUpdate() string {
@@ -288,12 +292,12 @@ func testManagedIdentityAzureConfigurationUpdate() string {
 		type            = "%s"
 		name            = "%s"
 		description     = "%s"
-		group_path      = "%s"
+		group_path      = tharsis_group.root-group.full_path
 		azure_client_id = "%s"
 		azure_tenant_id = "%s"
 	}
 
-	`, createType, createName, updatedDescription, testGroupPath, updatedAzureClientID, updatedAzureTenantID)
+	`, createType, createName, updatedDescription, updatedAzureClientID, updatedAzureTenantID)
 }
 
 func testManagedIdentityTharsisConfigurationCreate() string {
@@ -303,15 +307,17 @@ func testManagedIdentityTharsisConfigurationCreate() string {
 	createTharsisServiceAccountPath := "some-tharsis-service-account-path"
 	return fmt.Sprintf(`
 
+%s
+
 resource "tharsis_managed_identity" "tmi_tharsis" {
 	type                         = "%s"
 	name                         = "%s"
 	description                  = "%s"
-	group_path                   = "%s"
+	group_path                   = tharsis_group.root-group.full_path
 	tharsis_service_account_path = "%s"
 }
 
-	`, createType, createName, createDescription, testGroupPath, createTharsisServiceAccountPath)
+	`, createRootGroup(), createType, createName, createDescription, createTharsisServiceAccountPath)
 }
 
 func testManagedIdentityTharsisConfigurationUpdate() string {
@@ -325,11 +331,11 @@ func testManagedIdentityTharsisConfigurationUpdate() string {
 		type                         = "%s"
 		name                         = "%s"
 		description                  = "%s"
-		group_path                   = "%s"
+		group_path                   = tharsis_group.root-group.full_path
 		tharsis_service_account_path = "%s"
 	}
 
-	`, createType, createName, updatedDescription, testGroupPath, updatedTharsisServiceAccountPath)
+	`, createType, createName, updatedDescription, updatedTharsisServiceAccountPath)
 }
 
 // The End.

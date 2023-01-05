@@ -81,34 +81,28 @@ func TestWorkspace(t *testing.T) {
 func testWorkspaceConfigurationCreate() string {
 	createName := "tw_name"
 	createDescription := "this is tw, a test workspace"
-	createGroupPath := testGroupPath
-	createGroupDescription := "this is twg, a test root group for workspace"
 	createMaxJobDuration := 1234      // must not exceed 1440
 	createTerraformVersion := "1.2.3" // must be a valid version
 	createPreventDestroyPlan := true
 
 	return fmt.Sprintf(`
 
-resource "tharsis_group" "root-group" {
-		name = "%s"
-		description = "%s"
-}
+%s
 
 resource "tharsis_workspace" "tw" {
 	name = "%s"
 	description = "%s"
-	group_path = tharsis_group.root-group
+	group_path = tharsis_group.root-group.full_path
 	max_job_duration = "%d"
 	terraform_version = "%s"
 	prevent_destroy_plan = "%v"
 }
-	`, createGroupPath, createGroupDescription, createName, createDescription,
+	`, createRootGroup(), createName, createDescription,
 		createMaxJobDuration, createTerraformVersion, createPreventDestroyPlan)
 }
 
 func testWorkspaceConfigurationUpdate() string {
 	createName := "tw_name"
-	createGroupPath := testGroupPath
 	updatedDescription := "this is an updated description for tw, a test workspace"
 	updatedMaxJobDuration := 1357      // must not exceed 1440
 	updatedTerraformVersion := "1.3.5" // must be a valid version
@@ -119,12 +113,12 @@ func testWorkspaceConfigurationUpdate() string {
 resource "tharsis_workspace" "tw" {
 	name = "%s"
 	description = "%s"
-	group_path = "%s"
+	group_path = tharsis_group.root-group.full_path
 	max_job_duration = "%d"
 	terraform_version = "%s"
 	prevent_destroy_plan = "%v"
 }
-	`, createName, updatedDescription, createGroupPath,
+	`, createName, updatedDescription,
 		updatedMaxJobDuration, updatedTerraformVersion, updatedPreventDestroyPlan)
 }
 
