@@ -71,9 +71,6 @@ jobs:
           terraform_wrapper: false
       - run: go mod download
       - uses: docker://registry.gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-all-in-one-docker:latest
-        with:
-          time: "30s"
-          args: -d # Run in the background.
         env:
           THARSIS_OAUTH_PROVIDERS_0_ISSUER_URL: http://localhost:8080/realms/tharsis
           THARSIS_OAUTH_PROVIDERS_0_CLIENT_ID: tharsis
