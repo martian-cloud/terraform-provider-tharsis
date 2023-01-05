@@ -44,6 +44,50 @@ jobs:
           git diff --compact-summary --exit-code || \
             (echo; echo "Unexpected difference in directories after code generation. Run 'go generate ./...' command and commit."; exit 1)
 
+  services:
+    tharsis:
+      image: registry.gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-all-in-one-docker
+      env:
+        THARSIS_OAUTH_PROVIDERS_0_ISSUER_URL: http://localhost:8080/realms/tharsis
+        THARSIS_OAUTH_PROVIDERS_0_CLIENT_ID: tharsis
+        THARSIS_OAUTH_PROVIDERS_0_USERNAME_CLAIM: preferred_username
+        THARSIS_OAUTH_PROVIDERS_0_SCOPE: openid profile email
+        THARSIS_TFE_LOGIN_ENABLED: true
+        THARSIS_TFE_LOGIN_CLIENT_ID: tharsis
+        THARSIS_TFE_LOGIN_SCOPES: openid tharsis
+        THARSIS_ADMIN_USER_EMAIL: martian@tharsis.local
+        THARSIS_DB_USERNAME: postgres
+        THARSIS_DB_NAME: tharsis
+        THARSIS_DB_PASSWORD: postgres
+        THARSIS_DB_HOST: localhost
+        THARSIS_DB_PORT: 5432
+        THARSIS_DB_SSL_MODE: disable
+        THARSIS_OBJECT_STORE_PLUGIN_TYPE: aws_s3
+        THARSIS_OBJECT_STORE_PLUGIN_DATA_REGION: us-east-1
+        THARSIS_OBJECT_STORE_PLUGIN_DATA_BUCKET: tharsis-objects
+        THARSIS_OBJECT_STORE_PLUGIN_DATA_AWS_ACCESS_KEY_ID: minioadmin
+        THARSIS_OBJECT_STORE_PLUGIN_DATA_AWS_SECRET_ACCESS_KEY: miniopassword
+        THARSIS_OBJECT_STORE_PLUGIN_DATA_ENDPOINT: http://localhost:9000
+        THARSIS_JWS_PROVIDER_PLUGIN_TYPE: memory
+        THARSIS_JOB_DISPATCHER_PLUGIN_TYPE: local
+        THARSIS_JOB_DISPATCHER_PLUGIN_DATA_API_URL: http://localhost:8000
+        THARSIS_API_URL: http://localhost:8000
+        THARSIS_SERVICE_ACCOUNT_ISSUER_URL: http://localhost:8000
+        KEYCLOAK_ADMIN: admin
+        KEYCLOAK_ADMIN_PASSWORD: admin
+        MINIO_ROOT_USER: minioadmin
+        MINIO_ROOT_PASSWORD: miniopassword
+        MINIO_CONSOLE_ADDRESS: :9010
+      ports:
+        - 8000:8000 # API
+        - 8080:8080 # Keycloak
+      options: >-
+        --health-cmd "curl -f http://localhost:8000/health"
+        --health-interval 30s
+        --health-timeout 10s
+        --health-retries 5
+        --health-start-period 30s
+
   # Run acceptance tests in a matrix with Terraform CLI versions
   test:
     name: Terraform Provider Acceptance Tests
@@ -70,41 +114,10 @@ jobs:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
       - run: go mod download
-      - uses: docker://registry.gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-all-in-one-docker:latest
-        env:
-          THARSIS_OAUTH_PROVIDERS_0_ISSUER_URL: http://localhost:8080/realms/tharsis
-          THARSIS_OAUTH_PROVIDERS_0_CLIENT_ID: tharsis
-          THARSIS_OAUTH_PROVIDERS_0_USERNAME_CLAIM: preferred_username
-          THARSIS_OAUTH_PROVIDERS_0_SCOPE: openid profile email
-          THARSIS_TFE_LOGIN_ENABLED: true
-          THARSIS_TFE_LOGIN_CLIENT_ID: tharsis
-          THARSIS_TFE_LOGIN_SCOPES: openid tharsis
-          THARSIS_ADMIN_USER_EMAIL: martian@tharsis.local
-          THARSIS_DB_USERNAME: postgres
-          THARSIS_DB_NAME: tharsis
-          THARSIS_DB_PASSWORD: postgres
-          THARSIS_DB_HOST: localhost
-          THARSIS_DB_PORT: 5432
-          THARSIS_DB_SSL_MODE: disable
-          THARSIS_OBJECT_STORE_PLUGIN_TYPE: aws_s3
-          THARSIS_OBJECT_STORE_PLUGIN_DATA_REGION: us-east-1
-          THARSIS_OBJECT_STORE_PLUGIN_DATA_BUCKET: tharsis-objects
-          THARSIS_OBJECT_STORE_PLUGIN_DATA_AWS_ACCESS_KEY_ID: minioadmin
-          THARSIS_OBJECT_STORE_PLUGIN_DATA_AWS_SECRET_ACCESS_KEY: miniopassword
-          THARSIS_OBJECT_STORE_PLUGIN_DATA_ENDPOINT: http://localhost:9000
-          THARSIS_JWS_PROVIDER_PLUGIN_TYPE: memory
-          THARSIS_JOB_DISPATCHER_PLUGIN_TYPE: local
-          THARSIS_JOB_DISPATCHER_PLUGIN_DATA_API_URL: http://localhost:8000
-          THARSIS_API_URL: http://localhost:8000
-          THARSIS_SERVICE_ACCOUNT_ISSUER_URL: http://localhost:8000
-          KEYCLOAK_ADMIN: admin
-          KEYCLOAK_ADMIN_PASSWORD: admin
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: miniopassword
-          MINIO_CONSOLE_ADDRESS: :9010
+      - env:
           TF_ACC: "1"
           THARSIS_ENDPOINT: http://localhost:8000
-      - run: |
+        run: |
           THARSIS_STATIC_TOKEN=$(curl -L -X POST 'http://localhost:8080/realms/tharsis/protocol/openid-connect/token' \
           -H 'Content-Type: application/x-www-form-urlencoded' --data-urlencode 'client_id=tharsis' \
           --data-urlencode 'grant_type=password' --data-urlencode 'scope=openid profile email' \
