@@ -323,6 +323,8 @@ github.com/zclconf/go-cty v1.12.1/go.mod h1:s9IfD1LK5ccNMSWCVFCE2rJfHiZgi7JijgeW
 github.com/zclconf/go-cty-debug v0.0.0-20191215020915-b22d67c1ba0b/go.mod h1:ZRKQfBXbGkpdV6QMzT3rU1kSTAnfu1dO8dPKjYprgj8=
 gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.9.0 h1:vs9YG89YIj3yu3eaSjipxifOAIRcSpA3PcUWzbV7DeM=
 gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.9.0/go.mod h1:Mo8oWON5Bq1053r1pA+G0CHfTUAEofv2Mq/JlHTFOiE=
+gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.10.0 h1:XHSlkU5JGa05jDnITs511VdsQ5rZOXAOkx5T5CGKyKg=
+gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.10.0/go.mod h1:Mo8oWON5Bq1053r1pA+G0CHfTUAEofv2Mq/JlHTFOiE=
 go.opentelemetry.io/otel v1.6.3/go.mod h1:7BgNga5fNlF/iZjG06hM3yofffp0ofKCDwSXx1GC4dI=
 go.opentelemetry.io/otel/trace v1.6.3/go.mod h1:GNJQusJlUgZl9/TQBPKU/Y/ty+0iVB5fjhKeJGZPGFs=
 go.opentelemetry.io/proto/otlp v0.7.0/go.mod h1:PqfVotwruBrMGOCsRd/89rSnXhoiJIqeYNgFYFoEGnI=
