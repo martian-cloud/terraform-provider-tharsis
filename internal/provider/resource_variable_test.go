@@ -79,13 +79,13 @@ func testVariableConfigurationCreate() string {
 %s
 
 resource "tharsis_variable" "tnv" {
-	namespace_path = tharsis_group.root-group.full_path
+	namespace_path = "%s"
 	category = "%s"
 	hcl = "%v"
 	key = "%s"
 	value = "%s"
 }
-	`, createRootGroup(), createCategory, createHCL, createKey, createValue)
+	`, createRootGroup(), testGroupPath, createCategory, createHCL, createKey, createValue)
 }
 
 func testVariableConfigurationUpdate() string {
@@ -97,13 +97,13 @@ func testVariableConfigurationUpdate() string {
 	return fmt.Sprintf(`
 
 resource "tharsis_variable" "tnv" {
-	namespace_path = tharsis_group.root-group.full_path
+	namespace_path = "%s"
 	category = "%s"
 	hcl = "%v"
 	key = "%s"
 	value = "%s"
 }
-	`, createCategory, updateHCL, updateKey, updateValue)
+	`, testGroupPath, createCategory, updateHCL, updateKey, updateValue)
 }
 
 // The End.

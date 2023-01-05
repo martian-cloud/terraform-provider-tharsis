@@ -92,12 +92,12 @@ func testWorkspaceConfigurationCreate() string {
 resource "tharsis_workspace" "tw" {
 	name = "%s"
 	description = "%s"
-	group_path = tharsis_group.root-group.full_path
+	group_path = "%s"
 	max_job_duration = "%d"
 	terraform_version = "%s"
 	prevent_destroy_plan = "%v"
 }
-	`, createRootGroup(), createName, createDescription,
+	`, createRootGroup(), createName, createDescription, testGroupPath,
 		createMaxJobDuration, createTerraformVersion, createPreventDestroyPlan)
 }
 
@@ -113,12 +113,12 @@ func testWorkspaceConfigurationUpdate() string {
 resource "tharsis_workspace" "tw" {
 	name = "%s"
 	description = "%s"
-	group_path = tharsis_group.root-group.full_path
+	group_path = "%s"
 	max_job_duration = "%d"
 	terraform_version = "%s"
 	prevent_destroy_plan = "%v"
 }
-	`, createName, updatedDescription,
+	`, createName, updatedDescription, testGroupPath,
 		updatedMaxJobDuration, updatedTerraformVersion, updatedPreventDestroyPlan)
 }
 

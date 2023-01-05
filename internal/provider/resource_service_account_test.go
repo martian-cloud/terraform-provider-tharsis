@@ -76,10 +76,10 @@ func testServiceAccountConfigurationCreate() string {
 resource "tharsis_service_account" "tsa" {
 	name = "%s"
 	description = "%s"
-	group_path = tharsis_group.root-group.full_path
+	group_path = "%s"
 	oidc_trust_policies = [{bound_claims = {"%s" = "%s"}, issuer = "%s"}]
 }
-	`, createRootGroup(), createName, createDescription,
+	`, createRootGroup(), createName, createDescription, testGroupPath,
 		createTrustPolicyBoundClaimKey, createTrustPolicyBoundClaimValue, createTrustPolicyIssuer,
 	)
 }
@@ -96,10 +96,10 @@ func testServiceAccountConfigurationUpdate() string {
 resource "tharsis_service_account" "tsa" {
 	name = "%s"
 	description = "%s"
-	group_path = tharsis_group.root-group.full_path
+	group_path = "%s"
 	oidc_trust_policies = [{bound_claims = {"%s" = "%s"}, issuer = "%s"}]
 }
-	`, createName, updatedDescription,
+	`, createName, updatedDescription, testGroupPath,
 		updateTrustPolicyBoundClaimKey, updateTrustPolicyBoundClaimValue, updateTrustPolicyIssuer,
 	)
 }

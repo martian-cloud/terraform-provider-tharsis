@@ -162,9 +162,9 @@ func testGroupNestedConfigurationCreate() string {
 resource "tharsis_group" "tng" {
 	name = "%s"
 	description = "%s"
-	parent_path = tharsis_group.root-group.full_path
+	parent_path = "%s"
 }
-	`, createRootGroup(), createName, createDescription)
+	`, createRootGroup(), createName, createDescription, testGroupPath)
 }
 
 func testGroupNestedConfigurationUpdate() string {
@@ -176,9 +176,9 @@ func testGroupNestedConfigurationUpdate() string {
 	resource "tharsis_group" "tng" {
 		name = "%s"
 		description = "%s"
-		parent_path = tharsis_group.root-group.full_path
+		parent_path = "%s"
 	}
-		`, createName, updatedDescription)
+		`, createName, updatedDescription, testGroupPath)
 }
 
 func createRootGroup() string {

@@ -96,11 +96,11 @@ resource "tharsis_managed_identity" "tmiar_parent" {
 	type        = "%s"
 	name        = "%s"
 	description = "%s"
-	group_path  = tharsis_group.root-group.full_path
+	group_path  = "%s"
 	aws_role    = "%s"
 }
 
-	`, createRootGroup(), parentType, parentName, parentDescription, parentAWSRole)
+	`, createRootGroup(), parentType, parentName, parentDescription, testGroupPath, parentAWSRole)
 }
 
 func testManagedIdentityAccessRulesConfigurationRule() string {
