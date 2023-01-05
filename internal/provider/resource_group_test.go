@@ -188,10 +188,9 @@ func createRootGroup() string {
 	return fmt.Sprintf(`
 
 resource "tharsis_group" "root-group" {
-		name = "%s"
-		description = "%s"
+	name = "%s"
+	description = "%s"
 }
-
 	`, createRootGroupPath, createRootGroupDescription)
 }
 
