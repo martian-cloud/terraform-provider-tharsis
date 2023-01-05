@@ -6,10 +6,10 @@ name: Tests
 on:
   pull_request:
     paths-ignore:
-      - 'README.md'
+      - "README.md"
   push:
     paths-ignore:
-      - 'README.md'
+      - "README.md"
 
 # Testing only needs permissions to read the repository contents.
 permissions:
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
           cache: true
       - run: go mod download
       - run: go build -v .
@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
           cache: true
       - run: go generate ./...
       - name: git diff
@@ -45,7 +45,6 @@ jobs:
             (echo; echo "Unexpected difference in directories after code generation. Run 'go generate ./...' command and commit."; exit 1)
 
   # Run acceptance tests in a matrix with Terraform CLI versions
-  # TODO: Re-enable acceptance tests: set TF_ACC to 1.
   test:
     name: Terraform Provider Acceptance Tests
     needs: build
@@ -56,23 +55,61 @@ jobs:
       matrix:
         # list whatever Terraform versions here you would like to support
         terraform:
-          - '1.0.*'
-          - '1.1.*'
-          - '1.2.*'
-          - '1.3.*'
+          - "1.0.*"
+          - "1.1.*"
+          - "1.2.*"
+          - "1.3.*"
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
           cache: true
       - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
       - run: go mod download
-      # - env:
-      #     TF_ACC: "1"
-      #  run: go test -v -cover ./internal/provider/
-      - run: go test -v -cover ./internal/provider/
-        timeout-minutes: 10
+      - uses: docker://registry.gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-all-in-one-docker:latest
+        with:
+          time: "30s"
+        env:
+          THARSIS_OAUTH_PROVIDERS_0_ISSUER_URL: http://localhost:8080/realms/tharsis
+          THARSIS_OAUTH_PROVIDERS_0_CLIENT_ID: tharsis
+          THARSIS_OAUTH_PROVIDERS_0_USERNAME_CLAIM: preferred_username
+          THARSIS_OAUTH_PROVIDERS_0_SCOPE: openid profile email
+          THARSIS_TFE_LOGIN_ENABLED: true
+          THARSIS_TFE_LOGIN_CLIENT_ID: tharsis
+          THARSIS_TFE_LOGIN_SCOPES: openid tharsis
+          THARSIS_ADMIN_USER_EMAIL: martian@tharsis.local
+          THARSIS_DB_USERNAME: postgres
+          THARSIS_DB_NAME: tharsis
+          THARSIS_DB_PASSWORD: postgres
+          THARSIS_DB_HOST: localhost
+          THARSIS_DB_PORT: 5432
+          THARSIS_DB_SSL_MODE: disable
+          THARSIS_OBJECT_STORE_PLUGIN_TYPE: aws_s3
+          THARSIS_OBJECT_STORE_PLUGIN_DATA_REGION: us-east-1
+          THARSIS_OBJECT_STORE_PLUGIN_DATA_BUCKET: tharsis-objects
+          THARSIS_OBJECT_STORE_PLUGIN_DATA_AWS_ACCESS_KEY_ID: minioadmin
+          THARSIS_OBJECT_STORE_PLUGIN_DATA_AWS_SECRET_ACCESS_KEY: miniopassword
+          THARSIS_OBJECT_STORE_PLUGIN_DATA_ENDPOINT: http://localhost:9000
+          THARSIS_JWS_PROVIDER_PLUGIN_TYPE: memory
+          THARSIS_JOB_DISPATCHER_PLUGIN_TYPE: local
+          THARSIS_JOB_DISPATCHER_PLUGIN_DATA_API_URL: http://localhost:8000
+          THARSIS_API_URL: http://localhost:8000
+          THARSIS_SERVICE_ACCOUNT_ISSUER_URL: http://localhost:8000
+          KEYCLOAK_ADMIN: admin
+          KEYCLOAK_ADMIN_PASSWORD: admin
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: miniopassword
+          MINIO_CONSOLE_ADDRESS: :9010
+          TF_ACC: "1"
+          THARSIS_ENDPOINT: http://localhost:8000
+      - run: |
+          THARSIS_STATIC_TOKEN=$(curl -L -X POST 'http://localhost:8080/realms/tharsis/protocol/openid-connect/token' \
+          -H 'Content-Type: application/x-www-form-urlencoded' --data-urlencode 'client_id=tharsis' \
+          --data-urlencode 'grant_type=password' --data-urlencode 'scope=openid profile email' \
+          --data-urlencode 'username=martian' --data-urlencode 'password=martian' | jq -r '.access_token')
+          export THARSIS_STATIC_TOKEN
+          go test -v -cover ./internal/provider/

@@ -82,21 +82,27 @@ func testWorkspaceConfigurationCreate() string {
 	createName := "tw_name"
 	createDescription := "this is tw, a test workspace"
 	createGroupPath := testGroupPath
+	createGroupDescription := "this is twg, a test root group for workspace"
 	createMaxJobDuration := 1234      // must not exceed 1440
 	createTerraformVersion := "1.2.3" // must be a valid version
 	createPreventDestroyPlan := true
 
 	return fmt.Sprintf(`
 
+resource "tharsis_group" "root-group" {
+		name = "%s"
+		description = "%s"
+}
+
 resource "tharsis_workspace" "tw" {
 	name = "%s"
 	description = "%s"
-	group_path = "%s"
+	group_path = tharsis_group.root-group
 	max_job_duration = "%d"
 	terraform_version = "%s"
 	prevent_destroy_plan = "%v"
 }
-	`, createName, createDescription, createGroupPath,
+	`, createGroupPath, createGroupDescription, createName, createDescription,
 		createMaxJobDuration, createTerraformVersion, createPreventDestroyPlan)
 }
 
