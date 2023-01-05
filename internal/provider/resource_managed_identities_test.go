@@ -233,11 +233,11 @@ resource "tharsis_managed_identity" "tmi_aws" {
 	type        = "%s"
 	name        = "%s"
 	description = "%s"
-	group_path  = "%s"
+	group_path  = tharsis_group.root-group.full_path
 	aws_role    = "%s"
 }
 
-	`, createRootGroup(), createType, createName, createDescription, testGroupPath, createAWSRole)
+	`, createRootGroup(), createType, createName, createDescription, createAWSRole)
 }
 
 func testManagedIdentityAWSConfigurationUpdate() string {
@@ -272,12 +272,12 @@ resource "tharsis_managed_identity" "tmi_azure" {
 	type            = "%s"
 	name            = "%s"
 	description     = "%s"
-	group_path      = "%s"
+	group_path      = tharsis_group.root-group.full_path
 	azure_client_id = "%s"
 	azure_tenant_id = "%s"
 }
 
-	`, createRootGroup(), createType, createName, createDescription, testGroupPath, createAzureClientID, createAzureTenantID)
+	`, createRootGroup(), createType, createName, createDescription, createAzureClientID, createAzureTenantID)
 }
 
 func testManagedIdentityAzureConfigurationUpdate() string {
@@ -313,11 +313,11 @@ resource "tharsis_managed_identity" "tmi_tharsis" {
 	type                         = "%s"
 	name                         = "%s"
 	description                  = "%s"
-	group_path                   = "%s"
+	group_path                   = tharsis_group.root-group.full_path
 	tharsis_service_account_path = "%s"
 }
 
-	`, createRootGroup(), createType, createName, createDescription, testGroupPath, createTharsisServiceAccountPath)
+	`, createRootGroup(), createType, createName, createDescription, createTharsisServiceAccountPath)
 }
 
 func testManagedIdentityTharsisConfigurationUpdate() string {

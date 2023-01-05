@@ -79,13 +79,13 @@ func testVariableConfigurationCreate() string {
 %s
 
 resource "tharsis_variable" "tnv" {
-	namespace_path = "%s"
+	namespace_path = tharsis_group.root-group.full_path
 	category = "%s"
 	hcl = "%v"
 	key = "%s"
 	value = "%s"
 }
-	`, createRootGroup(), testGroupPath, createCategory, createHCL, createKey, createValue)
+	`, createRootGroup(), createCategory, createHCL, createKey, createValue)
 }
 
 func testVariableConfigurationUpdate() string {

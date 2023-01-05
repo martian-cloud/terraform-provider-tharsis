@@ -76,10 +76,10 @@ func testServiceAccountConfigurationCreate() string {
 resource "tharsis_service_account" "tsa" {
 	name = "%s"
 	description = "%s"
-	group_path = "%s"
+	group_path = tharsis_group.root-group.full_path
 	oidc_trust_policies = [{bound_claims = {"%s" = "%s"}, issuer = "%s"}]
 }
-	`, createRootGroup(), createName, createDescription, testGroupPath,
+	`, createRootGroup(), createName, createDescription,
 		createTrustPolicyBoundClaimKey, createTrustPolicyBoundClaimValue, createTrustPolicyIssuer,
 	)
 }
