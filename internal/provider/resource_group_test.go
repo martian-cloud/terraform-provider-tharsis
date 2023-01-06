@@ -154,31 +154,46 @@ func testGroupRootConfigurationUpdate() string {
 func testGroupNestedConfigurationCreate() string {
 	createName := "tng_name"
 	createDescription := "this is tng, a test nested group"
-	createParentPath := testGroupPath
 
 	return fmt.Sprintf(`
+
+%s
 
 resource "tharsis_group" "tng" {
 	name = "%s"
 	description = "%s"
-	parent_path = "%s"
+	parent_path = tharsis_group.root-group.full_path
 }
-	`, createName, createDescription, createParentPath)
+	`, createRootGroup(), createName, createDescription)
 }
 
 func testGroupNestedConfigurationUpdate() string {
 	createName := "tng_name"
 	updatedDescription := "this is an updated description for tng, a test nested group"
-	createParentPath := testGroupPath
 
 	return fmt.Sprintf(`
 
-	resource "tharsis_group" "tng" {
-		name = "%s"
-		description = "%s"
-		parent_path = "%s"
-	}
-		`, createName, updatedDescription, createParentPath)
+%s
+
+resource "tharsis_group" "tng" {
+	name = "%s"
+	description = "%s"
+	parent_path = tharsis_group.root-group.full_path
+}
+	`, createRootGroup(), createName, updatedDescription)
+}
+
+func createRootGroup() string {
+	createRootGroupPath := testGroupPath
+	createRootGroupDescription := "this is a test root group"
+
+	return fmt.Sprintf(`
+
+resource "tharsis_group" "root-group" {
+	name = "%s"
+	description = "%s"
+}
+	`, createRootGroupPath, createRootGroupDescription)
 }
 
 // The End.

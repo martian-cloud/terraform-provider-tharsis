@@ -65,27 +65,27 @@ func TestServiceAccount(t *testing.T) {
 func testServiceAccountConfigurationCreate() string {
 	createName := "tsa_name"
 	createDescription := "this is tsa, a test service account"
-	createGroupPath := testGroupPath
 	createTrustPolicyIssuer := "https://first-issuer/"
 	createTrustPolicyBoundClaimKey := "first-key"
 	createTrustPolicyBoundClaimValue := "first-value"
 
 	return fmt.Sprintf(`
 
+%s
+
 resource "tharsis_service_account" "tsa" {
 	name = "%s"
 	description = "%s"
-	group_path = "%s"
+	group_path = tharsis_group.root-group.full_path
 	oidc_trust_policies = [{bound_claims = {"%s" = "%s"}, issuer = "%s"}]
 }
-	`, createName, createDescription, createGroupPath,
+	`, createRootGroup(), createName, createDescription,
 		createTrustPolicyBoundClaimKey, createTrustPolicyBoundClaimValue, createTrustPolicyIssuer,
 	)
 }
 
 func testServiceAccountConfigurationUpdate() string {
 	createName := "tsa_name"
-	createGroupPath := testGroupPath
 	updatedDescription := "this is an updated description for tsa, a test service account"
 	updateTrustPolicyIssuer := "https://updated-issuer/"
 	updateTrustPolicyBoundClaimKey := "updated-key"
@@ -93,13 +93,15 @@ func testServiceAccountConfigurationUpdate() string {
 
 	return fmt.Sprintf(`
 
+%s
+
 resource "tharsis_service_account" "tsa" {
 	name = "%s"
 	description = "%s"
-	group_path = "%s"
+	group_path = tharsis_group.root-group.full_path
 	oidc_trust_policies = [{bound_claims = {"%s" = "%s"}, issuer = "%s"}]
 }
-	`, createName, updatedDescription, createGroupPath,
+	`, createRootGroup(), createName, updatedDescription,
 		updateTrustPolicyBoundClaimKey, updateTrustPolicyBoundClaimValue, updateTrustPolicyIssuer,
 	)
 }

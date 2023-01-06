@@ -69,7 +69,6 @@ func TestVariable(t *testing.T) {
 }
 
 func testVariableConfigurationCreate() string {
-	createNamespacePath := testGroupPath
 	createCategory := "terraform"
 	createHCL := true
 	createKey := "first-key"
@@ -77,18 +76,19 @@ func testVariableConfigurationCreate() string {
 
 	return fmt.Sprintf(`
 
+%s
+
 resource "tharsis_variable" "tnv" {
-	namespace_path = "%s"
+	namespace_path = tharsis_group.root-group.full_path
 	category = "%s"
 	hcl = "%v"
 	key = "%s"
 	value = "%s"
 }
-	`, createNamespacePath, createCategory, createHCL, createKey, createValue)
+	`, createRootGroup(), createCategory, createHCL, createKey, createValue)
 }
 
 func testVariableConfigurationUpdate() string {
-	createNamespacePath := testGroupPath
 	createCategory := "terraform"
 	updateHCL := false
 	updateKey := "updated-key"
@@ -96,14 +96,16 @@ func testVariableConfigurationUpdate() string {
 
 	return fmt.Sprintf(`
 
+%s
+
 resource "tharsis_variable" "tnv" {
-	namespace_path = "%s"
+	namespace_path = tharsis_group.root-group.full_path
 	category = "%s"
 	hcl = "%v"
 	key = "%s"
 	value = "%s"
 }
-	`, createNamespacePath, createCategory, updateHCL, updateKey, updateValue)
+	`, createRootGroup(), createCategory, updateHCL, updateKey, updateValue)
 }
 
 // The End.
