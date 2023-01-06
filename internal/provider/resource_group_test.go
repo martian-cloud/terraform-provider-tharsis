@@ -173,12 +173,14 @@ func testGroupNestedConfigurationUpdate() string {
 
 	return fmt.Sprintf(`
 
-	resource "tharsis_group" "tng" {
-		name = "%s"
-		description = "%s"
-		parent_path = "%s"
-	}
-		`, createName, updatedDescription, testGroupPath)
+%s
+
+resource "tharsis_group" "tng" {
+	name = "%s"
+	description = "%s"
+	parent_path = tharsis_group.root-group.full_path
+}
+	`, createRootGroup(), createName, updatedDescription)
 }
 
 func createRootGroup() string {

@@ -96,14 +96,16 @@ func testVariableConfigurationUpdate() string {
 
 	return fmt.Sprintf(`
 
+%s
+
 resource "tharsis_variable" "tnv" {
-	namespace_path = "%s"
+	namespace_path = tharsis_group.root-group.full_path
 	category = "%s"
 	hcl = "%v"
 	key = "%s"
 	value = "%s"
 }
-	`, testGroupPath, createCategory, updateHCL, updateKey, updateValue)
+	`, createRootGroup(), createCategory, updateHCL, updateKey, updateValue)
 }
 
 // The End.

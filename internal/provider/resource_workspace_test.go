@@ -110,15 +110,17 @@ func testWorkspaceConfigurationUpdate() string {
 
 	return fmt.Sprintf(`
 
+%s
+
 resource "tharsis_workspace" "tw" {
 	name = "%s"
 	description = "%s"
-	group_path = "%s"
+	group_path = tharsis_group.root-group.full_path
 	max_job_duration = "%d"
 	terraform_version = "%s"
 	prevent_destroy_plan = "%v"
 }
-	`, createName, updatedDescription, testGroupPath,
+	`, createRootGroup(), createName, updatedDescription,
 		updatedMaxJobDuration, updatedTerraformVersion, updatedPreventDestroyPlan)
 }
 

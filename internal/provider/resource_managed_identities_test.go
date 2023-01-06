@@ -247,15 +247,17 @@ func testManagedIdentityAWSConfigurationUpdate() string {
 	updatedAWSRole := "updated-iam-role"
 	return fmt.Sprintf(`
 
-	resource "tharsis_managed_identity" "tmi_aws" {
-		type        = "%s"
-		name        = "%s"
-		description = "%s"
-		group_path  = "%s"
-		aws_role    = "%s"
-	}
+%s
 
-	`, createType, createName, updatedDescription, testGroupPath, updatedAWSRole)
+resource "tharsis_managed_identity" "tmi_aws" {
+	type        = "%s"
+	name        = "%s"
+	description = "%s"
+	group_path  = tharsis_group.root-group.full_path
+	aws_role    = "%s"
+}
+
+	`, createRootGroup(), createType, createName, updatedDescription, updatedAWSRole)
 }
 
 func testManagedIdentityAzureConfigurationCreate() string {
@@ -288,16 +290,18 @@ func testManagedIdentityAzureConfigurationUpdate() string {
 	updatedAzureTenantID := "updated-azure-tenant-id"
 	return fmt.Sprintf(`
 
-	resource "tharsis_managed_identity" "tmi_azure" {
-		type            = "%s"
-		name            = "%s"
-		description     = "%s"
-		group_path      = "%s"
-		azure_client_id = "%s"
-		azure_tenant_id = "%s"
-	}
+%s
 
-	`, createType, createName, updatedDescription, testGroupPath, updatedAzureClientID, updatedAzureTenantID)
+resource "tharsis_managed_identity" "tmi_azure" {
+	type            = "%s"
+	name            = "%s"
+	description     = "%s"
+	group_path      = tharsis_group.root-group.full_path
+	azure_client_id = "%s"
+	azure_tenant_id = "%s"
+}
+
+	`, createRootGroup(), createType, createName, updatedDescription, updatedAzureClientID, updatedAzureTenantID)
 }
 
 func testManagedIdentityTharsisConfigurationCreate() string {
@@ -327,15 +331,17 @@ func testManagedIdentityTharsisConfigurationUpdate() string {
 	updatedTharsisServiceAccountPath := "updated-tharsis-service-account-path"
 	return fmt.Sprintf(`
 
-	resource "tharsis_managed_identity" "tmi_tharsis" {
-		type                         = "%s"
-		name                         = "%s"
-		description                  = "%s"
-		group_path                   = "%s"
-		tharsis_service_account_path = "%s"
-	}
+%s
 
-	`, createType, createName, updatedDescription, testGroupPath, updatedTharsisServiceAccountPath)
+resource "tharsis_managed_identity" "tmi_tharsis" {
+	type                         = "%s"
+	name                         = "%s"
+	description                  = "%s"
+	group_path                   = tharsis_group.root-group.full_path
+	tharsis_service_account_path = "%s"
+}
+
+	`, createRootGroup(), createType, createName, updatedDescription, updatedTharsisServiceAccountPath)
 }
 
 // The End.
