@@ -229,8 +229,7 @@ func (t *groupResource) Delete(ctx context.Context,
 	// Delete the group via Tharsis.
 	err := t.client.Group.DeleteGroup(ctx,
 		&ttypes.DeleteGroupInput{
-			ID:    ptr.String(state.ID.ValueString()),
-			Force: ptr.Bool(true), // FIXME: this will always be true.
+			ID: ptr.String(state.ID.ValueString()),
 		})
 	if err != nil {
 		// Handle the case that the group no longer exists.
