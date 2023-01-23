@@ -37,18 +37,16 @@ func New() provider.Provider {
 // tharsisProvider satisfies the provider.Provider interface and usually is included
 // with all Resource and DataSource implementations.
 type tharsisProvider struct {
-	// configured is set to true at the end of the Configure method.
-	// This can be used in Resource and DataSource implementations to verify
-	// that the provider was previously configured.
-	configured bool
-
+	// client is the Tharsis SDK Client that will be used to make the API calls.
+	client *tharsis.Client
 	// version is set to the provider version on release, "dev" when the
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
 	version string
-
-	// client is the Tharsis SDK Client that will be used to make the API calls.
-	client *tharsis.Client
+	// configured is set to true at the end of the Configure method.
+	// This can be used in Resource and DataSource implementations to verify
+	// that the provider was previously configured.
+	configured bool
 }
 
 func (p *tharsisProvider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
