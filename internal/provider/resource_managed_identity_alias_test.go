@@ -94,7 +94,7 @@ resource "tharsis_group" "alias-group" {
 
 resource "tharsis_managed_identity_alias" "tmi_alias" {
 	name = "%s"
-	group_path tharsis_group.alias-group.full_path
+	group_path = tharsis_group.alias-group.full_path
 	alias_source_id = tharsis_managed_identity.tmi_aws.id
 }
 
@@ -127,9 +127,9 @@ resource "tharsis_managed_identity" "tmi_aws" {
 	aws_role    = "%s"
 }
 
-resource "tharsis_managed_identity" "tmi_alias" {
+resource "tharsis_managed_identity_alias" "tmi_alias" {
 	name = "%s"
-	group_path tharsis_group.alias-group.full_path
+	group_path = tharsis_group.root-group.full_path
 	alias_source_id = tharsis_managed_identity.tmi_aws.id
 }
 
