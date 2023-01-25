@@ -23,20 +23,20 @@ func TestManagedIdentityAlias(t *testing.T) {
 				Config: testSharedProviderConfiguration() + testManagedIdentityAliasConfigurationCreate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_alias", "resource_path", createResourcePath),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_alias", "name", createName),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_alias", "group_path", testGroupPath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "resource_path", createResourcePath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "group_path", testGroupPath),
 
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_alias", "id"),
-					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_alias", "last_updated"),
-					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_alias", "alias_source_id"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "last_updated"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "alias_source_id"),
 				),
 			},
 
 			// Import state.
 			{
-				ResourceName:      "tharsis_managed_identity.tmi_alias",
+				ResourceName:      "tharsis_managed_identity_alias.tmi_alias",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -47,14 +47,14 @@ func TestManagedIdentityAlias(t *testing.T) {
 				Config: testSharedProviderConfiguration() + testManagedIdentityAliasConfigurationUpdate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_alias", "resource_path", createResourcePath),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_alias", "name", createName),
-					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_alias", "group_path", testGroupPath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "resource_path", createResourcePath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "group_path", testGroupPath),
 
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_alias", "id"),
-					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_alias", "last_updated"),
-					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_alias", "alias_source_id"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "last_updated"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "alias_source_id"),
 				),
 			},
 
