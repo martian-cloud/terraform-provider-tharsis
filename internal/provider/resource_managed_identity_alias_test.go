@@ -70,7 +70,7 @@ func testManagedIdentityAliasConfigurationCreate() string {
 	sourceIdentityAWSRole := "some-iam-role"
 
 	// Managed identity alias must be created under a different namespace.
-	createAliasRootGroupPath := testGroupPath
+	createAliasRootGroupPath := "provider-test-managed-identity-alias-group"
 	createAliasRootGroupDescription := "this is a test root group for managed identity alias"
 
 	// Alias fields.
@@ -115,6 +115,8 @@ func testManagedIdentityAliasConfigurationUpdate() string {
 	sourceIdentityDescription := "this is tmi_aws, a Tharsis managed identity of AWS type"
 	sourceIdentityAWSRole := "some-iam-role"
 	createName := "tmi_aws_name"
+	updateAliasRootGroupPath := "provider-test-managed-identity-alias-group"
+	updateAliasRootGroupDescription := "this is a test root group for managed identity alias"
 	return fmt.Sprintf(`
 
 %s
@@ -127,9 +129,14 @@ resource "tharsis_managed_identity" "tmi_aws" {
 	aws_role    = "%s"
 }
 
+resource "tharsis_group" "alias-group" {
+	name = "%s"
+	description = "%s"
+}
+
 resource "tharsis_managed_identity_alias" "tmi_alias" {
 	name = "%s"
-	group_path = tharsis_group.root-group.full_path
+	group_path = tharsis_group.alias-group.full_path
 	alias_source_id = tharsis_managed_identity.tmi_aws.id
 }
 
@@ -139,5 +146,7 @@ resource "tharsis_managed_identity_alias" "tmi_alias" {
 		sourceIdentityDescription,
 		sourceIdentityAWSRole,
 		createName,
+		updateAliasRootGroupPath,
+		updateAliasRootGroupDescription,
 	)
 }
