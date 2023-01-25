@@ -10,8 +10,9 @@ import (
 
 // TestManagedIdentityTharsis tests creation, reading, updating, and deletion of a managed identity alias resource.
 func TestManagedIdentityAlias(t *testing.T) {
-	createName := "tmi_alias"
-	createResourcePath := testGroupPath + "/" + createName
+	createName := "tmi_aws_name_alias"
+	createAliasRootGroupPath := "provider-test-managed-identity-alias-group"
+	createResourcePath := createAliasRootGroupPath + "/" + createName
 
 	resource.Test(t, resource.TestCase{
 
@@ -25,7 +26,7 @@ func TestManagedIdentityAlias(t *testing.T) {
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "resource_path", createResourcePath),
 					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "name", createName),
-					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "group_path", testGroupPath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "group_path", createAliasRootGroupPath),
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "id"),
@@ -49,7 +50,7 @@ func TestManagedIdentityAlias(t *testing.T) {
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "resource_path", createResourcePath),
 					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "name", createName),
-					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "group_path", testGroupPath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "group_path", createAliasRootGroupPath),
 
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "id"),
@@ -114,7 +115,9 @@ func testManagedIdentityAliasConfigurationUpdate() string {
 	sourceIdentityName := "tmi_aws_name"
 	sourceIdentityDescription := "this is tmi_aws, a Tharsis managed identity of AWS type"
 	sourceIdentityAWSRole := "some-iam-role"
-	createName := "tmi_aws_name"
+
+	// Alias fields.
+	createAliasName := sourceIdentityName + "_alias"
 	updateAliasRootGroupPath := "provider-test-managed-identity-alias-group"
 	updateAliasRootGroupDescription := "this is a test root group for managed identity alias"
 	return fmt.Sprintf(`
@@ -145,8 +148,8 @@ resource "tharsis_managed_identity_alias" "tmi_alias" {
 		sourceIdentityName,
 		sourceIdentityDescription,
 		sourceIdentityAWSRole,
-		createName,
 		updateAliasRootGroupPath,
 		updateAliasRootGroupDescription,
+		createAliasName,
 	)
 }
