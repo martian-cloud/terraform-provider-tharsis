@@ -174,6 +174,7 @@ func (p *tharsisProvider) Resources(context.Context) []func() resource.Resource 
 	return []func() resource.Resource{
 		NewGroupResource,
 		NewManagedIdentityResource,
+		NewManagedIdentityAliasResource,
 		NewManagedIdentityAccessRuleResource,
 		NewServiceAccountResource,
 		NewVariableResource,
