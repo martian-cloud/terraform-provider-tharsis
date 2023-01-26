@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -44,7 +45,7 @@ func TestManagedIdentityAlias(t *testing.T) {
 
 			// Update and read.
 			{
-				// Update and read back a managed identity alias.
+				// Update and read back a managed identity alias (doesn't change fields).
 				Config: testSharedProviderConfiguration() + testManagedIdentityAliasConfigurationUpdate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
@@ -57,6 +58,12 @@ func TestManagedIdentityAlias(t *testing.T) {
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "last_updated"),
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "alias_source_id"),
 				),
+			},
+			// Update and read.
+			{
+				// Update and read back a managed identity alias (changes fields).
+				Config:      testSharedProviderConfiguration() + testManagedIdentityAliasConfigurationUpdateInvalid(),
+				ExpectError: regexp.MustCompile("An alias cannot be updated"),
 			},
 
 			// Destroy should be covered automatically by TestCase.
@@ -150,6 +157,41 @@ resource "tharsis_managed_identity_alias" "tmi_alias" {
 		sourceIdentityAWSRole,
 		updateAliasRootGroupPath,
 		updateAliasRootGroupDescription,
+		createAliasName,
+	)
+}
+
+func testManagedIdentityAliasConfigurationUpdateInvalid() string {
+	sourceIdentityType := string(ttypes.ManagedIdentityAWSFederated)
+	sourceIdentityName := "tmi_aws_name"
+	sourceIdentityDescription := "this is tmi_aws, a Tharsis managed identity of AWS type"
+	sourceIdentityAWSRole := "some-iam-role"
+
+	// Alias fields.
+	createAliasName := sourceIdentityName + "_alias"
+	return fmt.Sprintf(`
+
+%s
+
+resource "tharsis_managed_identity" "tmi_aws" {
+	type        = "%s"
+	name        = "%s"
+	description = "%s"
+	group_path  = tharsis_group.root-group.full_path
+	aws_role    = "%s"
+}
+
+resource "tharsis_managed_identity_alias" "tmi_alias" {
+	name = "%s"
+	group_path = tharsis_group.root-group.full_path
+	alias_source_id = tharsis_managed_identity.tmi_aws.id
+}
+
+	`, createRootGroup(),
+		sourceIdentityType,
+		sourceIdentityName,
+		sourceIdentityDescription,
+		sourceIdentityAWSRole,
 		createAliasName,
 	)
 }
