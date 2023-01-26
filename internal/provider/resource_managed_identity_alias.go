@@ -18,12 +18,13 @@ import (
 
 // ManagedIdentityAliasModel is the model for a managed identity alias.
 type ManagedIdentityAliasModel struct {
-	ID            types.String `tfsdk:"id"`
-	ResourcePath  types.String `tfsdk:"resource_path"`
-	Name          types.String `tfsdk:"name"`
-	GroupPath     types.String `tfsdk:"group_path"`
-	LastUpdated   types.String `tfsdk:"last_updated"`
-	AliasSourceID types.String `tfsdk:"alias_source_id"`
+	ID              types.String `tfsdk:"id"`
+	ResourcePath    types.String `tfsdk:"resource_path"`
+	Name            types.String `tfsdk:"name"`
+	GroupPath       types.String `tfsdk:"group_path"`
+	LastUpdated     types.String `tfsdk:"last_updated"`
+	AliasSourceID   types.String `tfsdk:"alias_source_id"`
+	AliasSourcePath types.String `tfsdk:"alias_source_path"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -85,8 +86,8 @@ func (t *managedIdentityAliasResource) GetSchema(ctx context.Context) (tfsdk.Sch
 			},
 			"group_path": {
 				Type:                types.StringType,
-				MarkdownDescription: "Full path of the parent group.",
-				Description:         "Full path of the parent group.",
+				MarkdownDescription: "Full path of the group where alias will be created.",
+				Description:         "Full path of the group where alias will be created.",
 				Required:            true,
 			},
 			"last_updated": {
@@ -99,7 +100,13 @@ func (t *managedIdentityAliasResource) GetSchema(ctx context.Context) (tfsdk.Sch
 				Type:                types.StringType,
 				MarkdownDescription: "ID of the managed identity being aliased",
 				Description:         "ID of the managed identity being aliased",
-				Required:            true,
+				Optional:            true,
+			},
+			"alias_source_path": {
+				Type:                types.StringType,
+				MarkdownDescription: "Full path of the managed identity being aliased",
+				Description:         "Full path of the managed identity being aliased",
+				Optional:            true,
 			},
 		},
 	}, nil
@@ -124,12 +131,30 @@ func (t *managedIdentityAliasResource) Create(ctx context.Context,
 		return
 	}
 
+	var (
+		aliasSourceID   *string
+		aliasSourcePath *string
+	)
+
+	if managedIdentityAlias.AliasSourceID.ValueString() != "" {
+		aliasSourceID = ptr.String(managedIdentityAlias.AliasSourceID.ValueString())
+	} else if managedIdentityAlias.AliasSourcePath.ValueString() != "" {
+		aliasSourcePath = ptr.String(managedIdentityAlias.AliasSourcePath.ValueString())
+	} else {
+		resp.Diagnostics.AddError(
+			"Either alias_source_id or alias_source_path must be specified",
+			"",
+		)
+		return
+	}
+
 	// Create the managed identity alias.
 	created, err := t.client.ManagedIdentity.CreateManagedIdentityAlias(ctx,
 		&ttypes.CreateManagedIdentityAliasInput{
-			Name:          managedIdentityAlias.Name.ValueString(),
-			AliasSourceID: ptr.String(managedIdentityAlias.AliasSourceID.ValueString()),
-			GroupPath:     managedIdentityAlias.GroupPath.ValueString(),
+			Name:            managedIdentityAlias.Name.ValueString(),
+			AliasSourceID:   aliasSourceID,
+			AliasSourcePath: aliasSourcePath,
+			GroupPath:       managedIdentityAlias.GroupPath.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
