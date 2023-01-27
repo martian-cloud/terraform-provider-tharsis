@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
@@ -74,92 +75,82 @@ func (t *managedIdentityResource) Metadata(ctx context.Context,
 	resp.TypeName = "tharsis_managed_identity"
 }
 
-// The diagnostics return value is required by the interface even though this function returns only nil.
-func (t *managedIdentityResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	description := "Defines and manages a managed identity."
 
-	return tfsdk.Schema{
-		Version: 1,
-
+	resp.Schema = schema.Schema{
+		Version:             1,
 		MarkdownDescription: description,
 		Description:         description,
-
-		Attributes: map[string]tfsdk.Attribute{
-			"id": {
-				Type:                types.StringType,
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
 				MarkdownDescription: "String identifier of the managed identity.",
 				Description:         "String identifier of the managed identity.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"type": {
-				Type:                types.StringType,
+			"type": schema.StringAttribute{
 				MarkdownDescription: "Type of managed identity: AWS, Azure, or Tharsis.",
 				Description:         "Type of managed identity: AWS, Azure, or Tharsis.",
 				Required:            true,
 			},
-			"resource_path": {
-				Type:                types.StringType,
+			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent group plus the name of the managed identity.",
 				Description:         "The path of the parent group plus the name of the managed identity.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"name": {
-				Type:                types.StringType,
+			"name": schema.StringAttribute{
 				MarkdownDescription: "The name of the managed identity.",
 				Description:         "The name of the managed identity.",
 				Required:            true,
 			},
-			"description": {
-				Type:                types.StringType,
+			"description": schema.StringAttribute{
 				MarkdownDescription: "A description of the managed identity.",
 				Description:         "A description of the managed identity.",
 				Optional:            true,
 			},
-			"group_path": {
-				Type:                types.StringType,
+			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Full path of the parent group.",
 				Description:         "Full path of the parent group.",
 				Required:            true,
 			},
-			"aws_role": {Type: types.StringType,
+			"aws_role": schema.StringAttribute{
 				MarkdownDescription: "AWS role",
 				Description:         "AWS role",
 				Optional:            true,
 			},
-			"azure_client_id": {Type: types.StringType,
+			"azure_client_id": schema.StringAttribute{
 				MarkdownDescription: "Azure client ID",
 				Description:         "Azure client ID",
 				Optional:            true,
 			},
-			"azure_tenant_id": {Type: types.StringType,
+			"azure_tenant_id": schema.StringAttribute{
 				MarkdownDescription: "Azure tenant ID",
 				Description:         "Azure tenant ID",
 				Optional:            true,
 			},
-			"tharsis_service_account_path": {Type: types.StringType,
+			"tharsis_service_account_path": schema.StringAttribute{
 				MarkdownDescription: "Tharsis service account path",
 				Description:         "Tharsis service account path",
 				Optional:            true,
 			},
-			"subject": {Type: types.StringType,
+			"subject": schema.StringAttribute{
 				MarkdownDescription: "subject string for AWS, Azure, and Tharsis",
 				Description:         "subject string for AWS. Azure, and Tharsis",
 				Computed:            true,
 			},
-			"last_updated": {
-				Type:                types.StringType,
+			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this managed identity was most recently updated.",
 				Description:         "Timestamp when this managed identity was most recently updated.",
 				Computed:            true,
 			},
 		},
-	}, nil
+	}
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.

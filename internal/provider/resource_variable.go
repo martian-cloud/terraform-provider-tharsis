@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
@@ -46,58 +47,49 @@ func (t *variableResource) Metadata(ctx context.Context,
 	resp.TypeName = "tharsis_variable"
 }
 
-// The diagnostics return value is required by the interface even though this function returns only nil.
-func (t *variableResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (t *variableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	description := "Defines and manages a namespace variable."
 
-	return tfsdk.Schema{
-		Version: 1,
-
+	resp.Schema = schema.Schema{
+		Version:             1,
 		MarkdownDescription: description,
 		Description:         description,
-
-		Attributes: map[string]tfsdk.Attribute{
-			"id": {
-				Type:                types.StringType,
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
 				MarkdownDescription: "String identifier of the namespace variable.",
 				Description:         "String identifier of the namespace variable.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"namespace_path": {
-				Type:                types.StringType,
+			"namespace_path": schema.StringAttribute{
 				MarkdownDescription: "The path to this variable's namespace.",
 				Description:         "The path to this variable's namespace.",
 				Required:            true,
 			},
-			"category": {
-				Type:                types.StringType,
+			"category": schema.StringAttribute{
 				MarkdownDescription: "Whether this variable is a Terraform or an environment variable.",
 				Description:         "Whether this variable is a Terraform or an environment variable.",
 				Required:            true,
 			},
-			"hcl": {
-				Type:                types.BoolType,
+			"hcl": schema.BoolAttribute{
 				MarkdownDescription: "Whether this variable has an HCL value.",
 				Description:         "Whether this variable has an HCL value.",
 				Required:            true,
 			},
-			"key": {
-				Type:                types.StringType,
+			"key": schema.StringAttribute{
 				MarkdownDescription: "This variable's key (within its namespace).",
 				Description:         "This variable's key (within its namespace).",
 				Required:            true,
 			},
-			"value": {
-				Type:                types.StringType,
+			"value": schema.StringAttribute{
 				MarkdownDescription: "This variable's value.",
 				Description:         "This variable's value.",
 				Required:            true,
 			},
 		},
-	}, nil
+	}
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.

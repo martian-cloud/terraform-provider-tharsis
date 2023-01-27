@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
@@ -48,61 +49,52 @@ func (t *managedIdentityAliasResource) Metadata(ctx context.Context,
 	resp.TypeName = "tharsis_managed_identity_alias"
 }
 
-// The diagnostics return value is required by the interface even though this function returns only nil.
-func (t *managedIdentityAliasResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	description := "Defines and manages a managed identity alias."
 
-	return tfsdk.Schema{
-		Version: 1,
-
+	resp.Schema = schema.Schema{
+		Version:             1,
 		MarkdownDescription: description,
 		Description:         description,
-
-		Attributes: map[string]tfsdk.Attribute{
-			"id": {
-				Type:                types.StringType,
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
 				MarkdownDescription: "String identifier of the managed identity alias.",
 				Description:         "String identifier of the managed identity alias.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"resource_path": {
-				Type:                types.StringType,
+			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent group plus the name of the managed identity alias.",
 				Description:         "The path of the parent group plus the name of the managed identity alias.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"name": {
-				Type:                types.StringType,
+			"name": schema.StringAttribute{
 				MarkdownDescription: "The name of the managed identity alias.",
 				Description:         "The name of the managed identity alias.",
 				Required:            true,
 			},
-			"group_path": {
-				Type:                types.StringType,
+			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Full path of the group where alias will be created.",
 				Description:         "Full path of the group where alias will be created.",
 				Required:            true,
 			},
-			"last_updated": {
-				Type:                types.StringType,
+			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this managed identity alias was most recently updated.",
 				Description:         "Timestamp when this managed identity alias was most recently updated.",
 				Computed:            true,
 			},
-			"alias_source_id": {
-				Type:                types.StringType,
+			"alias_source_id": schema.StringAttribute{
 				MarkdownDescription: "ID of the managed identity being aliased",
 				Description:         "ID of the managed identity being aliased",
 				Required:            true,
 			},
 		},
-	}, nil
+	}
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.

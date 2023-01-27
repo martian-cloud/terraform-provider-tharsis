@@ -11,8 +11,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	svchost "github.com/hashicorp/terraform-svchost"
@@ -23,7 +23,7 @@ import (
 )
 
 // Ensure provider defined types fully satisfy framework interfaces
-var _ provider.Provider = &tharsisProvider{}
+var _ provider.Provider = (*tharsisProvider)(nil)
 
 const scheme string = "https://"
 
@@ -49,39 +49,38 @@ type tharsisProvider struct {
 	configured bool
 }
 
-func (p *tharsisProvider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfsdk.Schema{
-		Attributes: map[string]tfsdk.Attribute{
-			"host": {
-				Type:                types.StringType,
+func (p *tharsisProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "tharsis"
+}
+
+func (p *tharsisProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+	description := "Tharsis Terraform Provider is used to interact with a Tharsis instance using HCL."
+	resp.Schema = schema.Schema{
+		Description:         description,
+		MarkdownDescription: description,
+		Attributes: map[string]schema.Attribute{
+			"host": schema.StringAttribute{
 				Description:         "Host name of the Tharsis API (e.g. https://tharsis.example.com)",
 				MarkdownDescription: "This is the hostname for the Tharsis API (e.g. https://tharsis.example.com).",
 				Optional:            true,
-				Computed:            true,
 			},
-			"static_token": {
-				Type:                types.StringType,
+			"static_token": schema.StringAttribute{
 				Description:         "Static token to authenticate with the Tharsis API",
 				MarkdownDescription: "A static token to use to authenticate with the Tharsis API.",
 				Optional:            true,
-				Computed:            true,
 			},
-			"service_account_path": {
-				Type:                types.StringType,
+			"service_account_path": schema.StringAttribute{
 				Description:         "Service account path to use for authenticating with the Tharsis API",
 				MarkdownDescription: "A Service account path to use for authenticating with the Tharsis API.",
 				Optional:            true,
-				Computed:            true,
 			},
-			"service_account_token": {
-				Type:                types.StringType,
+			"service_account_token": schema.StringAttribute{
 				Description:         "Service account token to use for authenticating with the Tharsis API",
 				MarkdownDescription: "A Service account token to use for authenticating with the Tharsis API.",
 				Optional:            true,
-				Computed:            true,
 			},
 		},
-	}, nil
+	}
 }
 
 // providerData can be used to store data from the Terraform configuration.
@@ -95,7 +94,7 @@ type providerData struct {
 // checkUnknowns validates that no field is unknown during configuration
 func (pd *providerData) checkUnknowns() diag.Diagnostics {
 	var diags diag.Diagnostics
-	if pd.Host.Unknown {
+	if pd.Host.IsUnknown() {
 		// Cannot connect to client with an unknown value
 		diags = append(diags,
 			diag.NewErrorDiagnostic(
@@ -105,7 +104,7 @@ func (pd *providerData) checkUnknowns() diag.Diagnostics {
 		)
 	}
 
-	if pd.StaticToken.Unknown {
+	if pd.StaticToken.IsUnknown() {
 		diags = append(diags,
 			diag.NewErrorDiagnostic(
 				"Unknown static token",
@@ -114,7 +113,7 @@ func (pd *providerData) checkUnknowns() diag.Diagnostics {
 		)
 	}
 
-	if pd.ServiceAccountPath.Unknown {
+	if pd.ServiceAccountPath.IsUnknown() {
 		diags = append(diags,
 			diag.NewErrorDiagnostic(
 				"Unknown service account path",
@@ -123,7 +122,7 @@ func (pd *providerData) checkUnknowns() diag.Diagnostics {
 		)
 	}
 
-	if pd.ServiceAccountToken.Unknown {
+	if pd.ServiceAccountToken.IsUnknown() {
 		diags = append(diags,
 			diag.NewErrorDiagnostic(
 				"Unknown service account token",
@@ -212,10 +211,10 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 	)
 
 	// User must provide specify a host
-	if pd.Host.Null {
+	if pd.Host.IsNull() {
 		host = os.Getenv("THARSIS_ENDPOINT")
 	} else {
-		host = pd.Host.Value
+		host = pd.Host.ValueString()
 
 		// Prepend scheme if only a hostname is passed in.
 		_, err := url.ParseRequestURI(host)
@@ -238,10 +237,10 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 		optFn = append(optFn, config.WithTokenProvider(tokenProvider))
 	}
 
-	if pd.StaticToken.Null {
+	if pd.StaticToken.IsNull() {
 		staticToken = os.Getenv("THARSIS_STATIC_TOKEN")
 	} else {
-		staticToken = pd.StaticToken.Value
+		staticToken = pd.StaticToken.ValueString()
 	}
 
 	if staticToken != "" {
@@ -252,16 +251,16 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 		optFn = append(optFn, config.WithTokenProvider(tokenProvider))
 	}
 
-	if pd.ServiceAccountPath.Null {
+	if pd.ServiceAccountPath.IsNull() {
 		serviceAccountPath = os.Getenv("THARSIS_SERVICE_ACCOUNT_PATH")
 	} else {
-		serviceAccountPath = pd.ServiceAccountPath.Value
+		serviceAccountPath = pd.ServiceAccountPath.ValueString()
 	}
 
-	if pd.ServiceAccountToken.Null {
+	if pd.ServiceAccountToken.IsNull() {
 		serviceAccountToken = os.Getenv("THARSIS_SERVICE_ACCOUNT_TOKEN")
 	} else {
-		serviceAccountToken = pd.ServiceAccountToken.Value
+		serviceAccountToken = pd.ServiceAccountToken.ValueString()
 	}
 
 	if (serviceAccountPath != "") && (serviceAccountToken != "") {

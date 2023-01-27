@@ -10,8 +10,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -47,50 +46,41 @@ func (t workspaceOutputsDataSource) Metadata(_ context.Context,
 	resp.TypeName = typeName
 }
 
-func (t workspaceOutputsDataSource) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfsdk.Schema{
-		Version: 1,
+func (t workspaceOutputsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	description := "Tharsis Workspace Outputs data source is used to retrieve outputs from workspace under a given path."
 
-		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "Tharsis Workspace Outputs data source is used to retrieve outputs from workspace under a given path.",
-		Description:         "Tharsis Workspace Outputs data source is used to retrieve outputs from workspace under a given path.",
-
-		Attributes: map[string]tfsdk.Attribute{
-			"path": {
+	resp.Schema = schema.Schema{
+		MarkdownDescription: description,
+		Description:         description,
+		Attributes: map[string]schema.Attribute{
+			"path": schema.StringAttribute{
 				MarkdownDescription: "The path of the workspace to retrieve outputs.",
 				Description:         "The path of the workspace to retrieve outputs.",
-				Optional:            false,
 				Required:            true,
-				Type:                types.StringType,
 			},
-			"full_path": {
+			"full_path": schema.StringAttribute{
 				MarkdownDescription: "The full path of the workspace.",
 				Description:         "The full path of the workspace.",
-				Type:                types.StringType,
 				Computed:            true,
 			},
-			"workspace_id": {
+			"workspace_id": schema.StringAttribute{
 				MarkdownDescription: "The ID of the workspace.",
 				Description:         "The ID of the workspace.",
-				Type:                types.StringType,
 				Computed:            true,
 			},
-			"state_version_id": {
+			"state_version_id": schema.StringAttribute{
 				MarkdownDescription: "The ID of the workspace's current state version.",
 				Description:         "The ID of the workspace's current state version.",
-				Type:                types.StringType,
 				Computed:            true,
 			},
-			"outputs": {
+			"outputs": schema.MapAttribute{
+				ElementType:         types.StringType,
 				MarkdownDescription: "The outputs of the workspace specified by the path.",
 				Description:         "The outputs of the workspace specified by the path.",
-				Type: types.MapType{
-					ElemType: types.StringType,
-				},
-				Computed: true,
+				Computed:            true,
 			},
 		},
-	}, nil
+	}
 }
 
 type workspaceOutputsDataSource struct {
@@ -121,7 +111,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 		return
 	}
 
-	path, err := resolvePath(data.Path.Value)
+	path, err := resolvePath(data.Path.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error resolving full path of workspace",
@@ -196,9 +186,9 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}
 
 	// Add additional attributes
-	data.FullPath = types.String{Value: path}
-	data.WorkspaceID = types.String{Value: workspace.Metadata.ID}
-	data.StateVersionID = types.String{Value: workspace.CurrentStateVersion.Metadata.ID}
+	data.FullPath = types.StringValue(path)
+	data.WorkspaceID = types.StringValue(workspace.Metadata.ID)
+	data.StateVersionID = types.StringValue(workspace.CurrentStateVersion.Metadata.ID)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
