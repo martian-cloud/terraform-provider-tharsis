@@ -449,6 +449,7 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 
 	// Copy fields returned by Tharsis to the plan.  Apparently, must copy all fields, not just the computed fields.
 	plan.RunStage = types.StringValue(string(updated.RunStage))
+	plan.Type = types.StringValue(string(updated.Type))
 
 	allowedUsers := []attr.Value{}
 	for _, user := range updated.AllowedUsers {
