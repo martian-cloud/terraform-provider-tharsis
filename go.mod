@@ -4,14 +4,13 @@ go 1.18
 
 require (
 	github.com/aws/smithy-go v1.13.5
-	github.com/gogo/protobuf v1.3.2
 	github.com/hashicorp/terraform-plugin-docs v0.13.0
 	github.com/hashicorp/terraform-plugin-framework v1.1.1
 	github.com/hashicorp/terraform-plugin-go v0.14.3
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.24.1
 	github.com/hashicorp/terraform-svchost v0.0.0-20200729002733-f050f53b9734
 	github.com/zclconf/go-cty v1.12.1
-	gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.13.1-0.20230126210429-4870c344abc4
+	gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.14.0
 )
 
 require (

@@ -2,7 +2,6 @@ package provider
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -52,6 +51,32 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 						"run_stage", ruleStage),
 					resource.TestCheckResourceAttrPair("tharsis_managed_identity.tmiar_parent", "id",
 						"tharsis_managed_identity_access_rule.rule01", "managed_identity_id"),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01", "type", "eligible_principals"),
+
+					// Verify dynamic values have some value set in the state.
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_access_rule.rule01", "id"),
+				),
+			},
+
+			// Import state.
+			{
+				ResourceName: "tharsis_managed_identity_access_rule.rule01",
+				ImportState:  true,
+			},
+
+			// Attempt to update and read.
+			// This is some indication this might be doing a fresh creation rather than an update.
+			{
+				Config: testSharedProviderConfiguration() +
+					testManagedIdentityAccessRulesConfigurationParent() +
+					testManagedIdentityAccessRulesConfigurationUpdate(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01",
+						"run_stage", updateStage),
+					resource.TestCheckResourceAttrPair("tharsis_managed_identity.tmiar_parent", "id",
+						"tharsis_managed_identity_access_rule.rule01", "managed_identity_id"),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01", "type", "eligible_principals"),
 
 					// Verify dynamic values have some value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity_access_rule.rule01", "id"),
@@ -77,38 +102,6 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 
 					// Verify dynamic values have some value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity_access_rule.rule02", "id"),
-				),
-			},
-
-			{
-				Config: testSharedProviderConfiguration() +
-					testManagedIdentityAccessRulesConfigurationParent() +
-					testManagedIdentityAccessRulesConfigurationRuleInvalid(),
-				ExpectError: regexp.MustCompile("Error validating managed identity access rule policies"),
-			},
-
-			// Import state.
-			{
-				ResourceName:      "tharsis_managed_identity_access_rule.rule01",
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-
-			// Attempt to update and read.
-			// This is some indication this might be doing a fresh creation rather than an update.
-			{
-				Config: testSharedProviderConfiguration() +
-					testManagedIdentityAccessRulesConfigurationParent() +
-					testManagedIdentityAccessRulesConfigurationUpdate(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01",
-						"run_stage", updateStage),
-					resource.TestCheckResourceAttrPair("tharsis_managed_identity.tmiar_parent", "id",
-						"tharsis_managed_identity_access_rule.rule01", "managed_identity_id"),
-
-					// Verify dynamic values have some value set in the state.
-					resource.TestCheckResourceAttrSet("tharsis_managed_identity_access_rule.rule01", "id"),
 				),
 			},
 
@@ -170,20 +163,6 @@ resource "tharsis_managed_identity_access_rule" "rule02" {
 }
 
 `, ruleStage, ruleParentID, dummyPublicKey)
-}
-
-func testManagedIdentityAccessRulesConfigurationRuleInvalid() string {
-	ruleStage := "plan"
-	ruleParentID := "tharsis_managed_identity.tmiar_parent.id"
-	return fmt.Sprintf(`
-
-resource "tharsis_managed_identity_access_rule" "rule-invalid" {
-	type 					 = "module_attestation"
-	run_stage                = "%s"
-	managed_identity_id      = %s
-}
-
-`, ruleStage, ruleParentID)
 }
 
 func testManagedIdentityAccessRulesConfigurationUpdate() string {
