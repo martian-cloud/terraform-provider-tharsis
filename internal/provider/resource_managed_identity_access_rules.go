@@ -251,47 +251,43 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
 	accessRule.ID = types.StringValue(created.Metadata.ID)
+	accessRule.Type = types.StringValue(string(created.Type))
 	accessRule.RunStage = types.StringValue(string(created.RunStage))
 	accessRule.ManagedIdentityID = types.StringValue(created.ManagedIdentityID)
 
-	allowedUsers := []types.String{}
+	allowedUsers := []attr.Value{}
 	for _, user := range created.AllowedUsers {
 		allowedUsers = append(allowedUsers, types.StringValue(user.Username))
 	}
 
-	set, diags := basetypes.NewSetValueFrom(ctx, types.StringType, allowedUsers)
+	var diags diag.Diagnostics
+	accessRule.AllowedUsers, diags = types.SetValue(types.StringType, allowedUsers)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 
-	accessRule.AllowedUsers = set
-
-	allowedServiceAccounts := []types.String{}
+	allowedServiceAccounts := []attr.Value{}
 	for _, serviceAccount := range created.AllowedServiceAccounts {
 		allowedServiceAccounts = append(allowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
 	}
 
-	set, diags = basetypes.NewSetValueFrom(ctx, types.StringType, allowedServiceAccounts)
+	accessRule.AllowedServiceAccounts, diags = types.SetValue(types.StringType, allowedServiceAccounts)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 
-	accessRule.AllowedServiceAccounts = set
-
-	allowedTeams := []types.String{}
+	allowedTeams := []attr.Value{}
 	for _, team := range created.AllowedTeams {
 		allowedTeams = append(allowedTeams, types.StringValue(team.Name))
 	}
 
-	set, diags = basetypes.NewSetValueFrom(ctx, types.StringType, allowedTeams)
+	accessRule.AllowedTeams, diags = types.SetValue(types.StringType, allowedTeams)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-
-	accessRule.AllowedTeams = set
 
 	convertedPolicies := t.toProviderAttestationPolicies(ctx, created.ModuleAttestationPolicies, &resp.Diagnostics)
 	if convertedPolicies != nil {
@@ -334,6 +330,7 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis run stage to the state, but not if it no longer exists.
 	state.RunStage = types.StringValue(string(found.RunStage))
+	state.Type = types.StringValue(string(found.Type))
 
 	// When this Read method is called during a "terraform import" operation, state.ManagedIdentityID is null.
 	// In that case, it is necessary to copy ManagedIdentityID from found to state.
@@ -341,44 +338,39 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
 	}
 
-	allowedUsers := []types.String{}
+	allowedUsers := []attr.Value{}
 	for _, user := range found.AllowedUsers {
 		allowedUsers = append(allowedUsers, types.StringValue(user.Username))
 	}
 
-	set, diags := basetypes.NewSetValueFrom(ctx, types.StringType, allowedUsers)
+	var diags diag.Diagnostics
+	state.AllowedUsers, diags = types.SetValue(types.StringType, allowedUsers)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 
-	state.AllowedUsers = set
-
-	allowedServiceAccounts := []types.String{}
+	allowedServiceAccounts := []attr.Value{}
 	for _, serviceAccount := range found.AllowedServiceAccounts {
 		allowedServiceAccounts = append(allowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
 	}
 
-	set, diags = basetypes.NewSetValueFrom(ctx, types.StringType, allowedServiceAccounts)
+	state.AllowedServiceAccounts, diags = types.SetValue(types.StringType, allowedServiceAccounts)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 
-	state.AllowedServiceAccounts = set
-
-	allowedTeams := []types.String{}
+	allowedTeams := []attr.Value{}
 	for _, team := range found.AllowedTeams {
 		allowedTeams = append(allowedTeams, types.StringValue(team.Name))
 	}
 
-	set, diags = basetypes.NewSetValueFrom(ctx, types.StringType, allowedTeams)
+	state.AllowedTeams, diags = types.SetValue(types.StringType, allowedTeams)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-
-	state.AllowedTeams = set
 
 	convertedPolicies := t.toProviderAttestationPolicies(ctx, found.ModuleAttestationPolicies, &resp.Diagnostics)
 	if convertedPolicies != nil {
@@ -458,44 +450,39 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	// Copy fields returned by Tharsis to the plan.  Apparently, must copy all fields, not just the computed fields.
 	plan.RunStage = types.StringValue(string(updated.RunStage))
 
-	allowedUsers := []types.String{}
+	allowedUsers := []attr.Value{}
 	for _, user := range updated.AllowedUsers {
 		allowedUsers = append(allowedUsers, types.StringValue(user.Username))
 	}
 
-	set, diags := basetypes.NewSetValueFrom(ctx, types.StringType, allowedUsers)
+	var diags diag.Diagnostics
+	plan.AllowedUsers, diags = types.SetValue(types.StringType, allowedUsers)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 
-	plan.AllowedUsers = set
-
-	allowedServiceAccounts := []types.String{}
+	allowedServiceAccounts := []attr.Value{}
 	for _, serviceAccount := range updated.AllowedServiceAccounts {
 		allowedServiceAccounts = append(allowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
 	}
 
-	set, diags = basetypes.NewSetValueFrom(ctx, types.StringType, allowedServiceAccounts)
+	plan.AllowedServiceAccounts, diags = types.SetValue(types.StringType, allowedServiceAccounts)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 
-	plan.AllowedServiceAccounts = set
-
-	allowedTeams := []types.String{}
+	allowedTeams := []attr.Value{}
 	for _, team := range updated.AllowedTeams {
 		allowedTeams = append(allowedTeams, types.StringValue(team.Name))
 	}
 
-	set, diags = basetypes.NewSetValueFrom(ctx, types.StringType, allowedTeams)
+	plan.AllowedTeams, diags = types.SetValue(types.StringType, allowedTeams)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-
-	plan.AllowedTeams = set
 
 	convertedPolicies := t.toProviderAttestationPolicies(ctx, updated.ModuleAttestationPolicies, &resp.Diagnostics)
 	if convertedPolicies != nil {

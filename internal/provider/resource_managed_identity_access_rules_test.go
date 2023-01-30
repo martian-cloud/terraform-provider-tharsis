@@ -29,6 +29,8 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 	// Only the run stage can be changed.
 	updateStage := "apply"
 
+	ruleType := "eligible_principals"
+
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -51,7 +53,7 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 						"run_stage", ruleStage),
 					resource.TestCheckResourceAttrPair("tharsis_managed_identity.tmiar_parent", "id",
 						"tharsis_managed_identity_access_rule.rule01", "managed_identity_id"),
-					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01", "type", "eligible_principals"),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01", "type", ruleType),
 
 					// Verify dynamic values have some value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity_access_rule.rule01", "id"),
@@ -60,8 +62,9 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 
 			// Import state.
 			{
-				ResourceName: "tharsis_managed_identity_access_rule.rule01",
-				ImportState:  true,
+				ResourceName:      "tharsis_managed_identity_access_rule.rule01",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 
 			// Attempt to update and read.
@@ -76,7 +79,8 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 						"run_stage", updateStage),
 					resource.TestCheckResourceAttrPair("tharsis_managed_identity.tmiar_parent", "id",
 						"tharsis_managed_identity_access_rule.rule01", "managed_identity_id"),
-					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01", "type", "eligible_principals"),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01",
+						"type", ruleType),
 
 					// Verify dynamic values have some value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity_access_rule.rule01", "id"),
@@ -133,10 +137,11 @@ resource "tharsis_managed_identity" "tmiar_parent" {
 func testManagedIdentityAccessRulesConfigurationRule() string {
 	ruleStage := "plan"
 	ruleParentID := "tharsis_managed_identity.tmiar_parent.id"
+	ruleType := "eligible_principals"
 	return fmt.Sprintf(`
 
 resource "tharsis_managed_identity_access_rule" "rule01" {
-	type 					 = "eligible_principals"
+	type 					 = "%s"
 	run_stage                = "%s"
 	managed_identity_id      = %s
 	allowed_users            = []
@@ -144,16 +149,17 @@ resource "tharsis_managed_identity_access_rule" "rule01" {
 	allowed_teams            = []
 }
 
-`, ruleStage, ruleParentID)
+`, ruleType, ruleStage, ruleParentID)
 }
 
 func testManagedIdentityAccessRulesConfigurationRule2() string {
 	ruleStage := "plan"
 	ruleParentID := "tharsis_managed_identity.tmiar_parent.id"
+	ruleType := "module_attestation"
 	return fmt.Sprintf(`
 
 resource "tharsis_managed_identity_access_rule" "rule02" {
-	type 					    = "module_attestation"
+	type 					    = "%s"
 	run_stage                   = "%s"
 	managed_identity_id         = %s
 	module_attestation_policies = [{
@@ -162,7 +168,7 @@ resource "tharsis_managed_identity_access_rule" "rule02" {
 	}]
 }
 
-`, ruleStage, ruleParentID, dummyPublicKey)
+`, ruleType, ruleStage, ruleParentID, dummyPublicKey)
 }
 
 func testManagedIdentityAccessRulesConfigurationUpdate() string {
