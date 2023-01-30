@@ -289,7 +289,11 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 		return
 	}
 
-	accessRule.ModuleAttestationPolicies = t.toProviderAttestationPolicies(ctx, created.ModuleAttestationPolicies, &resp.Diagnostics)
+	accessRule.ModuleAttestationPolicies, diags = t.toProviderAttestationPolicies(ctx, created.ModuleAttestationPolicies)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, accessRule)...)
@@ -369,7 +373,11 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		return
 	}
 
-	state.ModuleAttestationPolicies = t.toProviderAttestationPolicies(ctx, found.ModuleAttestationPolicies, &resp.Diagnostics)
+	state.ModuleAttestationPolicies, diags = t.toProviderAttestationPolicies(ctx, found.ModuleAttestationPolicies)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -479,7 +487,11 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		return
 	}
 
-	plan.ModuleAttestationPolicies = t.toProviderAttestationPolicies(ctx, updated.ModuleAttestationPolicies, &resp.Diagnostics)
+	plan.ModuleAttestationPolicies, diags = t.toProviderAttestationPolicies(ctx, updated.ModuleAttestationPolicies)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
 
 	// Set the response state to the fully-populated plan, error or not.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -578,7 +590,7 @@ func (t *managedIdentityAccessRuleResource) copyAttestationPoliciesToInput(ctx c
 
 // toProviderAttestationPolicies converts from ManagedIdentityAccessRuleModuleAttestationPolicy to provider equivalent.
 func (t *managedIdentityAccessRuleResource) toProviderAttestationPolicies(ctx context.Context,
-	arg []ttypes.ManagedIdentityAccessRuleModuleAttestationPolicy, diags *diag.Diagnostics) basetypes.ListValue {
+	arg []ttypes.ManagedIdentityAccessRuleModuleAttestationPolicy) (basetypes.ListValue, diag.Diagnostics) {
 	policies := []types.Object{}
 
 	for _, policy := range arg {
@@ -589,8 +601,7 @@ func (t *managedIdentityAccessRuleResource) toProviderAttestationPolicies(ctx co
 
 		value, objectDiags := basetypes.NewObjectValueFrom(ctx, t.moduleAttestationPolicyObjectAttributes(), model)
 		if objectDiags.HasError() {
-			diags.Append(objectDiags...)
-			return basetypes.ListValue{}
+			return basetypes.ListValue{}, objectDiags
 		}
 
 		policies = append(policies, value)
@@ -600,11 +611,10 @@ func (t *managedIdentityAccessRuleResource) toProviderAttestationPolicies(ctx co
 		AttrTypes: t.moduleAttestationPolicyObjectAttributes(),
 	}, policies)
 	if listDiags.HasError() {
-		diags.Append(listDiags...)
-		return basetypes.ListValue{}
+		return basetypes.ListValue{}, listDiags
 	}
 
-	return list
+	return list, nil
 }
 
 func (t *managedIdentityAccessRuleResource) moduleAttestationPolicyObjectAttributes() map[string]attr.Type {
