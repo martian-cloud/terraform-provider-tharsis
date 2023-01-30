@@ -17,14 +17,30 @@ Defines and manages a managed identity access rule.
 
 ### Required
 
+- `managed_identity_id` (String) String identifier of the connected managed identity.
+- `run_stage` (String) Type of job, plan or apply.
+- `type` (String) Type of access rule: eligible_principals or module_attestation.
+
+### Optional
+
 - `allowed_service_accounts` (Set of String) List of resource paths of service accounts allowed to use the managed identity associated with this rule.
 - `allowed_teams` (Set of String) List of names of teams allowed to use the managed identity associated with this rule.
 - `allowed_users` (Set of String) List of usernames allowed to use the managed identity associated with this rule.
-- `managed_identity_id` (String) String identifier of the connected managed identity.
-- `run_stage` (String) Type of job, plan or apply.
+- `module_attestation_policies` (Attributes List) Used to verify that a module has an in-toto attestation that is signed with the specified public key and an optional predicate type. (see [below for nested schema](#nestedatt--module_attestation_policies))
 
 ### Read-Only
 
 - `id` (String) String identifier of the access rule.
+
+<a id="nestedatt--module_attestation_policies"></a>
+### Nested Schema for `module_attestation_policies`
+
+Required:
+
+- `public_key` (String) Public key in PEM format for this attestation policy.
+
+Optional:
+
+- `predicate_type` (String) Optional predicate type for this attestation policy.
 
 

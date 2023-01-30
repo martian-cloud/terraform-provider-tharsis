@@ -20,7 +20,7 @@ Defines and manages a service account.
 - `description` (String) A description of the service account.
 - `group_path` (String) Path of the parent group.
 - `name` (String) The name of the service account.
-- `oidc_trust_policies` (Attributes Set) OIDC trust policies for this service account. (see [below for nested schema](#nestedatt--oidc_trust_policies))
+- `oidc_trust_policies` (Attributes List) OIDC trust policies for this service account. (see [below for nested schema](#nestedatt--oidc_trust_policies))
 
 ### Read-Only
 
