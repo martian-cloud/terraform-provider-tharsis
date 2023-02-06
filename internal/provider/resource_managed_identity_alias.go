@@ -256,10 +256,7 @@ func (t *managedIdentityAliasResource) copyManagedIdentityAlias(src ttypes.Manag
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.Name = types.StringValue(src.Name)
 	dest.GroupPath = types.StringValue(t.getGroupPath(src.ResourcePath))
-
-	if src.AliasSourceID != nil {
-		dest.AliasSourceID = types.StringValue(*src.AliasSourceID)
-	}
+	dest.AliasSourceID = types.StringValue(*src.AliasSourceID)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))

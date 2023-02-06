@@ -157,7 +157,6 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 							MarkdownDescription: "Optional predicate type for this attestation policy.",
 							Description:         "Optional predicate type for this attestation policy.",
 							Optional:            true,
-							Computed:            true,
 						},
 						"public_key": schema.StringAttribute{
 							MarkdownDescription: "Public key in PEM format for this attestation policy.",
