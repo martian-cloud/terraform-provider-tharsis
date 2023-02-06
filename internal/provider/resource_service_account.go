@@ -4,10 +4,11 @@ import (
 	"context"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
@@ -15,8 +16,8 @@ import (
 
 // OIDCTrustPolicyModel is the model for a trust policy.
 type OIDCTrustPolicyModel struct {
-	BoundClaims map[string]types.String `tfsdk:"bound_claims"`
 	Issuer      types.String            `tfsdk:"issuer"`
+	BoundClaims map[string]types.String `tfsdk:"bound_claims"`
 }
 
 // ServiceAccountModel is the model for a service account.
@@ -52,74 +53,67 @@ func (t *serviceAccountResource) Metadata(ctx context.Context,
 	resp.TypeName = "tharsis_service_account"
 }
 
-// The diagnostics return value is required by the interface even though this function returns only nil.
-func (t *serviceAccountResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	description := "Defines and manages a service account."
 
-	return tfsdk.Schema{
-		Version: 1,
-
+	resp.Schema = schema.Schema{
+		Version:             1,
 		MarkdownDescription: description,
 		Description:         description,
-
-		Attributes: map[string]tfsdk.Attribute{
-			"id": {
-				Type:                types.StringType,
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
 				MarkdownDescription: "String identifier of the service account.",
 				Description:         "String identifier of the service account.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"resource_path": {
-				Type:                types.StringType,
+			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent namespace plus the name of the service account.",
 				Description:         "The path of the parent namespace plus the name of the service account.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"name": {
-				Type:                types.StringType,
+			"name": schema.StringAttribute{
 				MarkdownDescription: "The name of the service account.",
 				Description:         "The name of the service account.",
 				Required:            true,
 			},
-			"description": {
-				Type:                types.StringType,
+			"description": schema.StringAttribute{
 				MarkdownDescription: "A description of the service account.",
 				Description:         "A description of the service account.",
 				Required:            true,
 			},
-			"group_path": {
-				Type:                types.StringType,
+			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
 				Required:            true,
 			},
-			"oidc_trust_policies": {
+			"oidc_trust_policies": schema.ListNestedAttribute{
 				MarkdownDescription: "OIDC trust policies for this service account.",
 				Description:         "OIDC trust policies for this service account.",
 				Required:            true,
-				Attributes: tfsdk.SetNestedAttributes(map[string]tfsdk.Attribute{
-					"bound_claims": {
-						Type:                types.MapType{ElemType: types.StringType},
-						MarkdownDescription: "Bound claims for this trust policy.",
-						Description:         "Bound claims for this trust policy.",
-						Required:            true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"bound_claims": schema.MapAttribute{
+							ElementType:         types.StringType,
+							MarkdownDescription: "Bound claims for this trust policy.",
+							Description:         "Bound claims for this trust policy.",
+							Required:            true,
+						},
+						"issuer": schema.StringAttribute{
+							MarkdownDescription: "Issuer for this trust policy.",
+							Description:         "Issuer for this trust policy.",
+							Required:            true,
+						},
 					},
-					"issuer": {
-						Type:                types.StringType,
-						MarkdownDescription: "Issuer for this trust policy.",
-						Description:         "Issuer for this trust policy.",
-						Required:            true,
-					},
-				}),
+				},
 			},
 		},
-	}, nil
+	}
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.

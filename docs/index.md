@@ -3,12 +3,12 @@
 page_title: "tharsis Provider"
 subcategory: ""
 description: |-
-  
+  Tharsis Terraform Provider is used to interact with a Tharsis instance using HCL.
 ---
 
 # tharsis Provider
 
-
+Tharsis Terraform Provider is used to interact with a Tharsis instance using HCL.
 
 ## Example Usage
 

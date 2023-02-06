@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
@@ -53,82 +54,70 @@ func (t *workspaceResource) Metadata(ctx context.Context,
 	resp.TypeName = "tharsis_workspace"
 }
 
-// The diagnostics return value is required by the interface even though this function returns only nil.
-func (t *workspaceResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (t *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	description := "Defines and manages a workspace."
 
-	return tfsdk.Schema{
-		Version: 1,
-
+	resp.Schema = schema.Schema{
+		Version:             1,
 		MarkdownDescription: description,
 		Description:         description,
-
-		Attributes: map[string]tfsdk.Attribute{
-			"id": {
-				Type:                types.StringType,
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
 				MarkdownDescription: "String identifier of the workspace.",
 				Description:         "String identifier of the workspace.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"name": {
-				Type:                types.StringType,
+			"name": schema.StringAttribute{
 				MarkdownDescription: "The name of the workspace.",
 				Description:         "The name of the workspace.",
 				Required:            true,
 			},
-			"description": {
-				Type:                types.StringType,
+			"description": schema.StringAttribute{
 				MarkdownDescription: "A description of the workspace.",
 				Description:         "A description of the workspace.",
 				Required:            true,
 			},
-			"full_path": {
-				Type:                types.StringType,
+			"full_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent namespace plus the name of the workspace.",
 				Description:         "The path of the parent namespace plus the name of the workspace.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"group_path": {
-				Type:                types.StringType,
+			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
 				Required:            true,
 			},
-			"max_job_duration": {
-				Type:                types.Int64Type,
+			"max_job_duration": schema.Int64Attribute{
 				MarkdownDescription: "Maximum job duration in minutes.",
 				Description:         "Maximum job duration in minutes.",
 				Optional:            true,
 				Computed:            true, // API sets a default value if not specified.
 			},
-			"terraform_version": {
-				Type:                types.StringType,
+			"terraform_version": schema.StringAttribute{
 				MarkdownDescription: "Terraform version for this workspace.",
 				Description:         "Terraform version for this workspace.",
 				Optional:            true,
 				Computed:            true, // API sets a default value if not specified.
 			},
-			"prevent_destroy_plan": {
-				Type:                types.BoolType,
+			"prevent_destroy_plan": schema.BoolAttribute{
 				MarkdownDescription: "Whether a destroy plan would be prevented.",
 				Description:         "Whether a destroy plan would be prevented.",
 				Optional:            true,
 				Computed:            true, // API sets a (arguably trivial) default value if not specified.
 			},
-			"last_updated": {
-				Type:                types.StringType,
+			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this workspace was most recently updated.",
 				Description:         "Timestamp when this workspace was most recently updated.",
 				Computed:            true,
 			},
 		},
-	}, nil
+	}
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.

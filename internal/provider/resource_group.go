@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
@@ -47,61 +48,52 @@ func (t *groupResource) Metadata(ctx context.Context,
 	resp.TypeName = "tharsis_group"
 }
 
-// The diagnostics return value is required by the interface even though this function returns only nil.
-func (t *groupResource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (t *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	description := "Defines and manages a group."
 
-	return tfsdk.Schema{
-		Version: 1,
-
+	resp.Schema = schema.Schema{
+		Version:             1,
 		MarkdownDescription: description,
 		Description:         description,
-
-		Attributes: map[string]tfsdk.Attribute{
-			"id": {
-				Type:                types.StringType,
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
 				MarkdownDescription: "String identifier of the group.",
 				Description:         "String identifier of the group.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"name": {
-				Type:                types.StringType,
+			"name": schema.StringAttribute{
 				MarkdownDescription: "The name of the group.",
 				Description:         "The name of the group.",
 				Required:            true,
 			},
-			"description": {
-				Type:                types.StringType,
+			"description": schema.StringAttribute{
 				MarkdownDescription: "A description of the group.",
 				Description:         "A description of the group.",
 				Optional:            true,
 			},
-			"parent_path": {
-				Type:                types.StringType,
+			"parent_path": schema.StringAttribute{
 				MarkdownDescription: "Full path of the parent namespace.",
 				Description:         "Full path of the parent namespace.",
 				Optional:            true, // A root group has no parent path.
 			},
-			"full_path": {
-				Type:                types.StringType,
+			"full_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent namespace plus the name of the group.",
 				Description:         "The path of the parent namespace plus the name of the group.",
 				Computed:            true,
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					resource.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"last_updated": {
-				Type:                types.StringType,
+			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this group was most recently updated.",
 				Description:         "Timestamp when this group was most recently updated.",
 				Computed:            true,
 			},
 		},
-	}, nil
+	}
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
