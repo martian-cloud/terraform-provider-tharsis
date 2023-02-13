@@ -107,6 +107,7 @@ func testManagedIdentityAccessRulesConfigurationRule() string {
 	return fmt.Sprintf(`
 
 resource "tharsis_managed_identity_access_rule" "rule01" {
+	type                     = "eligible_principals"
 	run_stage                = "%s"
 	managed_identity_id      = %s
 	allowed_users            = []

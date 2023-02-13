@@ -15,6 +15,7 @@ import (
 // ManagedIdentityAccessRuleModel is the model for a managed identity access rule.
 type ManagedIdentityAccessRuleModel struct {
 	ID                     types.String   `tfsdk:"id"`
+	Type                   types.String   `tfsdk:"type"`
 	RunStage               types.String   `tfsdk:"run_stage"`
 	ManagedIdentityID      types.String   `tfsdk:"managed_identity_id"`
 	AllowedUsers           []types.String `tfsdk:"allowed_users"`
@@ -63,6 +64,12 @@ func (t *managedIdentityAccessRuleResource) GetSchema(_ context.Context) (tfsdk.
 				PlanModifiers: tfsdk.AttributePlanModifiers{
 					resource.UseStateForUnknown(),
 				},
+			},
+			"type": {
+				Type:                types.StringType,
+				MarkdownDescription: "Type of access rule, eligible principals or module attestation.",
+				Description:         "Type of access rule, eligible principals or module attestation.",
+				Required:            true,
 			},
 			"run_stage": {
 				Type:                types.StringType,
@@ -126,6 +133,7 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	// Build the access rule input.
 	accessRuleInput := ttypes.CreateManagedIdentityAccessRuleInput{
 		ManagedIdentityID:      accessRule.ManagedIdentityID.ValueString(),
+		Type:                   ttypes.ManagedIdentityAccessRuleType(accessRule.Type.ValueString()),
 		RunStage:               ttypes.JobType(accessRule.RunStage.ValueString()),
 		AllowedUsers:           t.valueStrings(accessRule.AllowedUsers),
 		AllowedServiceAccounts: t.valueStrings(accessRule.AllowedServiceAccounts),
@@ -146,6 +154,7 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
 	accessRule.ID = types.StringValue(created.Metadata.ID)
+	accessRule.Type = types.StringValue(string(created.Type))
 	accessRule.RunStage = types.StringValue(string(created.RunStage))
 	accessRule.ManagedIdentityID = types.StringValue(created.ManagedIdentityID)
 
@@ -199,6 +208,8 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		return
 	}
 
+	state.Type = types.StringValue(string(found.Type))
+
 	// Copy the from-Tharsis run stage to the state, but not if it no longer exists.
 	state.RunStage = types.StringValue(string(found.RunStage))
 
@@ -240,6 +251,7 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	// Update the access rule via Tharsis.
 	// The ID is used to find the record to update.
 	// The other fields are modified.
+	// The type field cannot be modified.
 	updated, err := t.client.ManagedIdentity.UpdateManagedIdentityAccessRule(ctx,
 		&ttypes.UpdateManagedIdentityAccessRuleInput{
 			ID:                     plan.ID.ValueString(),
@@ -255,6 +267,8 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		)
 		return
 	}
+
+	plan.Type = types.StringValue(string(updated.Type))
 
 	// Copy fields returned by Tharsis to the plan.  Apparently, must copy all fields, not just the computed fields.
 	plan.RunStage = types.StringValue(string(updated.RunStage))
