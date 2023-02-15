@@ -22,6 +22,7 @@ Defines and manages a managed identity access rule.
 - `allowed_users` (Set of String) List of usernames allowed to use the managed identity associated with this rule.
 - `managed_identity_id` (String) String identifier of the connected managed identity.
 - `run_stage` (String) Type of job, plan or apply.
+- `type` (String) Type of access rule, eligible principals or module attestation.
 
 ### Read-Only
 

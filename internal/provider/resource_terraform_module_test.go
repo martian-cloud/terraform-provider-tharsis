@@ -15,7 +15,6 @@ func TestTerraformModule(t *testing.T) {
 	createRepositoryURL := "http://somewhere.example.invalid/somewhere" // optional
 	createPrivate := true                                               // optional
 
-	updateSystem := "azure"
 	updateRepositoryURL := "http://somewhere.example.invalid/else"
 	updatePrivate := false
 
@@ -58,7 +57,7 @@ func TestTerraformModule(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_terraform_module.ttm", "name", createName),
-					resource.TestCheckResourceAttr("tharsis_terraform_module.ttm", "system", updateSystem),
+					resource.TestCheckResourceAttr("tharsis_terraform_module.ttm", "system", createSystem),
 					resource.TestCheckResourceAttr("tharsis_terraform_module.ttm", "group_path", createGroupPath),
 					resource.TestCheckResourceAttr("tharsis_terraform_module.ttm", "repository_url", updateRepositoryURL),
 					resource.TestCheckResourceAttr("tharsis_terraform_module.ttm", "private", strconv.FormatBool(updatePrivate)),
@@ -99,7 +98,7 @@ func testTerraformModuleConfigurationCreate() string {
 
 func testTerraformModuleConfigurationUpdate() string {
 	createName := "ttm_name"
-	updateSystem := "azure"
+	createSystem := "aws"
 	createGroupPath := testGroupPath
 	updateRepositoryURL := "http://somewhere.example.invalid/else"
 	updatePrivate := false
@@ -113,7 +112,7 @@ func testTerraformModuleConfigurationUpdate() string {
 		repository_url = "%s"
 		private = "%v"
 	}
-		`, createName, updateSystem, createGroupPath, updateRepositoryURL, updatePrivate)
+		`, createName, createSystem, createGroupPath, updateRepositoryURL, updatePrivate)
 }
 
 // The End.
