@@ -10,8 +10,10 @@ require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.24.1
 	github.com/hashicorp/terraform-svchost v0.0.0-20200729002733-f050f53b9734
 	github.com/zclconf/go-cty v1.12.1
-	gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.15.0
+	gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.15.1-0.20230214213234-9978cf42fa0d
 )
+
+replace gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go => ../tharsis-sdk-go/
 
 require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
