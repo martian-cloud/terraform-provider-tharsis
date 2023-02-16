@@ -10,13 +10,9 @@ import (
 
 const (
 
-	// For now, assume this group exists.  See the TODO comment later in the code.
+	// Each test should create the root/parent group by calling the createRootGroup function.
 	testGroupPath = "provider-test-parent-group"
 )
-
-// TODO: For now, we're assuming the above-named group exists.
-// Eventually, the tests will need to use the Provider to create/destroy the group.  See this as an example:
-// https://github.com/hashicorp/terraform-provider-tfe/blob/main/tfe/resource_tfe_workspace_run_task_test.go#L200
 
 var (
 	testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
