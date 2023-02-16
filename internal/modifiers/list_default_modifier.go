@@ -12,7 +12,7 @@ import (
 var _ planmodifier.List = listDefaultModifier{}
 
 // listDefaultModifier is a plan modifier that sets a default value for a
-// types.SetType attribute when it is not configured. The attribute must be
+// types.ListType attribute when it is not configured. The attribute must be
 // marked as Optional and Computed. When setting the state during the resource
 // Create, Read, or Update methods, this default value must also be included or
 // the Terraform CLI will generate an error.
@@ -20,6 +20,7 @@ type listDefaultModifier struct {
 	Elements []attr.Value
 }
 
+// ListDefault returns a default plan modifier with the specified value.
 func ListDefault(elements []attr.Value) planmodifier.List {
 	return listDefaultModifier{
 		Elements: elements,
