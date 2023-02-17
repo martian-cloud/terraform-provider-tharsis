@@ -171,6 +171,7 @@ func (p *tharsisProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 func (p *tharsisProvider) Resources(context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewGPGKeyResource,
 		NewGroupResource,
 		NewManagedIdentityResource,
 		NewManagedIdentityAliasResource,
