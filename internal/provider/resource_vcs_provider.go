@@ -189,7 +189,7 @@ func (t *vcsProviderResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -264,7 +264,7 @@ func (t *vcsProviderResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the VCS provider no longer exists.
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -285,7 +285,7 @@ func (t *vcsProviderResource) ImportState(ctx context.Context,
 		ID: req.ID,
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.Diagnostics.AddError(
 				"Import VCS provider not found: "+req.ID,
 				"",

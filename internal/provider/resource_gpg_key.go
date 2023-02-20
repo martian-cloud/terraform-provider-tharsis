@@ -165,7 +165,7 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -226,7 +226,7 @@ func (t *gpgKeyResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the GPG key no longer exists.
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -247,7 +247,7 @@ func (t *gpgKeyResource) ImportState(ctx context.Context,
 		ID: req.ID,
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.Diagnostics.AddError(
 				"Import GPG key not found: "+req.ID,
 				"",

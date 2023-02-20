@@ -167,7 +167,7 @@ func (t *terraformProviderResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -238,7 +238,7 @@ func (t *terraformProviderResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the Terraform provider no longer exists.
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -259,7 +259,7 @@ func (t *terraformProviderResource) ImportState(ctx context.Context,
 		ID: req.ID,
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.Diagnostics.AddError(
 				"Import Terraform provider not found: "+req.ID,
 				"",

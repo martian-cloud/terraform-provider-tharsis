@@ -175,7 +175,7 @@ func (t *terraformModuleResource) Read(ctx context.Context,
 		ID: ptr.String(state.ID.ValueString()),
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -243,7 +243,7 @@ func (t *terraformModuleResource) Delete(ctx context.Context,
 		})
 	if err != nil {
 		// Handle the case that the Terraform module no longer exists.
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -263,7 +263,7 @@ func (t *terraformModuleResource) ImportState(ctx context.Context,
 		Path: &req.ID,
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.Diagnostics.AddError(
 				"Import Terraform module not found: "+req.ID,
 				"",

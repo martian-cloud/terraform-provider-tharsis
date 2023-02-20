@@ -316,7 +316,7 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the access rule no longer exists if that fact is reported by returning an error.
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -515,7 +515,7 @@ func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the access rule no longer exists.
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
