@@ -157,7 +157,7 @@ func (t *groupResource) Read(ctx context.Context,
 		ID: ptr.String(state.ID.ValueString()),
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -225,7 +225,7 @@ func (t *groupResource) Delete(ctx context.Context,
 		})
 	if err != nil {
 		// Handle the case that the group no longer exists.
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -246,7 +246,7 @@ func (t *groupResource) ImportState(ctx context.Context,
 		Path: &req.ID,
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.Diagnostics.AddError(
 				"Import group not found: "+req.ID,
 				"",
