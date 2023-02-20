@@ -192,7 +192,7 @@ func (t *workspaceResource) Read(ctx context.Context,
 		ID: ptr.String(state.ID.ValueString()),
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -282,7 +282,7 @@ func (t *workspaceResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the workspace no longer exists.
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -303,7 +303,7 @@ func (t *workspaceResource) ImportState(ctx context.Context,
 		Path: &req.ID,
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.Diagnostics.AddError(
 				"Import workspace not found: "+req.ID,
 				"",

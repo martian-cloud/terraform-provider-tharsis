@@ -174,7 +174,7 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 		ID: state.ID.ValueString(),
 	})
 	if err != nil {
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -245,7 +245,7 @@ func (t *serviceAccountResource) Delete(ctx context.Context,
 	if err != nil {
 
 		// Handle the case that the service account no longer exists.
-		if tharsis.NotFoundError(err) {
+		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
