@@ -254,28 +254,8 @@ func (t *terraformProviderResource) Delete(ctx context.Context,
 func (t *terraformProviderResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
-	// Get the Terraform provider by full path from Tharsis.
-	found, err := t.client.TerraformProvider.GetProvider(ctx, &ttypes.GetTerraformProviderInput{
-		ID: req.ID,
-	})
-	if err != nil {
-		if tharsis.IsNotFoundError(err) {
-			resp.Diagnostics.AddError(
-				"Import Terraform provider not found: "+req.ID,
-				"",
-			)
-			return
-		}
-
-		resp.Diagnostics.AddError(
-			"Import Terraform provider not found: "+req.ID,
-			err.Error(),
-		)
-		return
-	}
-
-	// Import by ID.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.ID)...)
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // copyTerraformProvider copies the contents of a Terraform provider.

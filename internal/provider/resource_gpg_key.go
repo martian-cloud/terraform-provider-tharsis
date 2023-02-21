@@ -20,13 +20,14 @@ import (
 // StateVersions, Memberships, Variables, ActivityEvents.
 // Also for now, omitting DirtyState, Locked, CurrentStateVersionID, and CurrentJobID.
 type GPGKeyModel struct {
-	ID          types.String `tfsdk:"id"`
-	LastUpdated types.String `tfsdk:"last_updated"`
-	CreatedBy   types.String `tfsdk:"created_by"`
-	ASCIIArmor  types.String `tfsdk:"ascii_armor"`
-	Fingerprint types.String `tfsdk:"fingerprint"`
-	GPGKeyID    types.String `tfsdk:"gpg_key_id"`
-	GroupPath   types.String `tfsdk:"group_path"`
+	ID           types.String `tfsdk:"id"`
+	LastUpdated  types.String `tfsdk:"last_updated"`
+	CreatedBy    types.String `tfsdk:"created_by"`
+	ASCIIArmor   types.String `tfsdk:"ascii_armor"`
+	Fingerprint  types.String `tfsdk:"fingerprint"`
+	GPGKeyID     types.String `tfsdk:"gpg_key_id"`
+	GroupPath    types.String `tfsdk:"group_path"`
+	ResourcePath types.String `tfsdk:"resource_path"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -105,6 +106,14 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
 				Required:            true,
+			},
+			"resource_path": schema.StringAttribute{
+				MarkdownDescription: "Path of the parent group.",
+				Description:         "Path of the parent group.",
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -242,28 +251,8 @@ func (t *gpgKeyResource) Delete(ctx context.Context,
 func (t *gpgKeyResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
-	// Get the GPG key by ID from Tharsis.
-	found, err := t.client.GPGKey.GetGPGKey(ctx, &ttypes.GetGPGKeyInput{
-		ID: req.ID,
-	})
-	if err != nil {
-		if tharsis.IsNotFoundError(err) {
-			resp.Diagnostics.AddError(
-				"Import GPG key not found: "+req.ID,
-				"",
-			)
-			return
-		}
-
-		resp.Diagnostics.AddError(
-			"Import GPG key not found: "+req.ID,
-			err.Error(),
-		)
-		return
-	}
-
-	// Import by full path.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.ID)...)
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // copyGPGKey copies the contents of a GPG key.
@@ -275,6 +264,7 @@ func (t *gpgKeyResource) copyGPGKey(src ttypes.GPGKey, dest *GPGKeyModel) {
 	dest.Fingerprint = types.StringValue(src.Fingerprint)
 	dest.GPGKeyID = types.StringValue(src.GPGKeyID)
 	dest.GroupPath = types.StringValue(src.GroupPath)
+	dest.ResourcePath = types.StringValue(src.ResourcePath)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))

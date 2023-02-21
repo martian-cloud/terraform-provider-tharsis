@@ -9,11 +9,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
+// FIXME: Asked Brandon: might have to scrap this test for now due to the requirement to
+// go through the OAuth flow before creating a workspace VCS provider link.
+
 func TestWorkspaceVCSProviderLink(t *testing.T) {
 	createModuleDirectory := "twvpl-module-directory-1"
 	createRepositoryPath := "twvpl-repository-path-1"
 	createWorkspacePath := "twvpl-workspace-path-1"
-	createProviderID := "twvpl-provider-id-1"
+	createProviderID := "tharsis_vcs_provider.wvpl_test_vcs_provider.id"
 	createBranch := "twvpl-branch-1"
 	createTagRegex := "twvpl-tag-regex-1"
 	createGlobPatterns := []string{"twvpl-glob-patterns-1a", "twvpl-glob-patterns-1b"}
@@ -126,7 +129,6 @@ func TestWorkspaceVCSProviderLink(t *testing.T) {
 func testWorkspaceVCSProviderLinkConfigurationCreate() string {
 	createModuleDirectory := "twvpl-module-directory-1"
 	createRepositoryPath := "twvpl-repository-path-1"
-	createProviderID := "twvpl-provider-id-1"
 	createBranch := "twvpl-branch-1"
 	createTagRegex := "twvpl-tag-regex-1"
 	createGlobPatterns := []string{"twvpl-glob-patterns-1a", "twvpl-glob-patterns-1b"}
@@ -139,25 +141,26 @@ func testWorkspaceVCSProviderLinkConfigurationCreate() string {
 
 %s
 
+%s
+
 resource "tharsis_workspace_vcs_provider_link" "twvpl" {
 	module_directory = "%s"
 	repository_path = "%s"
 	workspace_path = tharsis_workspace.wvpl_test_workspace.full_path
-	vcs_provider_id = "%s"
+	vcs_provider_id = tharsis_vcs_provider.wvpl_test_vcs_provider.id
 	branch = "%s"
 	tag_regex = "%s"
 	glob_patterns = %s
 	auto_speculative_plan = %v
 	webhook_disabled = %v
 }
-	`, createRootGroup(), createTestWorkspace(),
-		createModuleDirectory, createRepositoryPath, createProviderID, createBranch, createTagRegex,
+	`, createRootGroup(), createTestWorkspace(), createTestVCSProvider(),
+		createModuleDirectory, createRepositoryPath, createBranch, createTagRegex,
 		formatStringSlice(createGlobPatterns), createAutoSpeculativePlan, createWebhookDisabled)
 }
 
 func testWorkspaceVCSProviderLinkConfigurationUpdate() string {
 	createRepositoryPath := "twvpl-repository-path-1"
-	createProviderID := "twvpl-provider-id-1"
 
 	updateModuleDirectory := "twvpl-updated-module-directory-1"
 	updateBranch := "twvpl-updated-branch-1"
@@ -173,19 +176,21 @@ func testWorkspaceVCSProviderLinkConfigurationUpdate() string {
 
 %s
 
+%s
+
 resource "tharsis_workspace_vcs_provider_link" "twvpl" {
 	module_directory = "%s"
 	repository_path = "%s"
 	workspace_path = tharsis_workspace.wvpl_test_workspace.full_path
-	vcs_provider_id = "%s"
+	vcs_provider_id = tharsis_vcs_provider.wvpl_test_vcs_provider.id
 	branch = "%s"
 	tag_regex = "%s"
 	glob_patterns = %s
 	auto_speculative_plan = %v
 	webhook_disabled = %v
 }
-	`, createRootGroup(), createTestWorkspace(),
-		updateModuleDirectory, createRepositoryPath, createProviderID, updateBranch, updateTagRegex,
+	`, createRootGroup(), createTestWorkspace(), createTestVCSProvider(),
+		updateModuleDirectory, createRepositoryPath, updateBranch, updateTagRegex,
 		formatStringSlice(updateGlobPatterns), updateAutoSpeculativePlan, updateWebhookDisabled)
 }
 
@@ -202,6 +207,36 @@ resource "tharsis_workspace" "wvpl_test_workspace" {
 }
 	`, createTestWorkspaceName, createTestWorkspaceDescription)
 }
+
+func createTestVCSProvider() string {
+	vcspName := "test-vcs-provider-1"
+	vcspDescription := "this is a test VCS provider"
+	vcspHostname := "example.invalid"
+	vcspOAuthClientID := "some-client"
+	vcspOAuthClientSecret := "don't tell anyone"
+	vcspType := "gitlab"
+	vcspAutoCreateWebhooks := false
+
+	return fmt.Sprintf(`
+
+resource "tharsis_vcs_provider" "wvpl_test_vcs_provider" {
+	name = "%s"
+	description = "%s"
+	group_path = tharsis_group.root-group.full_path
+	hostname = "%s"
+	/*
+	FIXME: Keep or remove these?
+	oauth_client_id = "%s"
+	oauth_client_secret = "%s"
+	*/
+	type = "%s"
+	auto_create_webhooks = %v
+}
+	`, vcspName, vcspDescription, vcspHostname,
+		vcspOAuthClientID, vcspOAuthClientSecret, vcspType, vcspAutoCreateWebhooks)
+}
+
+// tharsis_vcs_provider.wvpl_test_vcs_provider.id
 
 func formatStringSlice(arg []string) string {
 	if len(arg) == 0 {

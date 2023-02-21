@@ -18,14 +18,19 @@ import (
 
 // VCSProviderModel is the model for a VCS provider.
 type VCSProviderModel struct {
-	ID                 types.String `tfsdk:"id"`
-	LastUpdated        types.String `tfsdk:"last_updated"`
-	Name               types.String `tfsdk:"name"`
-	CreatedBy          types.String `tfsdk:"created_by"`
-	Description        types.String `tfsdk:"description"`
-	Hostname           types.String `tfsdk:"hostname"`
-	GroupPath          types.String `tfsdk:"group_path"`
-	ResourcePath       types.String `tfsdk:"resource_path"`
+	ID           types.String `tfsdk:"id"`
+	LastUpdated  types.String `tfsdk:"last_updated"`
+	CreatedBy    types.String `tfsdk:"created_by"`
+	Name         types.String `tfsdk:"name"`
+	Description  types.String `tfsdk:"description"`
+	GroupPath    types.String `tfsdk:"group_path"`
+	ResourcePath types.String `tfsdk:"resource_path"`
+	Hostname     types.String `tfsdk:"hostname"`
+	/*
+	   FIXME: Keep or remove these?
+	   	OAuthClientID      types.String `tfsdk:"oauth_client_id"`
+	   	OAuthClientSecret  types.String `tfsdk:"oauth_client_secret"`
+	*/
 	Type               types.String `tfsdk:"type"`
 	AutoCreateWebhooks types.Bool   `tfsdk:"auto_create_webhooks"`
 }
@@ -68,11 +73,6 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"name": schema.StringAttribute{
-				MarkdownDescription: "The name of the VCS provider.",
-				Description:         "The name of the VCS provider.",
-				Required:            true,
-			},
 			"created_by": schema.StringAttribute{
 				MarkdownDescription: "The email address of the user or account that created this VCS provider.",
 				Description:         "The email address of the user or account that created this VCS provider.",
@@ -81,16 +81,15 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"name": schema.StringAttribute{
+				MarkdownDescription: "The name of the VCS provider.",
+				Description:         "The name of the VCS provider.",
+				Required:            true,
+			},
 			"description": schema.StringAttribute{
 				MarkdownDescription: "A description of the VCS provider.",
 				Description:         "A description of the VCS provider.",
 				Required:            true,
-			},
-			"hostname": schema.StringAttribute{
-				MarkdownDescription: "Hostname for this VCS provider.",
-				Description:         "Hostname for this VCS provider.",
-				Optional:            true,
-				Computed:            true, // API sets a default value if not specified.
 			},
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the group where this VCS provider resides.",
@@ -105,6 +104,25 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"hostname": schema.StringAttribute{
+				MarkdownDescription: "Hostname for this VCS provider.",
+				Description:         "Hostname for this VCS provider.",
+				Optional:            true,
+				Computed:            true, // API sets a default value if not specified.
+			},
+			/*
+			   FIXME: Keep or remove these?
+			   			"oauth_client_id": schema.StringAttribute{
+			   				MarkdownDescription: "The OAuth client ID.",
+			   				Description:         "The OAuth client ID.",
+			   				Required:            true,
+			   			},
+			   			"oauth_client_secret": schema.StringAttribute{
+			   				MarkdownDescription: "The OAuth client secret.",
+			   				Description:         "The OAuth client secret.",
+			   				Required:            true,
+			   			},
+			*/
 			"type": schema.StringAttribute{
 				MarkdownDescription: "The type of this VCS provider: gitlab, github, etc.",
 				Description:         "The type of this VCS provider: gitlab, github, etc.",
@@ -150,12 +168,15 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 	// Create the VCS provider.
 	created, err := t.client.VCSProvider.CreateProvider(ctx,
 		&ttypes.CreateVCSProviderInput{
-			Name:               vcsProvider.Name.ValueString(),
-			Description:        vcsProvider.Description.ValueString(),
-			GroupPath:          vcsProvider.GroupPath.ValueString(),
-			Hostname:           ptr.String(vcsProvider.Hostname.ValueString()),
-			OAuthClientID:      "?????", // FIXME: vcsProvider.something.ValueString(),
-			OAuthClientSecret:  "?????", // FIXME: vcsProvider.something.ValueString(),
+			Name:        vcsProvider.Name.ValueString(),
+			Description: vcsProvider.Description.ValueString(),
+			GroupPath:   vcsProvider.GroupPath.ValueString(),
+			Hostname:    ptr.String(vcsProvider.Hostname.ValueString()),
+			/*
+				FIXME: Keep or remove these?
+				OAuthClientID:      "?????", // FIXME: vcsProvider.something.ValueString(),
+				OAuthClientSecret:  "?????", // FIXME: vcsProvider.something.ValueString(),
+			*/
 			Type:               ttypes.VCSProviderType(vcsProvider.Type.ValueString()),
 			AutoCreateWebhooks: vcsProvider.AutoCreateWebhooks.ValueBool(),
 		})
@@ -226,10 +247,13 @@ func (t *vcsProviderResource) Update(ctx context.Context,
 	// The ID is used to find the record to update.
 	updated, err := t.client.VCSProvider.UpdateProvider(ctx,
 		&ttypes.UpdateVCSProviderInput{
-			ID:                plan.ID.ValueString(),
-			Description:       ptr.String(plan.Description.ValueString()),
-			OAuthClientID:     ptr.String("?????"), // FIXME: plan.something.ValueString(),
-			OAuthClientSecret: ptr.String("?????"), // FIXME: plan.something.ValueString(),
+			ID:          plan.ID.ValueString(),
+			Description: ptr.String(plan.Description.ValueString()),
+			/*
+				FIXME: Keep or remove these?
+				OAuthClientID:     ptr.String("?????"), // FIXME: plan.something.ValueString(),
+				OAuthClientSecret: ptr.String("?????"), // FIXME: plan.something.ValueString(),
+			*/
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -280,28 +304,8 @@ func (t *vcsProviderResource) Delete(ctx context.Context,
 func (t *vcsProviderResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
-	// Get the VCS provider by full path from Tharsis.
-	found, err := t.client.VCSProvider.GetProvider(ctx, &ttypes.GetVCSProviderInput{
-		ID: req.ID,
-	})
-	if err != nil {
-		if tharsis.IsNotFoundError(err) {
-			resp.Diagnostics.AddError(
-				"Import VCS provider not found: "+req.ID,
-				"",
-			)
-			return
-		}
-
-		resp.Diagnostics.AddError(
-			"Import VCS provider not found: "+req.ID,
-			err.Error(),
-		)
-		return
-	}
-
-	// Import by full path.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.ID)...)
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // copyVCSProvider copies the contents of a VCS provider.
@@ -314,6 +318,11 @@ func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSP
 	dest.Hostname = types.StringValue(src.Hostname)
 	dest.GroupPath = types.StringValue(t.getParentPath(src.ResourcePath))
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
+	/*
+	   FIXME: Keep or remove these?
+	   	dest.OAuthClientID = types.StringValue("no-src-id")         // FIXME: What to do with this?
+	   	dest.OAuthClientSecret = types.StringValue("no-src-secret") // FIXME: What to do with this?
+	*/
 	dest.Type = types.StringValue(string(src.Type))
 	dest.AutoCreateWebhooks = types.BoolValue(src.AutoCreateWebhooks)
 

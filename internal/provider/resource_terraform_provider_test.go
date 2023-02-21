@@ -16,6 +16,8 @@ func TestTerraformProvider(t *testing.T) {
 	createRepositoryURL := "https://invalid.example/some/repository/url"
 	createPrivate := true
 
+	// FIXME: Can the name really be updated?
+
 	updateName := "ttp_updated_name"
 	updateRepositoryURL := "https://invalid.example/updated/repository/url"
 	updatePrivate := false
@@ -46,7 +48,6 @@ func TestTerraformProvider(t *testing.T) {
 			// Import the state.
 			{
 				ResourceName:      "tharsis_terraform_provider.ttp",
-				ImportStateId:     "FIXME: What should be the import ID?",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},

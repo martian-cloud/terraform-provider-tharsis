@@ -14,10 +14,20 @@ func TestVCSProvider(t *testing.T) {
 	createHostname := "test-vcs-provider-hostname"
 	createGroupPath := testGroupPath
 	createResourcePath := testGroupPath + "/" + createName
+	/*
+	   FIXME: Keep or remove these?
+	   	createClientID := "test-client-id"
+	   	createClientSecret := "test-client-secret"
+	*/
 	createType := "gitlab"
 	createAutoCreateWebhooks := true
 
 	updateDescription := "this is tvp's updated description"
+	/*
+	   FIXME: Keep or remove these?
+	   	updateClientID := "updated-test-client-id"
+	   	updateClientSecret := "updated-test-client-secret"
+	*/
 
 	resource.Test(t, resource.TestCase{
 
@@ -33,6 +43,12 @@ func TestVCSProvider(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "description", createDescription),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "hostname", createHostname),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "group_path", createGroupPath),
+					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "resource_path", createResourcePath),
+					/*
+					   FIXME: Keep or remove these?
+					   					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "oauth_client_id", createClientID),
+					   					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "oauth_client_secret", createClientSecret),
+					*/
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "type", createType),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "auto_create_webhooks",
 						strconv.FormatBool(createAutoCreateWebhooks)),
@@ -48,7 +64,6 @@ func TestVCSProvider(t *testing.T) {
 			// Import the state.
 			{
 				ResourceName:      "tharsis_vcs_provider.tvp",
-				ImportStateId:     createResourcePath,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -62,6 +77,12 @@ func TestVCSProvider(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "description", updateDescription),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "hostname", createHostname),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "group_path", createGroupPath),
+					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "resource_path", createResourcePath),
+					/*
+					   FIXME: Keep or remove these?
+					   					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "oauth_client_id", updateClientID),
+					   					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "oauth_client_secret", updateClientSecret),
+					*/
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "type", createType),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "auto_create_webhooks",
 						strconv.FormatBool(createAutoCreateWebhooks)),
@@ -84,6 +105,8 @@ func testVCSProviderConfigurationCreate() string {
 	createName := "tvp_name"
 	createDescription := "this is tvp, a test VCS provider"
 	createHostname := "test-vcs-provider-hostname"
+	createClientID := "test-client-id"
+	createClientSecret := "test-client-secret"
 	createType := "gitlab"
 	createAutoCreateWebhooks := true
 
@@ -96,11 +119,17 @@ resource "tharsis_vcs_provider" "tvp" {
 	description = "%s"
 	hostname = "%s"
 	group_path = tharsis_group.root-group.full_path
+	/*
+	FIXME: Keep or remove these?
+		oauth_client_id = "%s"
+	oauth_client_secret = "%s"
+*/
 	type = "%s"
-	auto_create_webhooks = %v
+	auto_create_webhooks = %s
 }
 	`, createRootGroup(), createName, createDescription,
-		createHostname, createType, createAutoCreateWebhooks)
+		createHostname, createClientID, createClientSecret,
+		createType, strconv.FormatBool(createAutoCreateWebhooks))
 }
 
 func testVCSProviderConfigurationUpdate() string {
@@ -110,6 +139,8 @@ func testVCSProviderConfigurationUpdate() string {
 	createAutoCreateWebhooks := true
 
 	updateDescription := "this is tvp's updated description"
+	updateClientID := "updated-test-client-id"
+	updateClientSecret := "updated-test-client-secret"
 
 	return fmt.Sprintf(`
 
@@ -120,11 +151,17 @@ resource "tharsis_vcs_provider" "tvp" {
 	description = "%s"
 	hostname = "%s"
 	group_path = tharsis_group.root-group.full_path
+	/*
+	FIXME: Keep or remove these?
+		oauth_client_id = "%s"
+	oauth_client_secret = "%s"
+*/
 	type = "%s"
-	auto_create_webhooks = %v
+	auto_create_webhooks = %s
 }
 	`, createRootGroup(), createName, updateDescription,
-		createHostname, createType, createAutoCreateWebhooks)
+		createHostname, updateClientID, updateClientSecret,
+		createType, strconv.FormatBool(createAutoCreateWebhooks))
 }
 
 // The End.
