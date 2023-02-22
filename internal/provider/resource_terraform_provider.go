@@ -201,7 +201,6 @@ func (t *terraformProviderResource) Update(ctx context.Context,
 	updated, err := t.client.TerraformProvider.UpdateProvider(ctx,
 		&ttypes.UpdateTerraformProviderInput{
 			ID:            plan.ID.ValueString(),
-			Name:          plan.Name.ValueString(),
 			RepositoryURL: plan.RepositoryURL.ValueString(),
 			Private:       plan.Private.ValueBool(),
 		})
