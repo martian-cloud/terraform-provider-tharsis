@@ -18,19 +18,14 @@ import (
 
 // VCSProviderModel is the model for a VCS provider.
 type VCSProviderModel struct {
-	ID           types.String `tfsdk:"id"`
-	LastUpdated  types.String `tfsdk:"last_updated"`
-	CreatedBy    types.String `tfsdk:"created_by"`
-	Name         types.String `tfsdk:"name"`
-	Description  types.String `tfsdk:"description"`
-	GroupPath    types.String `tfsdk:"group_path"`
-	ResourcePath types.String `tfsdk:"resource_path"`
-	Hostname     types.String `tfsdk:"hostname"`
-	/*
-	   FIXME: Keep or remove these?
-	   	OAuthClientID      types.String `tfsdk:"oauth_client_id"`
-	   	OAuthClientSecret  types.String `tfsdk:"oauth_client_secret"`
-	*/
+	ID                 types.String `tfsdk:"id"`
+	LastUpdated        types.String `tfsdk:"last_updated"`
+	CreatedBy          types.String `tfsdk:"created_by"`
+	Name               types.String `tfsdk:"name"`
+	Description        types.String `tfsdk:"description"`
+	GroupPath          types.String `tfsdk:"group_path"`
+	ResourcePath       types.String `tfsdk:"resource_path"`
+	Hostname           types.String `tfsdk:"hostname"`
 	Type               types.String `tfsdk:"type"`
 	AutoCreateWebhooks types.Bool   `tfsdk:"auto_create_webhooks"`
 }
@@ -110,19 +105,6 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Optional:            true,
 				Computed:            true, // API sets a default value if not specified.
 			},
-			/*
-			   FIXME: Keep or remove these?
-			   			"oauth_client_id": schema.StringAttribute{
-			   				MarkdownDescription: "The OAuth client ID.",
-			   				Description:         "The OAuth client ID.",
-			   				Required:            true,
-			   			},
-			   			"oauth_client_secret": schema.StringAttribute{
-			   				MarkdownDescription: "The OAuth client secret.",
-			   				Description:         "The OAuth client secret.",
-			   				Required:            true,
-			   			},
-			*/
 			"type": schema.StringAttribute{
 				MarkdownDescription: "The type of this VCS provider: gitlab, github, etc.",
 				Description:         "The type of this VCS provider: gitlab, github, etc.",
@@ -161,22 +143,13 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 		return
 	}
 
-	// FIXME: OAuthClient{ID,Secret} are required inputs to the GraphQL mutation.
-	// However, they are not returned by the GraphQL mutation.
-	// Where/how should this method get them?
-
 	// Create the VCS provider.
 	created, err := t.client.VCSProvider.CreateProvider(ctx,
 		&ttypes.CreateVCSProviderInput{
-			Name:        vcsProvider.Name.ValueString(),
-			Description: vcsProvider.Description.ValueString(),
-			GroupPath:   vcsProvider.GroupPath.ValueString(),
-			Hostname:    ptr.String(vcsProvider.Hostname.ValueString()),
-			/*
-				FIXME: Keep or remove these?
-				OAuthClientID:      "?????", // FIXME: vcsProvider.something.ValueString(),
-				OAuthClientSecret:  "?????", // FIXME: vcsProvider.something.ValueString(),
-			*/
+			Name:               vcsProvider.Name.ValueString(),
+			Description:        vcsProvider.Description.ValueString(),
+			GroupPath:          vcsProvider.GroupPath.ValueString(),
+			Hostname:           ptr.String(vcsProvider.Hostname.ValueString()),
 			Type:               ttypes.VCSProviderType(vcsProvider.Type.ValueString()),
 			AutoCreateWebhooks: vcsProvider.AutoCreateWebhooks.ValueBool(),
 		})
@@ -239,21 +212,12 @@ func (t *vcsProviderResource) Update(ctx context.Context,
 		return
 	}
 
-	// FIXME: OAuthClient{ID,Secret} are optional inputs to the GraphQL mutation.
-	// However, they are not returned by the GraphQL mutation.
-	// Where/how should this method get them?
-
 	// Update the VCS provider via Tharsis.
 	// The ID is used to find the record to update.
 	updated, err := t.client.VCSProvider.UpdateProvider(ctx,
 		&ttypes.UpdateVCSProviderInput{
 			ID:          plan.ID.ValueString(),
 			Description: ptr.String(plan.Description.ValueString()),
-			/*
-				FIXME: Keep or remove these?
-				OAuthClientID:     ptr.String("?????"), // FIXME: plan.something.ValueString(),
-				OAuthClientSecret: ptr.String("?????"), // FIXME: plan.something.ValueString(),
-			*/
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -318,11 +282,6 @@ func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSP
 	dest.Hostname = types.StringValue(src.Hostname)
 	dest.GroupPath = types.StringValue(t.getParentPath(src.ResourcePath))
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
-	/*
-	   FIXME: Keep or remove these?
-	   	dest.OAuthClientID = types.StringValue("no-src-id")         // FIXME: What to do with this?
-	   	dest.OAuthClientSecret = types.StringValue("no-src-secret") // FIXME: What to do with this?
-	*/
 	dest.Type = types.StringValue(string(src.Type))
 	dest.AutoCreateWebhooks = types.BoolValue(src.AutoCreateWebhooks)
 

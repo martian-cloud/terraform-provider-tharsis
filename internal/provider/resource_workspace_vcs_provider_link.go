@@ -330,28 +330,8 @@ func (t *workspaceVCSProviderLinkResource) Delete(ctx context.Context,
 func (t *workspaceVCSProviderLinkResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
-	// Get the workspace VCS provider link by full path from Tharsis.
-	found, err := t.client.WorkspaceVCSProviderLink.GetLink(ctx, &ttypes.GetWorkspaceVCSProviderLinkInput{
-		ID: req.ID, // FIXME: What should this be searching for?
-	})
-	if err != nil {
-		if tharsis.IsNotFoundError(err) {
-			resp.Diagnostics.AddError(
-				"Import workspace VCS provider link not found: "+req.ID,
-				"",
-			)
-			return
-		}
-
-		resp.Diagnostics.AddError(
-			"Import workspace VCS provider link not found: "+req.ID,
-			err.Error(),
-		)
-		return
-	}
-
-	// Import by full path.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.ID)...)
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // copyWorkspaceVCSProviderLink copies the contents of a workspace VCS provider link.
