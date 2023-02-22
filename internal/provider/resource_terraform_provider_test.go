@@ -15,10 +15,6 @@ func TestTerraformProvider(t *testing.T) {
 	createRegistryNamespace := testGroupPath
 	createRepositoryURL := "https://invalid.example/some/repository/url"
 	createPrivate := true
-
-	// FIXME: Can the name really be updated?
-
-	updateName := "ttp_updated_name"
 	updateRepositoryURL := "https://invalid.example/updated/repository/url"
 	updatePrivate := false
 
@@ -57,7 +53,7 @@ func TestTerraformProvider(t *testing.T) {
 				Config: testTerraformProviderConfigurationUpdate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_terraform_provider.ttp", "name", updateName),
+					resource.TestCheckResourceAttr("tharsis_terraform_provider.ttp", "name", createName),
 					resource.TestCheckResourceAttr("tharsis_terraform_provider.ttp", "group_path", createGroupPath),
 					resource.TestCheckResourceAttr("tharsis_terraform_provider.ttp", "resource_path", createResourcePath),
 					resource.TestCheckResourceAttr("tharsis_terraform_provider.ttp", "registry_namespace", createRegistryNamespace),
@@ -95,7 +91,7 @@ resource "tharsis_terraform_provider" "ttp" {
 }
 
 func testTerraformProviderConfigurationUpdate() string {
-	updateName := "ttp_updated_name"
+	createName := "ttp_name"
 	updateRepositoryURL := "https://invalid.example/updated/repository/url"
 	updatePrivate := false
 
@@ -109,7 +105,7 @@ resource "tharsis_terraform_provider" "ttp" {
 	repository_url = "%s"
 	private = %v
 }
-`, createRootGroup(), updateName, updateRepositoryURL, updatePrivate)
+`, createRootGroup(), createName, updateRepositoryURL, updatePrivate)
 }
 
 // The End.
