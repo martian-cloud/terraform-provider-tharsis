@@ -69,11 +69,17 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				MarkdownDescription: "The name of the Terraform provider.",
 				Description:         "The name of the Terraform provider.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the group where this Terraform provider resides.",
 				Description:         "The path of the group where this Terraform provider resides.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "The resource path of this Terraform provider.",
@@ -95,11 +101,13 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				MarkdownDescription: "The repository URL where this Terraform provider can be found.",
 				Description:         "The repository URL where this Terraform provider can be found.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"private": schema.BoolAttribute{
 				MarkdownDescription: "Whether this Terraform provider is hidden from other top-level groups.",
 				Description:         "Whether this Terraform provider is hidden from other top-level groups.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this Terraform provider was most recently updated.",

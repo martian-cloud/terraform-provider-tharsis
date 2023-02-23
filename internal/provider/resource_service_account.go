@@ -81,21 +81,29 @@ func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequ
 				MarkdownDescription: "The name of the service account.",
 				Description:         "The name of the service account.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"description": schema.StringAttribute{
 				MarkdownDescription: "A description of the service account.",
 				Description:         "A description of the service account.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"oidc_trust_policies": schema.ListNestedAttribute{
 				MarkdownDescription: "OIDC trust policies for this service account.",
 				Description:         "OIDC trust policies for this service account.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"bound_claims": schema.MapAttribute{
@@ -205,7 +213,7 @@ func (t *serviceAccountResource) Update(ctx context.Context,
 
 	// Update the service account via Tharsis.
 	// The ID is used to find the record to update.
-	// The description is modified.
+	// The description and trust policies are modified.
 	updated, err := t.client.ServiceAccount.UpdateServiceAccount(ctx,
 		&ttypes.UpdateServiceAccountInput{
 			ID:                plan.ID.ValueString(),

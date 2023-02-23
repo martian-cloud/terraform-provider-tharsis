@@ -71,16 +71,25 @@ func (t *terraformModuleResource) Schema(_ context.Context, _ resource.SchemaReq
 				MarkdownDescription: "The name of the Terraform module.",
 				Description:         "The name of the Terraform module.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"system": schema.StringAttribute{
 				MarkdownDescription: "The target system for the module (e.g. aws, azure, etc.).",
 				Description:         "The target system for the module (e.g. aws, azure, etc.).",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "The group path for this module.",
 				Description:         "The group path for this module.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent namespace plus the name of the terraform module.",
@@ -102,11 +111,13 @@ func (t *terraformModuleResource) Schema(_ context.Context, _ resource.SchemaReq
 				MarkdownDescription: "The URL in a repository where this module is found.",
 				Description:         "The URL in a repository where this module is found.",
 				Optional:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"private": schema.BoolAttribute{
 				MarkdownDescription: "Whether other groups are blocked from seeing this module.",
 				Description:         "Whether other groups are blocked from seeing this module.",
 				Optional:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			// Keep this:
 			"last_updated": schema.StringAttribute{

@@ -85,6 +85,9 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				MarkdownDescription: "The ASCII armored key.",
 				Description:         "The ASCII armored key.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"fingerprint": schema.StringAttribute{
 				MarkdownDescription: "The fingerprint of the GPG key.",
@@ -106,6 +109,9 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "Path of the parent group.",

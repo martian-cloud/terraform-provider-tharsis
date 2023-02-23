@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -80,16 +81,23 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "The name of the VCS provider.",
 				Description:         "The name of the VCS provider.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"description": schema.StringAttribute{
 				MarkdownDescription: "A description of the VCS provider.",
 				Description:         "A description of the VCS provider.",
 				Required:            true,
+				// Description can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the group where this VCS provider resides.",
 				Description:         "The path of the group where this VCS provider resides.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "The path within the Tharsis group hierarchy to this VCS provider.",
@@ -104,16 +112,25 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description:         "Hostname for this VCS provider.",
 				Optional:            true,
 				Computed:            true, // API sets a default value if not specified.
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"type": schema.StringAttribute{
 				MarkdownDescription: "The type of this VCS provider: gitlab, github, etc.",
 				Description:         "The type of this VCS provider: gitlab, github, etc.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"auto_create_webhooks": schema.BoolAttribute{
 				MarkdownDescription: "Whether to automatically create webhooks.",
 				Description:         "Whether to automatically create webhooks.",
 				Required:            true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.RequiresReplace(),
+				},
 			},
 			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this VCS provider was most recently updated.",

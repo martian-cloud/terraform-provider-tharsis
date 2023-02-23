@@ -74,11 +74,15 @@ func (t *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				MarkdownDescription: "The name of the workspace.",
 				Description:         "The name of the workspace.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"description": schema.StringAttribute{
 				MarkdownDescription: "A description of the workspace.",
 				Description:         "A description of the workspace.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"full_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent namespace plus the name of the workspace.",
@@ -92,24 +96,30 @@ func (t *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"max_job_duration": schema.Int64Attribute{
 				MarkdownDescription: "Maximum job duration in minutes.",
 				Description:         "Maximum job duration in minutes.",
 				Optional:            true,
 				Computed:            true, // API sets a default value if not specified.
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"terraform_version": schema.StringAttribute{
 				MarkdownDescription: "Terraform version for this workspace.",
 				Description:         "Terraform version for this workspace.",
 				Optional:            true,
 				Computed:            true, // API sets a default value if not specified.
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"prevent_destroy_plan": schema.BoolAttribute{
 				MarkdownDescription: "Whether a destroy plan would be prevented.",
 				Description:         "Whether a destroy plan would be prevented.",
 				Optional:            true,
 				Computed:            true, // API sets a (arguably trivial) default value if not specified.
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this workspace was most recently updated.",
@@ -223,11 +233,7 @@ func (t *workspaceResource) Update(ctx context.Context,
 
 	// Update the workspace via Tharsis.
 	// The ID is used to find the record to update.
-	// The description is modified.
-	var workspacePath *string
-	if plan.FullPath.ValueString() != "" {
-		workspacePath = ptr.String(plan.FullPath.ValueString())
-	}
+	// The other fields are modified.
 	var maxJobDuration *int32
 	if plan.MaxJobDuration.ValueInt64() != 0 {
 		maxJobDuration = ptr.Int32(int32(plan.MaxJobDuration.ValueInt64()))
@@ -244,7 +250,6 @@ func (t *workspaceResource) Update(ctx context.Context,
 		&ttypes.UpdateWorkspaceInput{
 			ID:                 ptr.String(plan.ID.ValueString()),
 			Description:        plan.Description.ValueString(),
-			WorkspacePath:      workspacePath,
 			MaxJobDuration:     maxJobDuration,
 			TerraformVersion:   terraformVersion,
 			PreventDestroyPlan: preventDestroyPlan,

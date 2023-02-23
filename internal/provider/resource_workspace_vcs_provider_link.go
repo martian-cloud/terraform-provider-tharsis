@@ -84,16 +84,25 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				MarkdownDescription: "The resource path of the workspace.",
 				Description:         "The resource path of the workspace.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"vcs_provider_id": schema.StringAttribute{
 				MarkdownDescription: "The string identifier of the  VCS provider.",
 				Description:         "The string identifier of the  VCS provider.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"repository_path": schema.StringAttribute{
 				MarkdownDescription: "The path portion of the repository URL.",
 				Description:         "The path portion of the repository URL.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"webhook_id": schema.StringAttribute{
 				MarkdownDescription: "String identifier of the webhook.",
@@ -107,34 +116,40 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				MarkdownDescription: "The module's directory path.",
 				Description:         "The module's directory path.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"branch": schema.StringAttribute{
 				MarkdownDescription: "The repository branch.",
 				Description:         "The repository branch.",
 				Optional:            true,
 				Computed:            true, // API sets a default value if not specified.
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"tag_regex": schema.StringAttribute{
 				MarkdownDescription: "A regular expression that specifies which tags trigger runs.",
 				Description:         "A regular expression that specifies which tags trigger runs.",
 				Optional:            true,
 				Computed:            true, // API sets a default value of nil if not specified.
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"glob_patterns": schema.ListAttribute{
 				ElementType:         types.StringType,
 				MarkdownDescription: "Glob patterns to use for monitoring changes.",
 				Description:         "Glob patterns to use for monitoring changes.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"auto_speculative_plan": schema.BoolAttribute{
 				MarkdownDescription: "Whether to create speculative plans automatically for PRs.",
 				Description:         "Whether to create speculative plans automatically for PRs.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"webhook_disabled": schema.BoolAttribute{
 				MarkdownDescription: "Whether to disable the webhook.",
 				Description:         "Whether to disable the webhook.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this workspace VCS provider link was most recently updated.",

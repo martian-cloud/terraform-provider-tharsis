@@ -102,16 +102,23 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				MarkdownDescription: "Type of access rule: eligible_principals or module_attestation.",
 				Description:         "Type of access rule: eligible_principals or module_attestation.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"run_stage": schema.StringAttribute{
 				MarkdownDescription: "Type of job, plan or apply.",
 				Description:         "Type of job, plan or apply.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"managed_identity_id": schema.StringAttribute{
 				MarkdownDescription: "String identifier of the connected managed identity.",
 				Description:         "String identifier of the connected managed identity.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"allowed_users": schema.SetAttribute{
 				ElementType:         types.StringType,
@@ -122,6 +129,7 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				PlanModifiers: []planmodifier.Set{
 					modifiers.SetDefault([]attr.Value{}),
 				},
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"allowed_service_accounts": schema.SetAttribute{
 				ElementType:         types.StringType,
@@ -132,6 +140,7 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				PlanModifiers: []planmodifier.Set{
 					modifiers.SetDefault([]attr.Value{}),
 				},
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"allowed_teams": schema.SetAttribute{
 				ElementType:         types.StringType,
@@ -142,6 +151,7 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				PlanModifiers: []planmodifier.Set{
 					modifiers.SetDefault([]attr.Value{}),
 				},
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"module_attestation_policies": schema.ListNestedAttribute{
 				MarkdownDescription: "Used to verify that a module has an in-toto attestation that is signed with the specified public key and an optional predicate type.",
@@ -151,6 +161,7 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				PlanModifiers: []planmodifier.List{
 					modifiers.ListDefault([]attr.Value{}),
 				},
+				// Can be updated in place, so no RequiresReplace plan modifier.
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"predicate_type": schema.StringAttribute{

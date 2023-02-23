@@ -95,6 +95,9 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				MarkdownDescription: "Type of managed identity: AWS, Azure, or Tharsis.",
 				Description:         "Type of managed identity: AWS, Azure, or Tharsis.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent group plus the name of the managed identity.",
@@ -108,36 +111,47 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				MarkdownDescription: "The name of the managed identity.",
 				Description:         "The name of the managed identity.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"description": schema.StringAttribute{
 				MarkdownDescription: "A description of the managed identity.",
 				Description:         "A description of the managed identity.",
 				Optional:            true,
+				// Description can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Full path of the parent group.",
 				Description:         "Full path of the parent group.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"aws_role": schema.StringAttribute{
 				MarkdownDescription: "AWS role",
 				Description:         "AWS role",
 				Optional:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"azure_client_id": schema.StringAttribute{
 				MarkdownDescription: "Azure client ID",
 				Description:         "Azure client ID",
 				Optional:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"azure_tenant_id": schema.StringAttribute{
 				MarkdownDescription: "Azure tenant ID",
 				Description:         "Azure tenant ID",
 				Optional:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"tharsis_service_account_path": schema.StringAttribute{
 				MarkdownDescription: "Tharsis service account path",
 				Description:         "Tharsis service account path",
 				Optional:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"subject": schema.StringAttribute{
 				MarkdownDescription: "subject string for AWS, Azure, and Tharsis",
