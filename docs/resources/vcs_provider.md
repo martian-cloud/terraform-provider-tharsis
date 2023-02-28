@@ -34,6 +34,7 @@ Defines and manages a VCS provider.
 - `created_by` (String) The email address of the user or account that created this VCS provider.
 - `id` (String) String identifier of the VCS provider.
 - `last_updated` (String) Timestamp when this VCS provider was most recently updated.
+- `oauth_authorization_url` (String) URL to use to complete OAuth flow for any links to this VCS provider.
 - `resource_path` (String) The path within the Tharsis group hierarchy to this VCS provider.
 
 

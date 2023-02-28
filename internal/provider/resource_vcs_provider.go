@@ -19,18 +19,19 @@ import (
 
 // VCSProviderModel is the model for a VCS provider.
 type VCSProviderModel struct {
-	ID                 types.String `tfsdk:"id"`
-	LastUpdated        types.String `tfsdk:"last_updated"`
-	CreatedBy          types.String `tfsdk:"created_by"`
-	Name               types.String `tfsdk:"name"`
-	Description        types.String `tfsdk:"description"`
-	GroupPath          types.String `tfsdk:"group_path"`
-	ResourcePath       types.String `tfsdk:"resource_path"`
-	Hostname           types.String `tfsdk:"hostname"`
-	Type               types.String `tfsdk:"type"`
-	AutoCreateWebhooks types.Bool   `tfsdk:"auto_create_webhooks"`
-	OAuthClientID      types.String `tfsdk:"oauth_client_id"`
-	OAuthClientSecret  types.String `tfsdk:"oauth_client_secret"`
+	ID                    types.String `tfsdk:"id"`
+	LastUpdated           types.String `tfsdk:"last_updated"`
+	CreatedBy             types.String `tfsdk:"created_by"`
+	Name                  types.String `tfsdk:"name"`
+	Description           types.String `tfsdk:"description"`
+	GroupPath             types.String `tfsdk:"group_path"`
+	ResourcePath          types.String `tfsdk:"resource_path"`
+	Hostname              types.String `tfsdk:"hostname"`
+	Type                  types.String `tfsdk:"type"`
+	AutoCreateWebhooks    types.Bool   `tfsdk:"auto_create_webhooks"`
+	OAuthClientID         types.String `tfsdk:"oauth_client_id"`
+	OAuthClientSecret     types.String `tfsdk:"oauth_client_secret"`
+	OAuthAuthorizationURL types.String `tfsdk:"oauth_authorization_url"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -139,12 +140,20 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description:         "A description of the VCS provider.",
 				Required:            true,
 				// Can be updated in place, so no RequiresReplace plan modifier.
+				// Is write-only, so will not be set after import.
 			},
 			"oauth_client_secret": schema.StringAttribute{
 				MarkdownDescription: "A description of the VCS provider.",
 				Description:         "A description of the VCS provider.",
 				Required:            true,
 				// Can be updated in place, so no RequiresReplace plan modifier.
+				// Is write-only, so will not be set after import.
+			},
+			"oauth_authorization_url": schema.StringAttribute{
+				MarkdownDescription: "URL to use to complete OAuth flow for any links to this VCS provider.",
+				Description:         "URL to use to complete OAuth flow for any links to this VCS provider.",
+				Computed:            true,
+				// This value is available immediately after a resource is created but will not be set after import.
 			},
 			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this VCS provider was most recently updated.",
@@ -320,6 +329,7 @@ func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSP
 	dest.Type = types.StringValue(string(src.Type))
 	dest.AutoCreateWebhooks = types.BoolValue(src.AutoCreateWebhooks)
 	// The OAuthClientID and OAuthClientSecret fields are write-only to the Tharsis SDK, so no copying here.
+	dest.OAuthAuthorizationURL = types.StringValue(src.OAuthAuthorizationURL) // available only after create
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
