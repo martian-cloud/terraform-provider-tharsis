@@ -358,16 +358,10 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src ttyp
 	dest.WorkspacePath = types.StringValue(src.WorkspacePath)
 	dest.VCSProviderID = types.StringValue(src.VCSProviderID)
 	dest.RepositoryPath = types.StringValue(src.RepositoryPath)
-	if src.WebhookID != nil {
-		dest.WebhookID = types.StringValue(*src.WebhookID)
-	}
-	if src.ModuleDirectory != nil {
-		dest.ModuleDirectory = types.StringValue(*src.ModuleDirectory)
-	}
+	dest.WebhookID = stringValueFromStringPtr(src.WebhookID)
+	dest.ModuleDirectory = stringValueFromStringPtr(src.ModuleDirectory)
 	dest.Branch = types.StringValue(src.Branch)
-	if src.TagRegex != nil {
-		dest.TagRegex = types.StringValue(*src.TagRegex)
-	}
+	dest.TagRegex = stringValueFromStringPtr(src.TagRegex)
 	dest.GlobPatterns = []types.String{}
 	for _, gp := range src.GlobPatterns {
 		dest.GlobPatterns = append(dest.GlobPatterns, types.StringValue(gp))
@@ -377,6 +371,15 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src ttyp
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
+}
+
+// stringValueFromStringPtr produces a types.StringValue from a *string that might be nil.
+func stringValueFromStringPtr(sp *string) types.String {
+	if sp == nil {
+		return types.StringNull()
+	}
+
+	return types.StringValue(*sp)
 }
 
 // The End.
