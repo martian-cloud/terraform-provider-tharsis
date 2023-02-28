@@ -21,6 +21,8 @@ Defines and manages a VCS provider.
 - `description` (String) A description of the VCS provider.
 - `group_path` (String) The path of the group where this VCS provider resides.
 - `name` (String) The name of the VCS provider.
+- `oauth_client_id` (String) A description of the VCS provider.
+- `oauth_client_secret` (String) A description of the VCS provider.
 - `type` (String) The type of this VCS provider: gitlab, github, etc.
 
 ### Optional

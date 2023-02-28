@@ -29,6 +29,8 @@ type VCSProviderModel struct {
 	Hostname           types.String `tfsdk:"hostname"`
 	Type               types.String `tfsdk:"type"`
 	AutoCreateWebhooks types.Bool   `tfsdk:"auto_create_webhooks"`
+	OAuthClientID      types.String `tfsdk:"oauth_client_id"`
+	OAuthClientSecret  types.String `tfsdk:"oauth_client_secret"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -132,6 +134,18 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 					boolplanmodifier.RequiresReplace(),
 				},
 			},
+			"oauth_client_id": schema.StringAttribute{
+				MarkdownDescription: "A description of the VCS provider.",
+				Description:         "A description of the VCS provider.",
+				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
+			},
+			"oauth_client_secret": schema.StringAttribute{
+				MarkdownDescription: "A description of the VCS provider.",
+				Description:         "A description of the VCS provider.",
+				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
+			},
 			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this VCS provider was most recently updated.",
 				Description:         "Timestamp when this VCS provider was most recently updated.",
@@ -169,6 +183,8 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 			Hostname:           ptr.String(vcsProvider.Hostname.ValueString()),
 			Type:               ttypes.VCSProviderType(vcsProvider.Type.ValueString()),
 			AutoCreateWebhooks: vcsProvider.AutoCreateWebhooks.ValueBool(),
+			OAuthClientID:      vcsProvider.OAuthClientID.ValueString(),
+			OAuthClientSecret:  vcsProvider.OAuthClientSecret.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -233,8 +249,10 @@ func (t *vcsProviderResource) Update(ctx context.Context,
 	// The ID is used to find the record to update.
 	updated, err := t.client.VCSProvider.UpdateProvider(ctx,
 		&ttypes.UpdateVCSProviderInput{
-			ID:          plan.ID.ValueString(),
-			Description: ptr.String(plan.Description.ValueString()),
+			ID:                plan.ID.ValueString(),
+			Description:       ptr.String(plan.Description.ValueString()),
+			OAuthClientID:     ptr.String(plan.OAuthClientID.ValueString()),
+			OAuthClientSecret: ptr.String(plan.OAuthClientSecret.ValueString()),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -301,6 +319,7 @@ func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSP
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.Type = types.StringValue(string(src.Type))
 	dest.AutoCreateWebhooks = types.BoolValue(src.AutoCreateWebhooks)
+	// The OAuthClientID and OAuthClientSecret fields are write-only to the Tharsis SDK, so no copying here.
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))

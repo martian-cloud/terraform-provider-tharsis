@@ -49,7 +49,7 @@ For a service account it would look like this:
 ```hcl
 provider "tharsis" {
     host = "https://tharsis.example.com"
-    service_account_name = "my-service_account-name"
+    service_account_path = "my-service_account-path"
     service_account_token = "my-service-account-token"
 }
 ```
