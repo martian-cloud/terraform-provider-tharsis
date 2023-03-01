@@ -184,7 +184,7 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 	}
 
 	// Create the VCS provider.
-	created, err := t.client.VCSProvider.CreateProvider(ctx,
+	createResponse, err := t.client.VCSProvider.CreateProvider(ctx,
 		&ttypes.CreateVCSProviderInput{
 			Name:               vcsProvider.Name.ValueString(),
 			Description:        vcsProvider.Description.ValueString(),
@@ -204,7 +204,8 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyVCSProvider(*created, &vcsProvider)
+	t.copyVCSProvider(createResponse.VCSProvider, &vcsProvider)
+	vcsProvider.OAuthAuthorizationURL = types.StringValue(createResponse.OAuthAuthorizationURL)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, vcsProvider)...)
@@ -329,7 +330,9 @@ func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSP
 	dest.Type = types.StringValue(string(src.Type))
 	dest.AutoCreateWebhooks = types.BoolValue(src.AutoCreateWebhooks)
 	// The OAuthClientID and OAuthClientSecret fields are write-only to the Tharsis SDK, so no copying here.
-	dest.OAuthAuthorizationURL = types.StringValue(src.OAuthAuthorizationURL) // available only after create
+	// For the create operation, the OAuthAuthorizationURL field must be assigned by the caller.
+	// This just makes it not unknown, because Terraform requires computed fields to be known after apply.
+	dest.OAuthAuthorizationURL = types.StringValue("")
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))

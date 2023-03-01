@@ -44,6 +44,9 @@ func TestVCSProvider(t *testing.T) {
 					resource.TestCheckResourceAttrSet("tharsis_vcs_provider.tvp", "created_by"),
 					resource.TestCheckResourceAttrSet("tharsis_vcs_provider.tvp", "resource_path"),
 
+					// The only time this can be checked is immediately after a create operation.
+					resource.TestCheckResourceAttrSet("tharsis_vcs_provider.tvp", "oauth_authorization_url"),
+
 					// OAuthClientID and OAuthClientSecret are write-only, so there's nothing to verify here.
 				),
 			},
@@ -55,7 +58,7 @@ func TestVCSProvider(t *testing.T) {
 				ResourceName:            "tharsis_vcs_provider.tvp",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"oauth_client_id", "oauth_client_secret"},
+				ImportStateVerifyIgnore: []string{"oauth_client_id", "oauth_client_secret", "oauth_authorization_url"},
 			},
 
 			// Update and read.
