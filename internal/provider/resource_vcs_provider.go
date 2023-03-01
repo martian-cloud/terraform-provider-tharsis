@@ -204,7 +204,7 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyVCSProvider(createResponse.VCSProvider, &vcsProvider)
+	t.copyVCSProvider(*createResponse.VCSProvider, &vcsProvider)
 	vcsProvider.OAuthAuthorizationURL = types.StringValue(createResponse.OAuthAuthorizationURL)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
