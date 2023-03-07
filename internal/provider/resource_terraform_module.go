@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
@@ -269,27 +268,8 @@ func (t *terraformModuleResource) Delete(ctx context.Context,
 func (t *terraformModuleResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
-	// Get the Terraform module by resource path from Tharsis.
-	found, err := t.client.TerraformModule.GetModule(ctx, &ttypes.GetTerraformModuleInput{
-		Path: &req.ID,
-	})
-	if err != nil {
-		if tharsis.IsNotFoundError(err) {
-			resp.Diagnostics.AddError(
-				"Import Terraform module not found: "+req.ID,
-				"",
-			)
-			return
-		}
-		resp.Diagnostics.AddError(
-			"Import Terraform module not found: "+req.ID,
-			err.Error(),
-		)
-		return
-	}
-
-	// Import by resource path.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.ID)...)
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // copyTerraformModule copies the contents of a Terraform module.
@@ -298,7 +278,7 @@ func (t *terraformModuleResource) copyTerraformModule(src ttypes.TerraformModule
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.Name = types.StringValue(src.Name)
 	dest.System = types.StringValue(src.System)
-	dest.GroupPath = types.StringValue(t.resourcePathToGroupPath(src.ResourcePath))
+	dest.GroupPath = types.StringValue(src.GroupPath)
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.RegistryNamespace = types.StringValue(src.RegistryNamespace)
 	dest.RepositoryURL = types.StringValue(src.RepositoryURL)
@@ -306,13 +286,6 @@ func (t *terraformModuleResource) copyTerraformModule(src ttypes.TerraformModule
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
-}
-
-// resourcePathToGroupPath returns the group path from a resource path.
-// This function must match the GetGroupPath function in the Terraform module of the API.
-func (t *terraformModuleResource) resourcePathToGroupPath(resourcePath string) string {
-	pathParts := strings.Split(resourcePath, "/")
-	return strings.Join(pathParts[:len(pathParts)-2], "/")
 }
 
 // The End.

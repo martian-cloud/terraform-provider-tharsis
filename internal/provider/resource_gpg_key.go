@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"reflect"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -213,13 +212,6 @@ func (t *gpgKeyResource) Update(ctx context.Context,
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	if !reflect.DeepEqual(plan, state) {
-		resp.Diagnostics.AddError(
-			"Error updating GPG key",
-			"A GPG key cannot be updated",
-		)
 	}
 }
 

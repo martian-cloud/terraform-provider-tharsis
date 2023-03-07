@@ -215,10 +215,9 @@ func (t *workspaceVCSProviderLinkResource) Create(ctx context.Context,
 		)
 		return
 	}
-	created := createResponse.VCSProviderLink
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyWorkspaceVCSProviderLink(created, &workspaceVCSProviderLink)
+	t.copyWorkspaceVCSProviderLink(createResponse.VCSProviderLink, &workspaceVCSProviderLink)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, workspaceVCSProviderLink)...)
@@ -358,10 +357,10 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src ttyp
 	dest.WorkspacePath = types.StringValue(src.WorkspacePath)
 	dest.VCSProviderID = types.StringValue(src.VCSProviderID)
 	dest.RepositoryPath = types.StringValue(src.RepositoryPath)
-	dest.WebhookID = stringValueFromStringPtr(src.WebhookID)
-	dest.ModuleDirectory = stringValueFromStringPtr(src.ModuleDirectory)
+	dest.WebhookID = t.stringValueFromStringPtr(src.WebhookID)
+	dest.ModuleDirectory = t.stringValueFromStringPtr(src.ModuleDirectory)
 	dest.Branch = types.StringValue(src.Branch)
-	dest.TagRegex = stringValueFromStringPtr(src.TagRegex)
+	dest.TagRegex = t.stringValueFromStringPtr(src.TagRegex)
 	dest.GlobPatterns = []types.String{}
 	for _, gp := range src.GlobPatterns {
 		dest.GlobPatterns = append(dest.GlobPatterns, types.StringValue(gp))
@@ -374,7 +373,7 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src ttyp
 }
 
 // stringValueFromStringPtr produces a types.StringValue from a *string that might be nil.
-func stringValueFromStringPtr(sp *string) types.String {
+func (t *workspaceVCSProviderLinkResource) stringValueFromStringPtr(sp *string) types.String {
 	if sp == nil {
 		return types.StringNull()
 	}

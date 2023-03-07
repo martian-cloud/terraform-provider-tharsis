@@ -19,6 +19,9 @@ Defines and manages a Terraform provider.
 
 - `group_path` (String) The path of the group where this Terraform provider resides.
 - `name` (String) The name of the Terraform provider.
+
+### Optional
+
 - `private` (Boolean) Whether this Terraform provider is hidden from other top-level groups.
 - `repository_url` (String) The repository URL where this Terraform provider can be found.
 
@@ -27,6 +30,6 @@ Defines and manages a Terraform provider.
 - `id` (String) String identifier of the Terraform provider.
 - `last_updated` (String) Timestamp when this Terraform provider was most recently updated.
 - `registry_namespace` (String) The top-level group where this Terraform provider resides.
-- `resource_path` (String) The resource path of this Terraform provider.
+- `resource_path` (String) String identifier of this Terraform provider.
 
 

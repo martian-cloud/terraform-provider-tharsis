@@ -82,8 +82,8 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				},
 			},
 			"resource_path": schema.StringAttribute{
-				MarkdownDescription: "The resource path of this Terraform provider.",
-				Description:         "The resource path of this Terraform provider.",
+				MarkdownDescription: "String identifier of this Terraform provider.",
+				Description:         "String identifier of this Terraform provider.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -100,13 +100,13 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 			"repository_url": schema.StringAttribute{
 				MarkdownDescription: "The repository URL where this Terraform provider can be found.",
 				Description:         "The repository URL where this Terraform provider can be found.",
-				Required:            true,
+				Optional:            true,
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"private": schema.BoolAttribute{
 				MarkdownDescription: "Whether this Terraform provider is hidden from other top-level groups.",
 				Description:         "Whether this Terraform provider is hidden from other top-level groups.",
-				Required:            true,
+				Optional:            true,
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{
