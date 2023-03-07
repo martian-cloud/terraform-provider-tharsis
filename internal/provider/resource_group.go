@@ -287,7 +287,8 @@ func (t *groupResource) copyGroup(src ttypes.Group, dest *GroupModel) {
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
 }
 
-// getParentPath returns the parent path
+// getParentPath returns the parent path.
+// The parent path is not available as a separate field.
 func (t *groupResource) getParentPath(fullPath string) string {
 	if strings.Contains(fullPath, "/") {
 		return fullPath[:strings.LastIndex(fullPath, "/")]

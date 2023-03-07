@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
@@ -325,7 +324,7 @@ func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSP
 	dest.CreatedBy = types.StringValue(src.CreatedBy)
 	dest.Description = types.StringValue(src.Description)
 	dest.Hostname = types.StringValue(src.Hostname)
-	dest.GroupPath = types.StringValue(t.getParentPath(src.ResourcePath))
+	dest.GroupPath = types.StringValue(src.GroupPath)
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.Type = types.StringValue(string(src.Type))
 	dest.AutoCreateWebhooks = types.BoolValue(src.AutoCreateWebhooks)
@@ -336,11 +335,6 @@ func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSP
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
-}
-
-// getParentPath returns the parent path
-func (t *vcsProviderResource) getParentPath(fullPath string) string {
-	return fullPath[:strings.LastIndex(fullPath, "/")]
 }
 
 // The End.

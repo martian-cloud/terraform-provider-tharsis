@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -280,7 +279,7 @@ func (t *serviceAccountResource) copyServiceAccount(src ttypes.ServiceAccount, d
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
-	dest.GroupPath = types.StringValue(t.getParentPath(src.ResourcePath))
+	dest.GroupPath = types.StringValue(src.GroupPath)
 
 	newPolicies := []OIDCTrustPolicyModel{}
 	for _, trustPolicy := range src.OIDCTrustPolicies {
@@ -318,11 +317,6 @@ func (t *serviceAccountResource) copyTrustPoliciesToInput(models []OIDCTrustPoli
 	}
 
 	return result
-}
-
-// getParentPath returns the parent path
-func (t *serviceAccountResource) getParentPath(fullPath string) string {
-	return fullPath[:strings.LastIndex(fullPath, "/")]
 }
 
 // The End.

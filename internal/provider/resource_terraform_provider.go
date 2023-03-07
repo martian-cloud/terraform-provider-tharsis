@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -270,7 +269,7 @@ func (t *terraformProviderResource) ImportState(ctx context.Context,
 func (t *terraformProviderResource) copyTerraformProvider(src ttypes.TerraformProvider, dest *TerraformProviderModel) {
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.Name = types.StringValue(src.Name)
-	dest.GroupPath = types.StringValue(t.getParentPath(src.ResourcePath))
+	dest.GroupPath = types.StringValue(src.GroupPath)
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.RegistryNamespace = types.StringValue(src.RegistryNamespace)
 	dest.RepositoryURL = types.StringValue(src.RepositoryURL)
@@ -278,11 +277,6 @@ func (t *terraformProviderResource) copyTerraformProvider(src ttypes.TerraformPr
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
-}
-
-// getParentPath returns the parent path
-func (t *terraformProviderResource) getParentPath(fullPath string) string {
-	return fullPath[:strings.LastIndex(fullPath, "/")]
 }
 
 // The End.

@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
@@ -264,16 +263,11 @@ func (t *managedIdentityAliasResource) copyManagedIdentityAlias(src ttypes.Manag
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.Name = types.StringValue(src.Name)
-	dest.GroupPath = types.StringValue(t.getGroupPath(src.ResourcePath))
+	dest.GroupPath = types.StringValue(src.GroupPath)
 	dest.AliasSourceID = types.StringValue(*src.AliasSourceID)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
 
 	return nil
-}
-
-// getGroupPath returns the group path
-func (t *managedIdentityAliasResource) getGroupPath(resourcePath string) string {
-	return resourcePath[:strings.LastIndex(resourcePath, "/")]
 }

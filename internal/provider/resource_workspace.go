@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
@@ -334,18 +333,13 @@ func (t *workspaceResource) copyWorkspace(src ttypes.Workspace, dest *WorkspaceM
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
 	dest.FullPath = types.StringValue(src.FullPath)
-	dest.GroupPath = types.StringValue(t.getParentPath(src.FullPath))
+	dest.GroupPath = types.StringValue(src.GroupPath)
 	dest.MaxJobDuration = types.Int64Value(int64(src.MaxJobDuration))
 	dest.TerraformVersion = types.StringValue(src.TerraformVersion)
 	dest.PreventDestroyPlan = types.BoolValue(src.PreventDestroyPlan)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
-}
-
-// getParentPath returns the parent path
-func (t *workspaceResource) getParentPath(fullPath string) string {
-	return fullPath[:strings.LastIndex(fullPath, "/")]
 }
 
 // The End.

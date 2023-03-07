@@ -201,18 +201,16 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 func (t *gpgKeyResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
-	// Retrieve values from plan.
-	var plan GPGKeyModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	// This method must exist to comply with the required interfaces,
+	// but all input attributes have the RequiresReplace plan modifier,
+	// so there's nothing for it to do.  It should never be called.
+	// If it is, it should error out.
 
-	var state GPGKeyModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.AddError(
+		"GPG key should never be updated in place.",
+		"GPG key should never be updated in place.",
+	)
+	return
 }
 
 func (t *gpgKeyResource) Delete(ctx context.Context,

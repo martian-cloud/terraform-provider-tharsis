@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -380,7 +379,7 @@ func (t *managedIdentityResource) copyManagedIdentity(src ttypes.ManagedIdentity
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
-	dest.GroupPath = types.StringValue(t.getGroupPath(src.ResourcePath))
+	dest.GroupPath = types.StringValue(src.GroupPath)
 	if decodedData.AWSRole != nil {
 		dest.AWSRole = types.StringValue(*decodedData.AWSRole)
 	}
@@ -461,11 +460,6 @@ func (t *managedIdentityResource) decodeDataString(encoded string) (*managedIden
 	}
 
 	return &result, nil
-}
-
-// getGroupPath returns the group path
-func (t *managedIdentityResource) getGroupPath(resourcePath string) string {
-	return resourcePath[:strings.LastIndex(resourcePath, "/")]
 }
 
 // The End.
