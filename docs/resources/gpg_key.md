@@ -27,6 +27,6 @@ Defines and manages a GPG key.
 - `gpg_key_id` (String) The GPG key string for this GPG key.
 - `id` (String) String identifier of the GPG key.
 - `last_updated` (String) Timestamp when this GPG key was most recently updated.
-- `resource_path` (String) Path of the parent group.
+- `resource_path` (String) Path of this GPG key.
 
 

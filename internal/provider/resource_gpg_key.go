@@ -113,8 +113,8 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				},
 			},
 			"resource_path": schema.StringAttribute{
-				MarkdownDescription: "Path of the parent group.",
-				Description:         "Path of the parent group.",
+				MarkdownDescription: "Path of this GPG key.",
+				Description:         "Path of this GPG key.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
