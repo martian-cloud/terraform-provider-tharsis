@@ -22,6 +22,7 @@ type setDefaultModifier struct {
 	Elements []attr.Value
 }
 
+// SetDefault returns a default plan modifier with the specified value.
 func SetDefault(elements []attr.Value) planmodifier.Set {
 	return setDefaultModifier{
 		Elements: elements,

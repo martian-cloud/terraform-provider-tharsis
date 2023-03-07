@@ -68,16 +68,23 @@ func (t *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				MarkdownDescription: "The name of the group.",
 				Description:         "The name of the group.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"description": schema.StringAttribute{
 				MarkdownDescription: "A description of the group.",
 				Description:         "A description of the group.",
 				Optional:            true,
+				// Description can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"parent_path": schema.StringAttribute{
 				MarkdownDescription: "Full path of the parent namespace.",
 				Description:         "Full path of the parent namespace.",
 				Optional:            true, // A root group has no parent path.
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"full_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent namespace plus the name of the group.",
@@ -280,7 +287,8 @@ func (t *groupResource) copyGroup(src ttypes.Group, dest *GroupModel) {
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
 }
 
-// getParentPath returns the parent path
+// getParentPath returns the parent path.
+// The parent path is not available as a separate field.
 func (t *groupResource) getParentPath(fullPath string) string {
 	if strings.Contains(fullPath, "/") {
 		return fullPath[:strings.LastIndex(fullPath, "/")]

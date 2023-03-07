@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
@@ -77,11 +76,17 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				MarkdownDescription: "The name of the managed identity alias.",
 				Description:         "The name of the managed identity alias.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Full path of the group where alias will be created.",
 				Description:         "Full path of the group where alias will be created.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this managed identity alias was most recently updated.",
@@ -92,6 +97,9 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				MarkdownDescription: "ID of the managed identity being aliased",
 				Description:         "ID of the managed identity being aliased",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
@@ -255,16 +263,11 @@ func (t *managedIdentityAliasResource) copyManagedIdentityAlias(src ttypes.Manag
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.Name = types.StringValue(src.Name)
-	dest.GroupPath = types.StringValue(t.getGroupPath(src.ResourcePath))
+	dest.GroupPath = types.StringValue(src.GroupPath)
 	dest.AliasSourceID = types.StringValue(*src.AliasSourceID)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
 
 	return nil
-}
-
-// getGroupPath returns the group path
-func (t *managedIdentityAliasResource) getGroupPath(resourcePath string) string {
-	return resourcePath[:strings.LastIndex(resourcePath, "/")]
 }

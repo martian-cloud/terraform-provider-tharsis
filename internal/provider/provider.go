@@ -25,6 +25,7 @@ import (
 // Ensure provider defined types fully satisfy framework interfaces
 var _ provider.Provider = (*tharsisProvider)(nil)
 
+// Default scheme/protocol if user supplies only a host name.
 const scheme string = "https://"
 
 // New creates a new instance of the Tharsis provider
@@ -171,13 +172,18 @@ func (p *tharsisProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 func (p *tharsisProvider) Resources(context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewGPGKeyResource,
 		NewGroupResource,
 		NewManagedIdentityResource,
 		NewManagedIdentityAliasResource,
 		NewManagedIdentityAccessRuleResource,
 		NewServiceAccountResource,
+		NewTerraformModuleResource,
+		NewTerraformProviderResource,
 		NewVariableResource,
+		NewVCSProviderResource,
 		NewWorkspaceResource,
+		NewWorkspaceVCSProviderLinkResource,
 	}
 }
 
@@ -210,7 +216,7 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 		optFn                                   []func(*config.LoadOptions) error
 	)
 
-	// User must provide specify a host
+	// User must specify a host
 	if pd.Host.IsNull() {
 		host = os.Getenv("THARSIS_ENDPOINT")
 	} else {

@@ -67,26 +67,35 @@ func (t *variableResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				MarkdownDescription: "The path to this variable's namespace.",
 				Description:         "The path to this variable's namespace.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"category": schema.StringAttribute{
 				MarkdownDescription: "Whether this variable is a Terraform or an environment variable.",
 				Description:         "Whether this variable is a Terraform or an environment variable.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"hcl": schema.BoolAttribute{
 				MarkdownDescription: "Whether this variable has an HCL value.",
 				Description:         "Whether this variable has an HCL value.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"key": schema.StringAttribute{
 				MarkdownDescription: "This variable's key (within its namespace).",
 				Description:         "This variable's key (within its namespace).",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"value": schema.StringAttribute{
 				MarkdownDescription: "This variable's value.",
 				Description:         "This variable's value.",
 				Required:            true,
+				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 		},
 	}
@@ -194,7 +203,7 @@ func (t *variableResource) Update(ctx context.Context,
 
 	// Update the namespace variable via Tharsis.
 	// The ID is used to find the record to update.
-	// The description is modified.
+	// The other fields are modified.
 	updated, err := t.client.Variable.UpdateVariable(ctx,
 		&ttypes.UpdateNamespaceVariableInput{
 			ID:    plan.ID.ValueString(),
