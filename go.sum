@@ -290,8 +290,8 @@ github.com/zclconf/go-cty v1.10.0/go.mod h1:vVKLxnk3puL4qRAv72AO+W99LUD4da90g3uU
 github.com/zclconf/go-cty v1.13.0 h1:It5dfKTTZHe9aeppbNOda3mN7Ag7sg6QkBNm6TkyFa0=
 github.com/zclconf/go-cty v1.13.0/go.mod h1:YKQzy/7pZ7iq2jNFzy5go57xdxdWoLLpaEp4u238AE0=
 github.com/zclconf/go-cty-debug v0.0.0-20191215020915-b22d67c1ba0b/go.mod h1:ZRKQfBXbGkpdV6QMzT3rU1kSTAnfu1dO8dPKjYprgj8=
-gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.21.0 h1:iKM6uSCjmbFNoQWZxgpLVKNB6Vr7AX2TEt/fTh2Xu7w=
-gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.21.0/go.mod h1:PfHn1SXFgiOzA3ZwGxlG2M50xRs1LMvmk877wQQUmzI=
+gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.21.1 h1:BGkE27MfHRtXONbiRzl4aTTkf2hqQrdSpymUZDvxglI=
+gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.21.1/go.mod h1:dFofOI7H1VhEUPKnlPMPCSNC+1b6zU/NbwFRf3xXuS4=
 go.opentelemetry.io/otel v1.6.3/go.mod h1:7BgNga5fNlF/iZjG06hM3yofffp0ofKCDwSXx1GC4dI=
 go.opentelemetry.io/otel/trace v1.6.3/go.mod h1:GNJQusJlUgZl9/TQBPKU/Y/ty+0iVB5fjhKeJGZPGFs=
 golang.org/x/crypto v0.0.0-20190219172222-a4c6cb3142f2/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
