@@ -25,7 +25,7 @@ type VCSProviderModel struct {
 	Description           types.String `tfsdk:"description"`
 	GroupPath             types.String `tfsdk:"group_path"`
 	ResourcePath          types.String `tfsdk:"resource_path"`
-	Hostname              types.String `tfsdk:"hostname"`
+	URL                   types.String `tfsdk:"url"`
 	Type                  types.String `tfsdk:"type"`
 	AutoCreateWebhooks    types.Bool   `tfsdk:"auto_create_webhooks"`
 	OAuthClientID         types.String `tfsdk:"oauth_client_id"`
@@ -109,9 +109,9 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"hostname": schema.StringAttribute{
-				MarkdownDescription: "Hostname for this VCS provider.",
-				Description:         "Hostname for this VCS provider.",
+			"url": schema.StringAttribute{
+				MarkdownDescription: "API URL for this VCS provider.",
+				Description:         "API URL for this VCS provider.",
 				Optional:            true,
 				Computed:            true, // API sets a default value if not specified.
 				PlanModifiers: []planmodifier.String{
@@ -188,7 +188,7 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 			Name:               vcsProvider.Name.ValueString(),
 			Description:        vcsProvider.Description.ValueString(),
 			GroupPath:          vcsProvider.GroupPath.ValueString(),
-			Hostname:           ptr.String(vcsProvider.Hostname.ValueString()),
+			URL:                ptr.String(vcsProvider.URL.ValueString()),
 			Type:               ttypes.VCSProviderType(vcsProvider.Type.ValueString()),
 			AutoCreateWebhooks: vcsProvider.AutoCreateWebhooks.ValueBool(),
 			OAuthClientID:      vcsProvider.OAuthClientID.ValueString(),
@@ -323,7 +323,7 @@ func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSP
 	dest.Name = types.StringValue(src.Name)
 	dest.CreatedBy = types.StringValue(src.CreatedBy)
 	dest.Description = types.StringValue(src.Description)
-	dest.Hostname = types.StringValue(src.Hostname)
+	dest.URL = types.StringValue(src.URL)
 	dest.GroupPath = types.StringValue(src.GroupPath)
 	dest.ResourcePath = types.StringValue(src.ResourcePath)
 	dest.Type = types.StringValue(string(src.Type))

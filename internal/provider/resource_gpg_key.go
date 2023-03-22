@@ -207,10 +207,9 @@ func (t *gpgKeyResource) Update(ctx context.Context,
 	// If it is, it should error out.
 
 	resp.Diagnostics.AddError(
-		"GPG key should never be updated in place.",
+		"Error updating GPG key.",
 		"GPG key should never be updated in place.",
 	)
-	return
 }
 
 func (t *gpgKeyResource) Delete(ctx context.Context,

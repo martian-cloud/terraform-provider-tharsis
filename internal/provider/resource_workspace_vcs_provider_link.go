@@ -18,19 +18,19 @@ import (
 // WorkspaceVCSProviderLinkModel is the model for a workspace VCS provider link.
 // Fields WebhookID, ModuleDirectory, and TagRegex are pointers in the SDK type but strings here.
 type WorkspaceVCSProviderLinkModel struct {
-	ID                  types.String   `tfsdk:"id"`
+	WebhookID           types.String   `tfsdk:"webhook_id"`
 	LastUpdated         types.String   `tfsdk:"last_updated"`
 	WorkspaceID         types.String   `tfsdk:"workspace_id"`
 	WorkspacePath       types.String   `tfsdk:"workspace_path"`
 	VCSProviderID       types.String   `tfsdk:"vcs_provider_id"`
 	RepositoryPath      types.String   `tfsdk:"repository_path"`
-	WebhookID           types.String   `tfsdk:"webhook_id"`
+	ID                  types.String   `tfsdk:"id"`
 	ModuleDirectory     types.String   `tfsdk:"module_directory"`
 	Branch              types.String   `tfsdk:"branch"`
 	TagRegex            types.String   `tfsdk:"tag_regex"`
-	GlobPatterns        []types.String `tfsdk:"glob_patterns"`
 	AutoSpeculativePlan types.Bool     `tfsdk:"auto_speculative_plan"`
 	WebhookDisabled     types.Bool     `tfsdk:"webhook_disabled"`
+	GlobPatterns        []types.String `tfsdk:"glob_patterns"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
