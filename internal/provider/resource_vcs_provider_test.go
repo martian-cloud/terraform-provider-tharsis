@@ -11,7 +11,7 @@ import (
 func TestVCSProvider(t *testing.T) {
 	createName := "tvp_name"
 	createDescription := "this is tvp, a test VCS provider"
-	createHostname := "test-vcs-provider-hostname"
+	createURL := "https://vcs-provider.domain"
 	createGroupPath := testGroupPath
 	createResourcePath := testGroupPath + "/" + createName
 	createType := "gitlab"
@@ -31,7 +31,7 @@ func TestVCSProvider(t *testing.T) {
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "name", createName),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "description", createDescription),
-					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "hostname", createHostname),
+					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "url", createURL),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "group_path", createGroupPath),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "resource_path", createResourcePath),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "type", createType),
@@ -68,7 +68,7 @@ func TestVCSProvider(t *testing.T) {
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "name", createName),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "description", updateDescription),
-					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "hostname", createHostname),
+					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "url", createURL),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "group_path", createGroupPath),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "resource_path", createResourcePath),
 					resource.TestCheckResourceAttr("tharsis_vcs_provider.tvp", "type", createType),
@@ -94,7 +94,7 @@ func TestVCSProvider(t *testing.T) {
 func testVCSProviderConfigurationCreate() string {
 	createName := "tvp_name"
 	createDescription := "this is tvp, a test VCS provider"
-	createHostname := "test-vcs-provider-hostname"
+	createURL := "https://vcs-provider.domain"
 	createType := "gitlab"
 	createAutoCreateWebhooks := true
 	createOAuthClientID := "tvp-oauth-client-id"
@@ -107,7 +107,7 @@ func testVCSProviderConfigurationCreate() string {
 resource "tharsis_vcs_provider" "tvp" {
 	name = "%s"
 	description = "%s"
-	hostname = "%s"
+	url = "%s"
 	group_path = tharsis_group.root-group.full_path
 	type = "%s"
 	auto_create_webhooks = %s
@@ -115,13 +115,13 @@ resource "tharsis_vcs_provider" "tvp" {
 	oauth_client_secret = "%s"
 }
 	`, createRootGroup(), createName, createDescription,
-		createHostname, createType, strconv.FormatBool(createAutoCreateWebhooks),
+		createURL, createType, strconv.FormatBool(createAutoCreateWebhooks),
 		createOAuthClientID, createOAuthClientSecret)
 }
 
 func testVCSProviderConfigurationUpdate() string {
 	createName := "tvp_name"
-	createHostname := "test-vcs-provider-hostname"
+	createURL := "https://vcs-provider.domain"
 	createType := "gitlab"
 	createAutoCreateWebhooks := true
 
@@ -136,7 +136,7 @@ func testVCSProviderConfigurationUpdate() string {
 resource "tharsis_vcs_provider" "tvp" {
 	name = "%s"
 	description = "%s"
-	hostname = "%s"
+	url = "%s"
 	group_path = tharsis_group.root-group.full_path
 	type = "%s"
 	auto_create_webhooks = %s
@@ -144,7 +144,7 @@ resource "tharsis_vcs_provider" "tvp" {
 	oauth_client_secret = "%s"
 }
 	`, createRootGroup(), createName, updateDescription,
-		createHostname, createType, strconv.FormatBool(createAutoCreateWebhooks),
+		createURL, createType, strconv.FormatBool(createAutoCreateWebhooks),
 		updateOAuthClientID, updateOAuthClientSecret)
 }
 
