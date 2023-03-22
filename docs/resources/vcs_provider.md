@@ -27,7 +27,7 @@ Defines and manages a VCS provider.
 
 ### Optional
 
-- `hostname` (String) Hostname for this VCS provider.
+- `url` (String) API URL for this VCS provider.
 
 ### Read-Only
 
