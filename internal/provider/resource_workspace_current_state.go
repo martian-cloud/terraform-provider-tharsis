@@ -2,13 +2,22 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
+	"github.com/aws/smithy-go/ptr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
+	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+)
+
+var (
+	applyRunComment = "terraform-provider-tharsis" // must be var, not const, to take address
 )
 
 // WorkspaceCurrentStateModel is the model for a workspace_current_state.
@@ -118,9 +127,7 @@ func (t *workspaceCurrentStateResource) Create(ctx context.Context,
 	workspaceCurrentState.setDefaultTeardown()
 
 	if !workspaceCurrentState.Teardown.ValueBool() {
-
-		// FIXME: Do an apply run.
-
+		t.doApplyOrDestroyRun(ctx, workspaceCurrentState, resp.Diagnostics)
 	}
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
@@ -157,7 +164,8 @@ func (t *workspaceCurrentStateResource) Update(ctx context.Context,
 
 	plan.setDefaultTeardown()
 
-	// FIXME: Do an apply or destroy run.
+	// Apply or destroy, depending on the Teardown flag.
+	t.doApplyOrDestroyRun(ctx, plan, resp.Diagnostics)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -173,8 +181,9 @@ func (t *workspaceCurrentStateResource) Delete(ctx context.Context,
 		return
 	}
 
-	// FIXME: Do a destroy run.
-
+	if state.Teardown.ValueBool() {
+		t.doApplyOrDestroyRun(ctx, state, resp.Diagnostics)
+	}
 }
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
@@ -185,6 +194,132 @@ func (t *workspaceCurrentStateResource) ImportState(ctx context.Context,
 		"Import of workspace_current_state is not supported.",
 		"",
 	)
+}
+
+func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
+	model WorkspaceCurrentStateModel, diags diag.Diagnostics) {
+
+	// Call CreateRun
+	createdRun, err := t.client.Run.CreateRun(ctx, &sdktypes.CreateRunInput{
+		WorkspacePath:          model.WorkspacePath.ValueString(),
+		ConfigurationVersionID: nil, // using module registry path and version
+		IsDestroy:              model.Teardown.ValueBool(),
+		ModuleSource:           ptr.String(model.ModulePath.ValueString()),
+		ModuleVersion:          ptr.String(model.ModulePath.ValueString()),
+		Variables:              []sdktypes.RunVariable{},
+	})
+	if err != nil {
+		diags.AddError("Failed to create run", err.Error())
+		return
+	}
+
+	// FIXME: If there's a way to wait for job completion other than fetching logs, put it here.
+
+	// Subscribe to job log events so we know when to fetch new logs.
+	logChannel, err := t.client.Job.SubscribeToJobLogs(ctx, &sdktypes.JobLogsSubscriptionInput{
+		JobID:         *createdRun.Plan.CurrentJobID,
+		RunID:         createdRun.Metadata.ID,
+		WorkspacePath: createdRun.WorkspacePath,
+	})
+	if err != nil {
+		diags.AddError("Failed to get job logs", err.Error())
+		return
+	}
+
+	for {
+		logEvent, ok := <-logChannel
+		if !ok {
+			// No more logs since channel was closed.
+			break
+		}
+
+		if logEvent.Error != nil {
+			// Catch any incoming errors.
+			diags.AddError("Failed to get job logs", err.Error())
+			return
+		}
+	}
+
+	plannedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
+	if err != nil {
+		diags.AddError("Failed to get planned run", err.Error())
+		return
+	}
+
+	// If the plan fails, both plannedRun.Status and plannedRun.Plan.Status are "errored".
+	// If the plan succeeds, plannedRun.Status is "planned",
+	// while plannedRun.Plan.Status is "finished".
+	//
+	if !strings.HasPrefix(string(plannedRun.Status), "planned") {
+		diags.AddError("Plan failed", string(plannedRun.Status))
+		return
+	}
+	if plannedRun.Plan.Status != "finished" {
+		diags.AddError("Plan failed", string(plannedRun.Plan.Status))
+		return
+	}
+
+	// Do the apply run.
+	appliedRun, err := t.client.Run.ApplyRun(ctx, &sdktypes.ApplyRunInput{
+		RunID:   createdRun.Metadata.ID,
+		Comment: &applyRunComment,
+	})
+	if err != nil {
+		diags.AddError("Failed to apply a run", err.Error())
+		return
+	}
+
+	// Make sure the run has an apply.
+	if appliedRun.Apply == nil {
+		msg := fmt.Sprintf("Created run does not have an apply: %s", appliedRun.Metadata.ID)
+		diags.AddError(msg, err.Error())
+		return
+	}
+
+	// FIXME: If there's a way to wait for job completion other than fetching logs, put it here.
+
+	// Subscribe to job log events so we know when to fetch new logs.
+	logChannel, err = t.client.Job.SubscribeToJobLogs(ctx, &sdktypes.JobLogsSubscriptionInput{
+		JobID:         *appliedRun.Apply.CurrentJobID,
+		RunID:         appliedRun.Metadata.ID,
+		WorkspacePath: appliedRun.WorkspacePath,
+	})
+	if err != nil {
+		diags.AddError("Failed to get job logs", err.Error())
+		return
+	}
+
+	for {
+		logEvent, ok := <-logChannel
+		if !ok {
+			// No more logs since channel was closed.
+			break
+		}
+
+		if logEvent.Error != nil {
+			// Catch any incoming errors.
+			diags.AddError("Failed to get job logs", logEvent.Error.Error())
+			return
+		}
+	}
+
+	finishedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
+	if err != nil {
+		diags.AddError("Failed to get finished run", err.Error())
+		return
+	}
+
+	// If an apply job succeeds, finishedRun.Status is "applied" and
+	// finishedRun.Apply.Status is "finished".
+	if finishedRun.Status != "applied" {
+		// Status is already printed in the jog logs, so no need to log it here.
+		diags.AddError("Apply failed", string(finishedRun.Status))
+		return
+	}
+	if finishedRun.Apply.Status != "finished" {
+		diags.AddError("Apply status", string(finishedRun.Apply.Status))
+		return
+	}
 }
 
 // The End.
