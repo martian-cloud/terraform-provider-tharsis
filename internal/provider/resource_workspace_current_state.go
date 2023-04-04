@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -16,6 +17,10 @@ import (
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
+const (
+	jobCompletionPollInterval = 5 * time.Second
+)
+
 var (
 	applyRunComment = "terraform-provider-tharsis" // must be var, not const, to take address
 )
@@ -24,7 +29,7 @@ var (
 // Please note: Unlike many/most other resources, this model does not exist in the Tharsis API.
 // The workspace path, module path, and module version uniquely identify this workspace_current_state.
 type WorkspaceCurrentStateModel struct {
-	WorkspacePath types.String `tfsdk:"full_path"`
+	WorkspacePath types.String `tfsdk:"workspace_path"`
 	ModulePath    types.String `tfsdk:"module_path"`
 	ModuleVersion types.String `tfsdk:"module_version"`
 	Teardown      types.Bool   `tfsdk:"teardown"`
@@ -213,31 +218,9 @@ func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
 		return
 	}
 
-	// FIXME: If there's a way to wait for job completion other than fetching logs, put it here.
-
-	// Subscribe to job log events so we know when to fetch new logs.
-	logChannel, err := t.client.Job.SubscribeToJobLogs(ctx, &sdktypes.JobLogsSubscriptionInput{
-		JobID:         *createdRun.Plan.CurrentJobID,
-		RunID:         createdRun.Metadata.ID,
-		WorkspacePath: createdRun.WorkspacePath,
-	})
-	if err != nil {
-		diags.AddError("Failed to get job logs", err.Error())
+	if err = t.waitForJobCompletion(ctx, createdRun.Plan.CurrentJobID); err != nil {
+		diags.AddError("Failed to wait for plan job completion", err.Error())
 		return
-	}
-
-	for {
-		logEvent, ok := <-logChannel
-		if !ok {
-			// No more logs since channel was closed.
-			break
-		}
-
-		if logEvent.Error != nil {
-			// Catch any incoming errors.
-			diags.AddError("Failed to get job logs", err.Error())
-			return
-		}
 	}
 
 	plannedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
@@ -272,35 +255,13 @@ func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
 	// Make sure the run has an apply.
 	if appliedRun.Apply == nil {
 		msg := fmt.Sprintf("Created run does not have an apply: %s", appliedRun.Metadata.ID)
-		diags.AddError(msg, err.Error())
+		diags.AddError(msg, "")
 		return
 	}
 
-	// FIXME: If there's a way to wait for job completion other than fetching logs, put it here.
-
-	// Subscribe to job log events so we know when to fetch new logs.
-	logChannel, err = t.client.Job.SubscribeToJobLogs(ctx, &sdktypes.JobLogsSubscriptionInput{
-		JobID:         *appliedRun.Apply.CurrentJobID,
-		RunID:         appliedRun.Metadata.ID,
-		WorkspacePath: appliedRun.WorkspacePath,
-	})
-	if err != nil {
-		diags.AddError("Failed to get job logs", err.Error())
+	if err = t.waitForJobCompletion(ctx, createdRun.Apply.CurrentJobID); err != nil {
+		diags.AddError("Failed to wait for apply job completion", err.Error())
 		return
-	}
-
-	for {
-		logEvent, ok := <-logChannel
-		if !ok {
-			// No more logs since channel was closed.
-			break
-		}
-
-		if logEvent.Error != nil {
-			// Catch any incoming errors.
-			diags.AddError("Failed to get job logs", logEvent.Error.Error())
-			return
-		}
 	}
 
 	finishedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
@@ -320,6 +281,30 @@ func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
 		diags.AddError("Apply status", string(finishedRun.Apply.Status))
 		return
 	}
+}
+
+func (t *workspaceCurrentStateResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
+	if jobID == nil {
+		return fmt.Errorf("nil job ID")
+	}
+
+	// Poll until job has finished.
+	for {
+
+		job, err := t.client.Job.GetJob(ctx, &sdktypes.GetJobInput{
+			ID: *jobID,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to get job ID %s", *jobID)
+		}
+
+		if job.Status == "finished" {
+			return nil
+		}
+
+		time.Sleep(jobCompletionPollInterval)
+	}
+
 }
 
 // The End.

@@ -1,5 +1,11 @@
 package provider
 
-// FIXME: Write the tests.
+import "testing"
+
+func TestWorkspaceCurrentState(t *testing.T) {
+
+	// FIXME: Write the tests.
+
+}
 
 // The End.
