@@ -270,7 +270,10 @@ func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, err
 	}
 
 	if (serviceAccountPath != "") && (serviceAccountToken != "") {
-		tokenProvider, err := auth.NewServiceAccountTokenProvider(host, serviceAccountPath, serviceAccountToken)
+		tokenProvider, err := auth.NewServiceAccountTokenProvider(host, serviceAccountPath,
+			func() (string, error) {
+				return serviceAccountToken, nil
+			})
 		if err != nil {
 			return nil, fmt.Errorf("failed to obtain a token provider for service account %s: %v", serviceAccountPath, err)
 		}
