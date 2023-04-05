@@ -17,7 +17,7 @@ Defines and manages a workspace current state.
 
 ### Required
 
-- `module_path` (String) The resource path of the module.
+- `module_source` (String) The source of the module, including the API hostname.
 - `module_version` (String) The version identifier of the module.
 - `workspace_path` (String) The full path of the workspace.
 
