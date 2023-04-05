@@ -27,10 +27,10 @@ var (
 
 // WorkspaceCurrentStateModel is the model for a workspace_current_state.
 // Please note: Unlike many/most other resources, this model does not exist in the Tharsis API.
-// The workspace path, module path, and module version uniquely identify this workspace_current_state.
+// The workspace path, module source, and module version uniquely identify this workspace_current_state.
 type WorkspaceCurrentStateModel struct {
 	WorkspacePath types.String `tfsdk:"workspace_path"`
-	ModulePath    types.String `tfsdk:"module_path"`
+	ModuleSource  types.String `tfsdk:"module_source"`
 	ModuleVersion types.String `tfsdk:"module_version"`
 	Teardown      types.Bool   `tfsdk:"teardown"`
 }
@@ -81,9 +81,9 @@ func (t *workspaceCurrentStateResource) Schema(_ context.Context, _ resource.Sch
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"module_path": schema.StringAttribute{
-				MarkdownDescription: "The resource path of the module.",
-				Description:         "The resource path of the module.",
+			"module_source": schema.StringAttribute{
+				MarkdownDescription: "The source of the module, including the API hostname.",
+				Description:         "The source of the module, including the API hostname.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -129,6 +129,7 @@ func (t *workspaceCurrentStateResource) Create(ctx context.Context,
 		return
 	}
 
+	// If teardown is not specified, make it false.
 	workspaceCurrentState.setDefaultTeardown()
 
 	if !workspaceCurrentState.Teardown.ValueBool() {
@@ -167,6 +168,7 @@ func (t *workspaceCurrentStateResource) Update(ctx context.Context,
 		return
 	}
 
+	// If teardown is not specified, make it false.
 	plan.setDefaultTeardown()
 
 	// Apply or destroy, depending on the Teardown flag.
@@ -186,9 +188,11 @@ func (t *workspaceCurrentStateResource) Delete(ctx context.Context,
 		return
 	}
 
-	if state.Teardown.ValueBool() {
-		t.doApplyOrDestroyRun(ctx, state, resp.Diagnostics)
-	}
+	// We know we're supposed to delete, but the current state's teardown is probably set to false.
+	// Force teardown to true to make it do the delete operation.
+	state.Teardown = types.BoolValue(true)
+
+	t.doApplyOrDestroyRun(ctx, state, resp.Diagnostics)
 }
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
@@ -209,8 +213,8 @@ func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
 		WorkspacePath:          model.WorkspacePath.ValueString(),
 		ConfigurationVersionID: nil, // using module registry path and version
 		IsDestroy:              model.Teardown.ValueBool(),
-		ModuleSource:           ptr.String(model.ModulePath.ValueString()),
-		ModuleVersion:          ptr.String(model.ModulePath.ValueString()),
+		ModuleSource:           ptr.String(model.ModuleSource.ValueString()),
+		ModuleVersion:          ptr.String(model.ModuleVersion.ValueString()),
 		Variables:              []sdktypes.RunVariable{},
 	})
 	if err != nil {
@@ -259,12 +263,12 @@ func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
 		return
 	}
 
-	if err = t.waitForJobCompletion(ctx, createdRun.Apply.CurrentJobID); err != nil {
+	if err = t.waitForJobCompletion(ctx, appliedRun.Apply.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for apply job completion", err.Error())
 		return
 	}
 
-	finishedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
+	finishedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: appliedRun.Metadata.ID})
 	if err != nil {
 		diags.AddError("Failed to get finished run", err.Error())
 		return
@@ -273,7 +277,6 @@ func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
 	// If an apply job succeeds, finishedRun.Status is "applied" and
 	// finishedRun.Apply.Status is "finished".
 	if finishedRun.Status != "applied" {
-		// Status is already printed in the jog logs, so no need to log it here.
 		diags.AddError("Apply failed", string(finishedRun.Status))
 		return
 	}
