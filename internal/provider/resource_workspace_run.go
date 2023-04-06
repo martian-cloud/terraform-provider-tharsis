@@ -115,7 +115,7 @@ func (t *workspaceRunResource) Create(ctx context.Context,
 
 	created := t.doApplyOrDestroyRun(ctx, workspaceRun, false, resp.Diagnostics)
 
-	// Map the response body to the schema and update the plan with the computed attribute values.
+	// Update the plan with the computed attribute values.
 	t.copyWorkspaceRun(created, &workspaceRun)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
@@ -132,7 +132,46 @@ func (t *workspaceRunResource) Read(ctx context.Context,
 		return
 	}
 
-	// FIXME: See other review items to do the necessary things here.
+	// Get latest run on the target workspace.
+	toSortBy := sdktypes.RunSortableFieldUpdatedAtDesc // variable needed because can't take address of constant
+	one := int32(1)                                    // ditto
+	gotRuns, err := t.client.Run.GetRuns(ctx, &sdktypes.GetRunsInput{
+		Sort:              &toSortBy,
+		PaginationOptions: &sdktypes.PaginationOptions{Limit: &one},
+		Filter: &sdktypes.RunFilter{
+			WorkspacePath: ptr.String(state.WorkspacePath.ValueString()),
+		},
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get runs for target workspace", err.Error())
+		return
+	}
+	if gotRuns.Runs == nil {
+		resp.Diagnostics.AddError("GetRuns on target workspace returned nil.", "")
+		return
+	}
+	if len(gotRuns.Runs) == 0 {
+		resp.Diagnostics.AddError("GetRuns on target workspace returned empty", "")
+		return
+	}
+	latestRun := gotRuns.Runs[0]
+
+	// Make sure the module source and module version are not nil.
+	if latestRun.ModuleSource == nil {
+		resp.Diagnostics.AddError("No module source available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
+		return
+	}
+	if latestRun.ModuleVersion == nil {
+		resp.Diagnostics.AddError("No module version available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
+		return
+	}
+
+	// Update the state with the computed attribute values.
+	t.copyWorkspaceRun(&WorkspaceRunModel{
+		WorkspacePath: state.WorkspacePath,
+		ModuleSource:  types.StringValue(*latestRun.ModuleSource),
+		ModuleVersion: types.StringValue(*latestRun.ModuleVersion),
+	}, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
