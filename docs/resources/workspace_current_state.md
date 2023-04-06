@@ -18,11 +18,10 @@ Defines and manages a workspace current state.
 ### Required
 
 - `module_source` (String) The source of the module, including the API hostname.
-- `module_version` (String) The version identifier of the module.
 - `workspace_path` (String) The full path of the workspace.
 
 ### Optional
 
-- `teardown` (Boolean) Whether to teardown the deployment of the module to the workspace.
+- `module_version` (String) The version identifier of the module.
 
 

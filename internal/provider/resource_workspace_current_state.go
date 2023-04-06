@@ -32,14 +32,6 @@ type WorkspaceCurrentStateModel struct {
 	WorkspacePath types.String `tfsdk:"workspace_path"`
 	ModuleSource  types.String `tfsdk:"module_source"`
 	ModuleVersion types.String `tfsdk:"module_version"`
-	Teardown      types.Bool   `tfsdk:"teardown"`
-}
-
-// Set the Teardown field's default value of false.
-func (m *WorkspaceCurrentStateModel) setDefaultTeardown() {
-	if m.Teardown.IsNull() || m.Teardown.IsUnknown() {
-		m.Teardown = types.BoolValue(false)
-	}
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -77,7 +69,6 @@ func (t *workspaceCurrentStateResource) Schema(_ context.Context, _ resource.Sch
 				Description:         "The full path of the workspace.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
@@ -86,25 +77,18 @@ func (t *workspaceCurrentStateResource) Schema(_ context.Context, _ resource.Sch
 				Description:         "The source of the module, including the API hostname.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"module_version": schema.StringAttribute{
 				MarkdownDescription: "The version identifier of the module.",
 				Description:         "The version identifier of the module.",
-				Required:            true,
+				Optional:            true,
+				Computed:            true, // computed if not supplied
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
-			},
-			"teardown": schema.BoolAttribute{
-				MarkdownDescription: "Whether to teardown the deployment of the module to the workspace.",
-				Description:         "Whether to teardown the deployment of the module to the workspace.",
-				Optional:            true,
-				Computed:            true, // API sets a default value of false if not specified.
-				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 		},
 	}
@@ -129,12 +113,10 @@ func (t *workspaceCurrentStateResource) Create(ctx context.Context,
 		return
 	}
 
-	// If teardown is not specified, make it false.
-	workspaceCurrentState.setDefaultTeardown()
+	created := t.doApplyOrDestroyRun(ctx, workspaceCurrentState, false, resp.Diagnostics)
 
-	if !workspaceCurrentState.Teardown.ValueBool() {
-		t.doApplyOrDestroyRun(ctx, workspaceCurrentState, resp.Diagnostics)
-	}
+	// Map the response body to the schema and update the plan with the computed attribute values.
+	t.copyWorkspaceCurrentState(created, &workspaceCurrentState)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, workspaceCurrentState)...)
@@ -150,9 +132,7 @@ func (t *workspaceCurrentStateResource) Read(ctx context.Context,
 		return
 	}
 
-	// No need to set Teardown's default value.
-
-	// There is no model in the Tharsis API, so there's nothing really to read.
+	// FIXME: See other review items to do the necessary things here.
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -168,11 +148,14 @@ func (t *workspaceCurrentStateResource) Update(ctx context.Context,
 		return
 	}
 
-	// If teardown is not specified, make it false.
-	plan.setDefaultTeardown()
+	// FIXME: See other review items to set this correctly.
+	isDestroyRun := false
 
-	// Apply or destroy, depending on the Teardown flag.
-	t.doApplyOrDestroyRun(ctx, plan, resp.Diagnostics)
+	// Apply or destroy, depending on the isDestroyRun argument.
+	updated := t.doApplyOrDestroyRun(ctx, plan, isDestroyRun, resp.Diagnostics)
+
+	// Copy all fields returned by Tharsis back into the plan.
+	t.copyWorkspaceCurrentState(updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -188,11 +171,8 @@ func (t *workspaceCurrentStateResource) Delete(ctx context.Context,
 		return
 	}
 
-	// We know we're supposed to delete, but the current state's teardown is probably set to false.
-	// Force teardown to true to make it do the delete operation.
-	state.Teardown = types.BoolValue(true)
-
-	t.doApplyOrDestroyRun(ctx, state, resp.Diagnostics)
+	// The workspace current state is being deleted, so don't use the returned value.
+	_ = t.doApplyOrDestroyRun(ctx, state, true, resp.Diagnostics)
 }
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
@@ -205,32 +185,34 @@ func (t *workspaceCurrentStateResource) ImportState(ctx context.Context,
 	)
 }
 
+// Because there is no Tharsis-defined struct for a workspace current state resource, return this module's struct.
 func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
-	model WorkspaceCurrentStateModel, diags diag.Diagnostics) {
+	model WorkspaceCurrentStateModel, isDestroy bool, diags diag.Diagnostics,
+) *WorkspaceCurrentStateModel {
 
 	// Call CreateRun
 	createdRun, err := t.client.Run.CreateRun(ctx, &sdktypes.CreateRunInput{
 		WorkspacePath:          model.WorkspacePath.ValueString(),
 		ConfigurationVersionID: nil, // using module registry path and version
-		IsDestroy:              model.Teardown.ValueBool(),
+		IsDestroy:              isDestroy,
 		ModuleSource:           ptr.String(model.ModuleSource.ValueString()),
 		ModuleVersion:          ptr.String(model.ModuleVersion.ValueString()),
 		Variables:              []sdktypes.RunVariable{},
 	})
 	if err != nil {
 		diags.AddError("Failed to create run", err.Error())
-		return
+		return nil
 	}
 
 	if err = t.waitForJobCompletion(ctx, createdRun.Plan.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for plan job completion", err.Error())
-		return
+		return nil
 	}
 
 	plannedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
 	if err != nil {
 		diags.AddError("Failed to get planned run", err.Error())
-		return
+		return nil
 	}
 
 	// If the plan fails, both plannedRun.Status and plannedRun.Plan.Status are "errored".
@@ -239,11 +221,11 @@ func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
 	//
 	if !strings.HasPrefix(string(plannedRun.Status), "planned") {
 		diags.AddError("Plan failed", string(plannedRun.Status))
-		return
+		return nil
 	}
 	if plannedRun.Plan.Status != "finished" {
 		diags.AddError("Plan failed", string(plannedRun.Plan.Status))
-		return
+		return nil
 	}
 
 	// Do the apply run.
@@ -253,36 +235,53 @@ func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
 	})
 	if err != nil {
 		diags.AddError("Failed to apply a run", err.Error())
-		return
+		return nil
 	}
 
 	// Make sure the run has an apply.
 	if appliedRun.Apply == nil {
 		msg := fmt.Sprintf("Created run does not have an apply: %s", appliedRun.Metadata.ID)
 		diags.AddError(msg, "")
-		return
+		return nil
 	}
 
 	if err = t.waitForJobCompletion(ctx, appliedRun.Apply.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for apply job completion", err.Error())
-		return
+		return nil
 	}
 
 	finishedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: appliedRun.Metadata.ID})
 	if err != nil {
 		diags.AddError("Failed to get finished run", err.Error())
-		return
+		return nil
 	}
 
 	// If an apply job succeeds, finishedRun.Status is "applied" and
 	// finishedRun.Apply.Status is "finished".
 	if finishedRun.Status != "applied" {
 		diags.AddError("Apply failed", string(finishedRun.Status))
-		return
+		return nil
 	}
 	if finishedRun.Apply.Status != "finished" {
 		diags.AddError("Apply status", string(finishedRun.Apply.Status))
-		return
+		return nil
+	}
+
+	// In case of a rainy day, make sure the ModuleSource and ModuleVersion *string aren't nil.
+	if finishedRun.ModuleSource == nil {
+		diags.AddError("Finished run's module source is nil.", "")
+		return nil
+	}
+	if finishedRun.ModuleVersion == nil {
+		diags.AddError("Finished run's module version is nil.", "")
+		return nil
+	}
+
+	// Return a workspace current state model based on the finished run.
+	return &WorkspaceCurrentStateModel{
+		WorkspacePath: types.StringValue(finishedRun.WorkspacePath),
+		ModuleSource:  types.StringValue(*finishedRun.ModuleSource),
+		ModuleVersion: types.StringValue(*finishedRun.ModuleVersion),
 	}
 }
 
@@ -308,6 +307,14 @@ func (t *workspaceCurrentStateResource) waitForJobCompletion(ctx context.Context
 		time.Sleep(jobCompletionPollInterval)
 	}
 
+}
+
+// copyWorkspaceCurrentState copies the contents of a workspace current state.
+// It copies the fields from the same type, because there is not a workspace current state defined by Tharsis.
+func (t *workspaceCurrentStateResource) copyWorkspaceCurrentState(src, dest *WorkspaceCurrentStateModel) {
+	dest.WorkspacePath = src.WorkspacePath
+	dest.ModuleSource = src.ModuleSource
+	dest.ModuleVersion = src.ModuleVersion
 }
 
 // The End.
