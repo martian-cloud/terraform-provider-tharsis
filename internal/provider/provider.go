@@ -183,7 +183,7 @@ func (p *tharsisProvider) Resources(context.Context) []func() resource.Resource 
 		NewVariableResource,
 		NewVCSProviderResource,
 		NewWorkspaceResource,
-		NewWorkspaceCurrentStateResource,
+		NewWorkspaceRunResource,
 		NewWorkspaceVCSProviderLinkResource,
 	}
 }

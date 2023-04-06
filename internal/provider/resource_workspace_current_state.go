@@ -25,10 +25,10 @@ var (
 	applyRunComment = "terraform-provider-tharsis" // must be var, not const, to take address
 )
 
-// WorkspaceCurrentStateModel is the model for a workspace_current_state.
+// WorkspaceRunModel is the model for a workspace_run.
 // Please note: Unlike many/most other resources, this model does not exist in the Tharsis API.
-// The workspace path, module source, and module version uniquely identify this workspace_current_state.
-type WorkspaceCurrentStateModel struct {
+// The workspace path, module source, and module version uniquely identify this workspace_run.
+type WorkspaceRunModel struct {
 	WorkspacePath types.String `tfsdk:"workspace_path"`
 	ModuleSource  types.String `tfsdk:"module_source"`
 	ModuleVersion types.String `tfsdk:"module_version"`
@@ -36,28 +36,28 @@ type WorkspaceCurrentStateModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = (*workspaceCurrentStateResource)(nil)
-	_ resource.ResourceWithConfigure   = (*workspaceCurrentStateResource)(nil)
-	_ resource.ResourceWithImportState = (*workspaceCurrentStateResource)(nil)
+	_ resource.Resource                = (*workspaceRunResource)(nil)
+	_ resource.ResourceWithConfigure   = (*workspaceRunResource)(nil)
+	_ resource.ResourceWithImportState = (*workspaceRunResource)(nil)
 )
 
-// NewWorkspaceCurrentStateResource is a helper function to simplify the provider implementation.
-func NewWorkspaceCurrentStateResource() resource.Resource {
-	return &workspaceCurrentStateResource{}
+// NewWorkspaceRunResource is a helper function to simplify the provider implementation.
+func NewWorkspaceRunResource() resource.Resource {
+	return &workspaceRunResource{}
 }
 
-type workspaceCurrentStateResource struct {
+type workspaceRunResource struct {
 	client *tharsis.Client
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *workspaceCurrentStateResource) Metadata(ctx context.Context,
+func (t *workspaceRunResource) Metadata(ctx context.Context,
 	req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = "tharsis_workspace_current_state"
+	resp.TypeName = "tharsis_workspace_run"
 }
 
-func (t *workspaceCurrentStateResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	description := "Defines and manages a workspace current state."
+func (t *workspaceRunResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	description := "Defines and manages a workspace run."
 
 	resp.Schema = schema.Schema{
 		Version:             1,
@@ -95,7 +95,7 @@ func (t *workspaceCurrentStateResource) Schema(_ context.Context, _ resource.Sch
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
-func (t *workspaceCurrentStateResource) Configure(_ context.Context,
+func (t *workspaceRunResource) Configure(_ context.Context,
 	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -103,30 +103,30 @@ func (t *workspaceCurrentStateResource) Configure(_ context.Context,
 	t.client = req.ProviderData.(*tharsis.Client)
 }
 
-func (t *workspaceCurrentStateResource) Create(ctx context.Context,
+func (t *workspaceRunResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse) {
 
-	// Retrieve values from workspace current state.
-	var workspaceCurrentState WorkspaceCurrentStateModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &workspaceCurrentState)...)
+	// Retrieve values from workspace run.
+	var workspaceRun WorkspaceRunModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &workspaceRun)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	created := t.doApplyOrDestroyRun(ctx, workspaceCurrentState, false, resp.Diagnostics)
+	created := t.doApplyOrDestroyRun(ctx, workspaceRun, false, resp.Diagnostics)
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyWorkspaceCurrentState(created, &workspaceCurrentState)
+	t.copyWorkspaceRun(created, &workspaceRun)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
-	resp.Diagnostics.Append(resp.State.Set(ctx, workspaceCurrentState)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, workspaceRun)...)
 }
 
-func (t *workspaceCurrentStateResource) Read(ctx context.Context,
+func (t *workspaceRunResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse) {
 
 	// Get the current state.
-	var state WorkspaceCurrentStateModel
+	var state WorkspaceRunModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -138,11 +138,11 @@ func (t *workspaceCurrentStateResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *workspaceCurrentStateResource) Update(ctx context.Context,
+func (t *workspaceRunResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
 	// Retrieve values from plan.
-	var plan WorkspaceCurrentStateModel
+	var plan WorkspaceRunModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -155,40 +155,40 @@ func (t *workspaceCurrentStateResource) Update(ctx context.Context,
 	updated := t.doApplyOrDestroyRun(ctx, plan, isDestroyRun, resp.Diagnostics)
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyWorkspaceCurrentState(updated, &plan)
+	t.copyWorkspaceRun(updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (t *workspaceCurrentStateResource) Delete(ctx context.Context,
+func (t *workspaceRunResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse) {
 
 	// Get the current state.
-	var state WorkspaceCurrentStateModel
+	var state WorkspaceRunModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// The workspace current state is being deleted, so don't use the returned value.
+	// The workspace run is being deleted, so don't use the returned value.
 	_ = t.doApplyOrDestroyRun(ctx, state, true, resp.Diagnostics)
 }
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
-func (t *workspaceCurrentStateResource) ImportState(ctx context.Context,
+func (t *workspaceRunResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
 	resp.Diagnostics.AddError(
-		"Import of workspace_current_state is not supported.",
+		"Import of workspace_run is not supported.",
 		"",
 	)
 }
 
-// Because there is no Tharsis-defined struct for a workspace current state resource, return this module's struct.
-func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
-	model WorkspaceCurrentStateModel, isDestroy bool, diags diag.Diagnostics,
-) *WorkspaceCurrentStateModel {
+// Because there is no Tharsis-defined struct for a workspace run resource, return this module's struct.
+func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
+	model WorkspaceRunModel, isDestroy bool, diags diag.Diagnostics,
+) *WorkspaceRunModel {
 
 	// Call CreateRun
 	createdRun, err := t.client.Run.CreateRun(ctx, &sdktypes.CreateRunInput{
@@ -277,15 +277,15 @@ func (t *workspaceCurrentStateResource) doApplyOrDestroyRun(ctx context.Context,
 		return nil
 	}
 
-	// Return a workspace current state model based on the finished run.
-	return &WorkspaceCurrentStateModel{
+	// Return a workspace run model based on the finished run.
+	return &WorkspaceRunModel{
 		WorkspacePath: types.StringValue(finishedRun.WorkspacePath),
 		ModuleSource:  types.StringValue(*finishedRun.ModuleSource),
 		ModuleVersion: types.StringValue(*finishedRun.ModuleVersion),
 	}
 }
 
-func (t *workspaceCurrentStateResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
+func (t *workspaceRunResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
 	if jobID == nil {
 		return fmt.Errorf("nil job ID")
 	}
@@ -309,9 +309,9 @@ func (t *workspaceCurrentStateResource) waitForJobCompletion(ctx context.Context
 
 }
 
-// copyWorkspaceCurrentState copies the contents of a workspace current state.
-// It copies the fields from the same type, because there is not a workspace current state defined by Tharsis.
-func (t *workspaceCurrentStateResource) copyWorkspaceCurrentState(src, dest *WorkspaceCurrentStateModel) {
+// copyWorkspaceRun copies the contents of a workspace run.
+// It copies the fields from the same type, because there is not a workspace run defined by Tharsis.
+func (t *workspaceRunResource) copyWorkspaceRun(src, dest *WorkspaceRunModel) {
 	dest.WorkspacePath = src.WorkspacePath
 	dest.ModuleSource = src.ModuleSource
 	dest.ModuleVersion = src.ModuleVersion
