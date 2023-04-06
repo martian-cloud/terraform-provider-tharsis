@@ -78,9 +78,6 @@ func (t *workspaceRunResource) Schema(_ context.Context, _ resource.SchemaReques
 				MarkdownDescription: "The source of the module, including the API hostname.",
 				Description:         "The source of the module, including the API hostname.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"module_version": schema.StringAttribute{
 				MarkdownDescription: "The version identifier of the module.",
@@ -89,7 +86,6 @@ func (t *workspaceRunResource) Schema(_ context.Context, _ resource.SchemaReques
 				Computed:            true, // computed if not supplied
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"variables": schema.StringAttribute{
@@ -99,7 +95,6 @@ func (t *workspaceRunResource) Schema(_ context.Context, _ resource.SchemaReques
 				// Will remain unset if not supplied.
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 		},
@@ -144,47 +139,14 @@ func (t *workspaceRunResource) Read(ctx context.Context,
 		return
 	}
 
-	// Get latest run on the target workspace.
-	toSortBy := sdktypes.RunSortableFieldUpdatedAtDesc // variable needed because can't take address of constant
-	one := int32(1)                                    // ditto
-	gotRuns, err := t.client.Run.GetRuns(ctx, &sdktypes.GetRunsInput{
-		Sort:              &toSortBy,
-		PaginationOptions: &sdktypes.PaginationOptions{Limit: &one},
-		Filter: &sdktypes.RunFilter{
-			WorkspacePath: ptr.String(state.WorkspacePath.ValueString()),
-		},
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to get runs for target workspace", err.Error())
-		return
-	}
-	if gotRuns.Runs == nil {
-		resp.Diagnostics.AddError("GetRuns on target workspace returned nil.", "")
-		return
-	}
-	if len(gotRuns.Runs) == 0 {
-		resp.Diagnostics.AddError("GetRuns on target workspace returned empty", "")
-		return
-	}
-	latestRun := gotRuns.Runs[0]
-
-	// Make sure the module source and module version are not nil.
-	if latestRun.ModuleSource == nil {
-		resp.Diagnostics.AddError("No module source available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
-		return
-	}
-	if latestRun.ModuleVersion == nil {
-		resp.Diagnostics.AddError("No module version available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
+	deployed := t.getCurrentDeployment(ctx, state, &resp.Diagnostics)
+	if deployed == nil {
+		// There must have been an error.
 		return
 	}
 
 	// Update the state with the computed attribute values.
-	t.copyWorkspaceRun(&WorkspaceRunModel{
-		WorkspacePath: state.WorkspacePath,
-		ModuleSource:  types.StringValue(*latestRun.ModuleSource),
-		ModuleVersion: types.StringValue(*latestRun.ModuleVersion),
-		Variables:     state.Variables,
-	}, &state)
+	t.copyWorkspaceRun(deployed, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -220,6 +182,22 @@ func (t *workspaceRunResource) Delete(ctx context.Context,
 	var state WorkspaceRunModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	deployed := t.getCurrentDeployment(ctx, state, &resp.Diagnostics)
+	if deployed == nil {
+		// There must have been an error.
+		return
+	}
+
+	// If the module source or module version differs, error out.
+	if state.ModuleSource != deployed.ModuleSource {
+		resp.Diagnostics.AddError("Module source differs, cannot delete", "")
+		return
+	}
+	if state.ModuleVersion != deployed.ModuleVersion {
+		resp.Diagnostics.AddError("Module version differs, cannot delete", "")
 		return
 	}
 
@@ -370,6 +348,53 @@ func (t *workspaceRunResource) waitForJobCompletion(ctx context.Context, jobID *
 		}
 
 		time.Sleep(jobCompletionPollInterval)
+	}
+
+}
+
+// getCurrentDeployment returns a WorkspaceRunModel reflecting what is currently deployed.
+func (t *workspaceRunResource) getCurrentDeployment(ctx context.Context,
+	tfState WorkspaceRunModel, diags *diag.Diagnostics) *WorkspaceRunModel {
+
+	// Get latest run on the target workspace.
+	toSortBy := sdktypes.RunSortableFieldUpdatedAtDesc // variable needed because can't take address of constant
+	one := int32(1)                                    // ditto
+	gotRuns, err := t.client.Run.GetRuns(ctx, &sdktypes.GetRunsInput{
+		Sort:              &toSortBy,
+		PaginationOptions: &sdktypes.PaginationOptions{Limit: &one},
+		Filter: &sdktypes.RunFilter{
+			WorkspacePath: ptr.String(tfState.WorkspacePath.ValueString()),
+		},
+	})
+	if err != nil {
+		diags.AddError("Failed to get runs for target workspace", err.Error())
+		return nil
+	}
+	if gotRuns.Runs == nil {
+		diags.AddError("GetRuns on target workspace returned nil.", "")
+		return nil
+	}
+	if len(gotRuns.Runs) == 0 {
+		diags.AddError("GetRuns on target workspace returned empty", "")
+		return nil
+	}
+	latestRun := gotRuns.Runs[0]
+
+	// Make sure the module source and module version are not nil.
+	if latestRun.ModuleSource == nil {
+		diags.AddError("No module source available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
+		return nil
+	}
+	if latestRun.ModuleVersion == nil {
+		diags.AddError("No module version available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
+		return nil
+	}
+
+	return &WorkspaceRunModel{
+		WorkspacePath: tfState.WorkspacePath,
+		ModuleSource:  types.StringValue(*latestRun.ModuleSource),
+		ModuleVersion: types.StringValue(*latestRun.ModuleVersion),
+		Variables:     tfState.Variables,
 	}
 
 }
