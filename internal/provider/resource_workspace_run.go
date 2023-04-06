@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ type WorkspaceRunModel struct {
 	WorkspacePath types.String `tfsdk:"workspace_path"`
 	ModuleSource  types.String `tfsdk:"module_source"`
 	ModuleVersion types.String `tfsdk:"module_version"`
+	Variables     types.String `tfsdk:"variables"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -85,6 +87,16 @@ func (t *workspaceRunResource) Schema(_ context.Context, _ resource.SchemaReques
 				Description:         "The version identifier of the module.",
 				Optional:            true,
 				Computed:            true, // computed if not supplied
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"variables": schema.StringAttribute{
+				MarkdownDescription: "Optional variables for the run in the target workspace.",
+				Description:         "Optional variables for the run in the target workspace.",
+				Optional:            true,
+				// Will remain unset if not supplied.
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
@@ -171,6 +183,7 @@ func (t *workspaceRunResource) Read(ctx context.Context,
 		WorkspacePath: state.WorkspacePath,
 		ModuleSource:  types.StringValue(*latestRun.ModuleSource),
 		ModuleVersion: types.StringValue(*latestRun.ModuleVersion),
+		Variables:     state.Variables,
 	}, &state)
 
 	// Set the refreshed state, whether or not there is an error.
@@ -229,6 +242,18 @@ func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
 	model WorkspaceRunModel, isDestroy bool, diags diag.Diagnostics,
 ) *WorkspaceRunModel {
 
+	// If variables are supplied, unmarshal them.
+	var vars []sdktypes.RunVariable
+	if !model.Variables.IsUnknown() {
+		s := model.Variables.ValueString()
+		if s != "" { // If empty string is passed in, don't try to unmarshal it.
+			if err := json.Unmarshal([]byte(s), &vars); err != nil {
+				diags.AddError("Failed to unmarshal the run variables", err.Error())
+				return nil
+			}
+		}
+	}
+
 	// Call CreateRun
 	createdRun, err := t.client.Run.CreateRun(ctx, &sdktypes.CreateRunInput{
 		WorkspacePath:          model.WorkspacePath.ValueString(),
@@ -236,7 +261,7 @@ func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
 		IsDestroy:              isDestroy,
 		ModuleSource:           ptr.String(model.ModuleSource.ValueString()),
 		ModuleVersion:          ptr.String(model.ModuleVersion.ValueString()),
-		Variables:              []sdktypes.RunVariable{},
+		Variables:              vars,
 	})
 	if err != nil {
 		diags.AddError("Failed to create run", err.Error())
@@ -321,6 +346,7 @@ func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
 		WorkspacePath: types.StringValue(finishedRun.WorkspacePath),
 		ModuleSource:  types.StringValue(*finishedRun.ModuleSource),
 		ModuleVersion: types.StringValue(*finishedRun.ModuleVersion),
+		Variables:     model.Variables, // Cannot get variables back from a workspace or run, so pass them through.
 	}
 }
 
@@ -354,6 +380,7 @@ func (t *workspaceRunResource) copyWorkspaceRun(src, dest *WorkspaceRunModel) {
 	dest.WorkspacePath = src.WorkspacePath
 	dest.ModuleSource = src.ModuleSource
 	dest.ModuleVersion = src.ModuleVersion
+	dest.Variables = src.Variables
 }
 
 // The End.

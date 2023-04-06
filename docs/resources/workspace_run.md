@@ -23,5 +23,6 @@ Defines and manages a workspace run.
 ### Optional
 
 - `module_version` (String) The version identifier of the module.
+- `variables` (String) Optional variables for the run in the target workspace.
 
 
