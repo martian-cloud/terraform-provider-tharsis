@@ -120,10 +120,14 @@ func (t *workspaceRunResource) Create(ctx context.Context,
 		return
 	}
 
-	created := t.doApplyOrDestroyRun(ctx, workspaceRun, false, resp.Diagnostics)
+	var created WorkspaceRunModel
+	resp.Diagnostics.Append(t.doApplyOrDestroyRun(ctx, workspaceRun, false, &created)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	// Update the plan with the computed attribute values.
-	t.copyWorkspaceRun(created, &workspaceRun)
+	t.copyWorkspaceRun(&created, &workspaceRun)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, workspaceRun)...)
@@ -139,14 +143,14 @@ func (t *workspaceRunResource) Read(ctx context.Context,
 		return
 	}
 
-	deployed := t.getCurrentDeployment(ctx, state, &resp.Diagnostics)
-	if deployed == nil {
-		// There must have been an error.
+	var deployed WorkspaceRunModel
+	resp.Diagnostics.Append(t.getCurrentDeployment(ctx, state, &deployed)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Update the state with the computed attribute values.
-	t.copyWorkspaceRun(deployed, &state)
+	t.copyWorkspaceRun(&deployed, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -166,10 +170,14 @@ func (t *workspaceRunResource) Update(ctx context.Context,
 	isDestroyRun := false
 
 	// Apply or destroy, depending on the isDestroyRun argument.
-	updated := t.doApplyOrDestroyRun(ctx, plan, isDestroyRun, resp.Diagnostics)
+	var updated WorkspaceRunModel
+	resp.Diagnostics.Append(t.doApplyOrDestroyRun(ctx, plan, isDestroyRun, &updated)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyWorkspaceRun(updated, &plan)
+	t.copyWorkspaceRun(&updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -185,9 +193,9 @@ func (t *workspaceRunResource) Delete(ctx context.Context,
 		return
 	}
 
-	deployed := t.getCurrentDeployment(ctx, state, &resp.Diagnostics)
-	if deployed == nil {
-		// There must have been an error.
+	var deployed WorkspaceRunModel
+	resp.Diagnostics.Append(t.getCurrentDeployment(ctx, state, &deployed)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -202,7 +210,12 @@ func (t *workspaceRunResource) Delete(ctx context.Context,
 	}
 
 	// The workspace run is being deleted, so don't use the returned value.
-	_ = t.doApplyOrDestroyRun(ctx, state, true, resp.Diagnostics)
+	var deleted WorkspaceRunModel
+	resp.Diagnostics.Append(t.doApplyOrDestroyRun(ctx, state, true, &deleted)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	_ = deleted
 }
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
@@ -210,15 +223,15 @@ func (t *workspaceRunResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
 	resp.Diagnostics.AddError(
-		"Import of workspace_run is not supported.",
+		"Import of workspace is not supported.",
 		"",
 	)
 }
 
 // Because there is no Tharsis-defined struct for a workspace run resource, return this module's struct.
 func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
-	model WorkspaceRunModel, isDestroy bool, diags diag.Diagnostics,
-) *WorkspaceRunModel {
+	model WorkspaceRunModel, isDestroy bool, target *WorkspaceRunModel) diag.Diagnostics {
+	var diags diag.Diagnostics
 
 	// If variables are supplied, unmarshal them.
 	var vars []sdktypes.RunVariable
@@ -227,34 +240,38 @@ func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
 		if s != "" { // If empty string is passed in, don't try to unmarshal it.
 			if err := json.Unmarshal([]byte(s), &vars); err != nil {
 				diags.AddError("Failed to unmarshal the run variables", err.Error())
-				return nil
+				return diags
 			}
 		}
 	}
 
 	// Call CreateRun
+	var moduleVersion *string
+	if !model.ModuleVersion.IsUnknown() {
+		moduleVersion = ptr.String(model.ModuleVersion.ValueString())
+	}
+	// Using module registry path and version, so no ConfigurationVersionID.
 	createdRun, err := t.client.Run.CreateRun(ctx, &sdktypes.CreateRunInput{
-		WorkspacePath:          model.WorkspacePath.ValueString(),
-		ConfigurationVersionID: nil, // using module registry path and version
-		IsDestroy:              isDestroy,
-		ModuleSource:           ptr.String(model.ModuleSource.ValueString()),
-		ModuleVersion:          ptr.String(model.ModuleVersion.ValueString()),
-		Variables:              vars,
+		WorkspacePath: model.WorkspacePath.ValueString(),
+		IsDestroy:     isDestroy,
+		ModuleSource:  ptr.String(model.ModuleSource.ValueString()),
+		ModuleVersion: moduleVersion,
+		Variables:     vars,
 	})
 	if err != nil {
 		diags.AddError("Failed to create run", err.Error())
-		return nil
+		return diags
 	}
 
 	if err = t.waitForJobCompletion(ctx, createdRun.Plan.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for plan job completion", err.Error())
-		return nil
+		return diags
 	}
 
 	plannedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
 	if err != nil {
 		diags.AddError("Failed to get planned run", err.Error())
-		return nil
+		return diags
 	}
 
 	// If the plan fails, both plannedRun.Status and plannedRun.Plan.Status are "errored".
@@ -263,11 +280,11 @@ func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
 	//
 	if !strings.HasPrefix(string(plannedRun.Status), "planned") {
 		diags.AddError("Plan failed", string(plannedRun.Status))
-		return nil
+		return diags
 	}
 	if plannedRun.Plan.Status != "finished" {
 		diags.AddError("Plan failed", string(plannedRun.Plan.Status))
-		return nil
+		return diags
 	}
 
 	// Do the apply run.
@@ -277,55 +294,54 @@ func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
 	})
 	if err != nil {
 		diags.AddError("Failed to apply a run", err.Error())
-		return nil
+		return diags
 	}
 
 	// Make sure the run has an apply.
 	if appliedRun.Apply == nil {
 		msg := fmt.Sprintf("Created run does not have an apply: %s", appliedRun.Metadata.ID)
 		diags.AddError(msg, "")
-		return nil
+		return diags
 	}
 
 	if err = t.waitForJobCompletion(ctx, appliedRun.Apply.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for apply job completion", err.Error())
-		return nil
+		return diags
 	}
 
 	finishedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: appliedRun.Metadata.ID})
 	if err != nil {
 		diags.AddError("Failed to get finished run", err.Error())
-		return nil
+		return diags
 	}
 
 	// If an apply job succeeds, finishedRun.Status is "applied" and
 	// finishedRun.Apply.Status is "finished".
 	if finishedRun.Status != "applied" {
 		diags.AddError("Apply failed", string(finishedRun.Status))
-		return nil
+		return diags
 	}
 	if finishedRun.Apply.Status != "finished" {
 		diags.AddError("Apply status", string(finishedRun.Apply.Status))
-		return nil
+		return diags
 	}
 
 	// In case of a rainy day, make sure the ModuleSource and ModuleVersion *string aren't nil.
 	if finishedRun.ModuleSource == nil {
 		diags.AddError("Finished run's module source is nil.", "")
-		return nil
+		return diags
 	}
 	if finishedRun.ModuleVersion == nil {
 		diags.AddError("Finished run's module version is nil.", "")
-		return nil
+		return diags
 	}
 
 	// Return a workspace run model based on the finished run.
-	return &WorkspaceRunModel{
-		WorkspacePath: types.StringValue(finishedRun.WorkspacePath),
-		ModuleSource:  types.StringValue(*finishedRun.ModuleSource),
-		ModuleVersion: types.StringValue(*finishedRun.ModuleVersion),
-		Variables:     model.Variables, // Cannot get variables back from a workspace or run, so pass them through.
-	}
+	target.WorkspacePath = types.StringValue(finishedRun.WorkspacePath)
+	target.ModuleSource = types.StringValue(*finishedRun.ModuleSource)
+	target.ModuleVersion = types.StringValue(*finishedRun.ModuleVersion)
+	target.Variables = model.Variables // Cannot get variables back from a workspace or run, so pass them through.
+	return nil
 }
 
 func (t *workspaceRunResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
@@ -354,7 +370,8 @@ func (t *workspaceRunResource) waitForJobCompletion(ctx context.Context, jobID *
 
 // getCurrentDeployment returns a WorkspaceRunModel reflecting what is currently deployed.
 func (t *workspaceRunResource) getCurrentDeployment(ctx context.Context,
-	tfState WorkspaceRunModel, diags *diag.Diagnostics) *WorkspaceRunModel {
+	tfState WorkspaceRunModel, target *WorkspaceRunModel) diag.Diagnostics {
+	var diags diag.Diagnostics
 
 	// Get latest run on the target workspace.
 	toSortBy := sdktypes.RunSortableFieldUpdatedAtDesc // variable needed because can't take address of constant
@@ -368,35 +385,34 @@ func (t *workspaceRunResource) getCurrentDeployment(ctx context.Context,
 	})
 	if err != nil {
 		diags.AddError("Failed to get runs for target workspace", err.Error())
-		return nil
+		return diags
 	}
 	if gotRuns.Runs == nil {
 		diags.AddError("GetRuns on target workspace returned nil.", "")
-		return nil
+		return diags
 	}
 	if len(gotRuns.Runs) == 0 {
 		diags.AddError("GetRuns on target workspace returned empty", "")
-		return nil
+		return diags
 	}
 	latestRun := gotRuns.Runs[0]
 
 	// Make sure the module source and module version are not nil.
 	if latestRun.ModuleSource == nil {
 		diags.AddError("No module source available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
-		return nil
+		return diags
 	}
 	if latestRun.ModuleVersion == nil {
 		diags.AddError("No module version available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
-		return nil
+		return diags
 	}
 
-	return &WorkspaceRunModel{
-		WorkspacePath: tfState.WorkspacePath,
-		ModuleSource:  types.StringValue(*latestRun.ModuleSource),
-		ModuleVersion: types.StringValue(*latestRun.ModuleVersion),
-		Variables:     tfState.Variables,
-	}
+	target.WorkspacePath = tfState.WorkspacePath
+	target.ModuleSource = types.StringValue(*latestRun.ModuleSource)
+	target.ModuleVersion = types.StringValue(*latestRun.ModuleVersion)
+	target.Variables = tfState.Variables
 
+	return nil
 }
 
 // copyWorkspaceRun copies the contents of a workspace run.
