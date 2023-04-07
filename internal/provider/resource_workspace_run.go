@@ -374,28 +374,21 @@ func (t *workspaceRunResource) getCurrentDeployment(ctx context.Context,
 	var diags diag.Diagnostics
 
 	// Get latest run on the target workspace.
-	toSortBy := sdktypes.RunSortableFieldUpdatedAtDesc // variable needed because can't take address of constant
-	one := int32(1)                                    // ditto
-	gotRuns, err := t.client.Run.GetRuns(ctx, &sdktypes.GetRunsInput{
-		Sort:              &toSortBy,
-		PaginationOptions: &sdktypes.PaginationOptions{Limit: &one},
-		Filter: &sdktypes.RunFilter{
-			WorkspacePath: ptr.String(tfState.WorkspacePath.ValueString()),
-		},
+	wsPath := tfState.WorkspacePath.ValueString()
+	ws, err := t.client.Workspaces.GetWorkspace(ctx, &sdktypes.GetWorkspaceInput{
+		Path: &wsPath,
 	})
 	if err != nil {
-		diags.AddError("Failed to get runs for target workspace", err.Error())
+		diags.AddError(fmt.Sprintf("Failed to get specified workspace by path: %s", wsPath), err.Error())
 		return diags
 	}
-	if gotRuns.Runs == nil {
-		diags.AddError("GetRuns on target workspace returned nil.", "")
+	latestRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{
+		ID: ws.CurrentStateVersion.RunID,
+	})
+	if err != nil {
+		diags.AddError("Failed to get latest run", err.Error())
 		return diags
 	}
-	if len(gotRuns.Runs) == 0 {
-		diags.AddError("GetRuns on target workspace returned empty", "")
-		return diags
-	}
-	latestRun := gotRuns.Runs[0]
 
 	// Make sure the module source and module version are not nil.
 	if latestRun.ModuleSource == nil {
