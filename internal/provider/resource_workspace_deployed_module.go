@@ -22,14 +22,9 @@ import (
 
 type doRunInput struct {
 	model     WorkspaceDeployedModuleModel
+	runID     *string
 	planOnly  bool
-	runID     *string // non-nil means apply-only
 	doDestroy bool
-}
-
-type doRunOutput struct {
-	model WorkspaceDeployedModuleModel
-	runID string
 }
 
 const (
@@ -156,16 +151,16 @@ func (t *workspaceDeployedModuleResource) Create(ctx context.Context,
 	}
 
 	// Do plan and apply, no destroy.
-	var runOutput doRunOutput
+	var created WorkspaceDeployedModuleModel
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
 		model: workspaceDeployedModule,
-	}, &runOutput)...)
+	}, &created)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Update the plan with the computed attribute values.
-	t.copyWorkspaceDeployedModule(&runOutput.model, &workspaceDeployedModule)
+	t.copyWorkspaceDeployedModule(&created, &workspaceDeployedModule)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, workspaceDeployedModule)...)
@@ -194,10 +189,18 @@ func (t *workspaceDeployedModuleResource) Read(ctx context.Context,
 	t.copyWorkspaceDeployedModule(&deployed, &state)
 
 	// To be completely accurate, must do a speculative plan in order to know whether changes are needed.
+	// Do plan, no apply, no destroy.
+	var planOutput WorkspaceDeployedModuleModel
+	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
+		planOnly: true,
+		model:    state,
+	}, &planOutput)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	// FIXME: Code this.
-
-	////////
+	// Update the plan with the computed attribute values, including the run ID and has-changes.
+	t.copyWorkspaceDeployedModule(&planOutput, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -216,19 +219,22 @@ func (t *workspaceDeployedModuleResource) Update(ctx context.Context,
 		return
 	}
 
-	// FIXME: Use the HasChanges field to decide whether to make a change.
+	// If the Read method's plan stage found there are changes needed, finish the run with the apply stage.
+	if plan.HasChanges.ValueBool() {
 
-	// FIXME: Update this; for now, do plan and apply, no destroy.
-	var runOutput doRunOutput
-	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
-		model: plan,
-	}, &runOutput)...)
-	if resp.Diagnostics.HasError() {
-		return
+		// Do the apply stage.
+		var updated WorkspaceDeployedModuleModel
+		resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
+			model: plan,
+			runID: ptr.String(plan.RunID.ValueString()),
+		}, &updated)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		// Copy all fields returned by Tharsis back into the plan.
+		t.copyWorkspaceDeployedModule(&updated, &plan)
 	}
-
-	// Copy all fields returned by Tharsis back into the plan.
-	t.copyWorkspaceDeployedModule(&runOutput.model, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -264,11 +270,11 @@ func (t *workspaceDeployedModuleResource) Delete(ctx context.Context,
 	}
 
 	// The workspace deployed module is being deleted, so don't use the returned value.
-	var runOutput doRunOutput
+	var deleted WorkspaceDeployedModuleModel
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
 		model:     state,
 		doDestroy: true,
-	}, &runOutput)...)
+	}, &deleted)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -289,7 +295,7 @@ func (t *workspaceDeployedModuleResource) ImportState(ctx context.Context,
 
 // doRun does a run
 func (t *workspaceDeployedModuleResource) doRun(ctx context.Context,
-	input *doRunInput, output *doRunOutput) diag.Diagnostics {
+	input *doRunInput, output *WorkspaceDeployedModuleModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	var runID string
 
@@ -351,11 +357,12 @@ func (t *workspaceDeployedModuleResource) doRun(ctx context.Context,
 
 		if input.planOnly {
 			// Return the output.
-			output.runID = runID
-			output.model.WorkspacePath = types.StringValue(plannedRun.WorkspacePath)
-			output.model.ModuleSource = types.StringValue(*plannedRun.ModuleSource)
-			output.model.ModuleVersion = types.StringValue(*plannedRun.ModuleVersion)
-			output.model.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
+			output.WorkspacePath = types.StringValue(plannedRun.WorkspacePath)
+			output.ModuleSource = types.StringValue(*plannedRun.ModuleSource)
+			output.ModuleVersion = types.StringValue(*plannedRun.ModuleVersion)
+			output.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
+			output.HasChanges = types.BoolValue(plannedRun.Plan.HasChanges)
+			output.RunID = types.StringValue(runID)
 			return nil
 		}
 
@@ -415,11 +422,12 @@ func (t *workspaceDeployedModuleResource) doRun(ctx context.Context,
 	}
 
 	// Return the output.
-	output.runID = runID
-	output.model.WorkspacePath = types.StringValue(finishedRun.WorkspacePath)
-	output.model.ModuleSource = types.StringValue(*finishedRun.ModuleSource)
-	output.model.ModuleVersion = types.StringValue(*finishedRun.ModuleVersion)
-	output.model.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
+	output.WorkspacePath = types.StringValue(finishedRun.WorkspacePath)
+	output.ModuleSource = types.StringValue(*finishedRun.ModuleSource)
+	output.ModuleVersion = types.StringValue(*finishedRun.ModuleVersion)
+	output.Variables = input.model.Variables   // Cannot get variables back from a workspace or run, so pass them through.
+	output.HasChanges = types.BoolValue(false) // all changes have just been resolved
+	output.RunID = types.StringValue(finishedRun.Metadata.ID)
 	return nil
 }
 
