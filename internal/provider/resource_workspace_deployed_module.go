@@ -26,10 +26,10 @@ var (
 	applyRunComment = "terraform-provider-tharsis" // must be var, not const, to take address
 )
 
-// WorkspaceRunModel is the model for a workspace_run.
+// WorkspaceDeployedModuleModel is the model for a workspace_deployed_module.
 // Please note: Unlike many/most other resources, this model does not exist in the Tharsis API.
-// The workspace path, module source, and module version uniquely identify this workspace_run.
-type WorkspaceRunModel struct {
+// The workspace path, module source, and module version uniquely identify this workspace_deployed_module.
+type WorkspaceDeployedModuleModel struct {
 	WorkspacePath types.String `tfsdk:"workspace_path"`
 	ModuleSource  types.String `tfsdk:"module_source"`
 	ModuleVersion types.String `tfsdk:"module_version"`
@@ -38,28 +38,28 @@ type WorkspaceRunModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = (*workspaceRunResource)(nil)
-	_ resource.ResourceWithConfigure   = (*workspaceRunResource)(nil)
-	_ resource.ResourceWithImportState = (*workspaceRunResource)(nil)
+	_ resource.Resource                = (*workspaceDeployedModuleResource)(nil)
+	_ resource.ResourceWithConfigure   = (*workspaceDeployedModuleResource)(nil)
+	_ resource.ResourceWithImportState = (*workspaceDeployedModuleResource)(nil)
 )
 
-// NewWorkspaceRunResource is a helper function to simplify the provider implementation.
-func NewWorkspaceRunResource() resource.Resource {
-	return &workspaceRunResource{}
+// NewWorkspaceDeployedModuleResource is a helper function to simplify the provider implementation.
+func NewWorkspaceDeployedModuleResource() resource.Resource {
+	return &workspaceDeployedModuleResource{}
 }
 
-type workspaceRunResource struct {
+type workspaceDeployedModuleResource struct {
 	client *tharsis.Client
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *workspaceRunResource) Metadata(ctx context.Context,
+func (t *workspaceDeployedModuleResource) Metadata(ctx context.Context,
 	req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = "tharsis_workspace_run"
+	resp.TypeName = "tharsis_workspace_deployed_module"
 }
 
-func (t *workspaceRunResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	description := "Defines and manages a workspace run."
+func (t *workspaceDeployedModuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	description := "Defines and manages a workspace deployed module."
 
 	resp.Schema = schema.Schema{
 		Version:             1,
@@ -102,7 +102,7 @@ func (t *workspaceRunResource) Schema(_ context.Context, _ resource.SchemaReques
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
-func (t *workspaceRunResource) Configure(_ context.Context,
+func (t *workspaceDeployedModuleResource) Configure(_ context.Context,
 	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -110,57 +110,57 @@ func (t *workspaceRunResource) Configure(_ context.Context,
 	t.client = req.ProviderData.(*tharsis.Client)
 }
 
-func (t *workspaceRunResource) Create(ctx context.Context,
+func (t *workspaceDeployedModuleResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse) {
 
-	// Retrieve values from workspace run.
-	var workspaceRun WorkspaceRunModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &workspaceRun)...)
+	// Retrieve values from workspace deployed module.
+	var workspaceDeployedModule WorkspaceDeployedModuleModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &workspaceDeployedModule)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var created WorkspaceRunModel
-	resp.Diagnostics.Append(t.doApplyOrDestroyRun(ctx, workspaceRun, false, &created)...)
+	var created WorkspaceDeployedModuleModel
+	resp.Diagnostics.Append(t.doApplyOrDestroyRun(ctx, workspaceDeployedModule, false, &created)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Update the plan with the computed attribute values.
-	t.copyWorkspaceRun(&created, &workspaceRun)
+	t.copyWorkspaceDeployedModule(&created, &workspaceDeployedModule)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
-	resp.Diagnostics.Append(resp.State.Set(ctx, workspaceRun)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, workspaceDeployedModule)...)
 }
 
-func (t *workspaceRunResource) Read(ctx context.Context,
+func (t *workspaceDeployedModuleResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse) {
 
 	// Get the current state.
-	var state WorkspaceRunModel
+	var state WorkspaceDeployedModuleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var deployed WorkspaceRunModel
+	var deployed WorkspaceDeployedModuleModel
 	resp.Diagnostics.Append(t.getCurrentDeployment(ctx, state, &deployed)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Update the state with the computed attribute values.
-	t.copyWorkspaceRun(&deployed, &state)
+	t.copyWorkspaceDeployedModule(&deployed, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *workspaceRunResource) Update(ctx context.Context,
+func (t *workspaceDeployedModuleResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
 	// Retrieve values from plan.
-	var plan WorkspaceRunModel
+	var plan WorkspaceDeployedModuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -170,30 +170,30 @@ func (t *workspaceRunResource) Update(ctx context.Context,
 	isDestroyRun := false
 
 	// Apply or destroy, depending on the isDestroyRun argument.
-	var updated WorkspaceRunModel
+	var updated WorkspaceDeployedModuleModel
 	resp.Diagnostics.Append(t.doApplyOrDestroyRun(ctx, plan, isDestroyRun, &updated)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyWorkspaceRun(&updated, &plan)
+	t.copyWorkspaceDeployedModule(&updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (t *workspaceRunResource) Delete(ctx context.Context,
+func (t *workspaceDeployedModuleResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse) {
 
 	// Get the current state.
-	var state WorkspaceRunModel
+	var state WorkspaceDeployedModuleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var deployed WorkspaceRunModel
+	var deployed WorkspaceDeployedModuleModel
 	resp.Diagnostics.Append(t.getCurrentDeployment(ctx, state, &deployed)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -209,8 +209,8 @@ func (t *workspaceRunResource) Delete(ctx context.Context,
 		return
 	}
 
-	// The workspace run is being deleted, so don't use the returned value.
-	var deleted WorkspaceRunModel
+	// The workspace deployed module is being deleted, so don't use the returned value.
+	var deleted WorkspaceDeployedModuleModel
 	resp.Diagnostics.Append(t.doApplyOrDestroyRun(ctx, state, true, &deleted)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -219,7 +219,7 @@ func (t *workspaceRunResource) Delete(ctx context.Context,
 }
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
-func (t *workspaceRunResource) ImportState(ctx context.Context,
+func (t *workspaceDeployedModuleResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
 	resp.Diagnostics.AddError(
@@ -228,9 +228,9 @@ func (t *workspaceRunResource) ImportState(ctx context.Context,
 	)
 }
 
-// Because there is no Tharsis-defined struct for a workspace run resource, return this module's struct.
-func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
-	model WorkspaceRunModel, isDestroy bool, target *WorkspaceRunModel) diag.Diagnostics {
+// Because there is no Tharsis-defined struct for a workspace deployed module resource, return this module's struct.
+func (t *workspaceDeployedModuleResource) doApplyOrDestroyRun(ctx context.Context,
+	model WorkspaceDeployedModuleModel, isDestroy bool, target *WorkspaceDeployedModuleModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// If variables are supplied, unmarshal them.
@@ -336,7 +336,7 @@ func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
 		return diags
 	}
 
-	// Return a workspace run model based on the finished run.
+	// Return a workspace deployed module model based on the finished run.
 	target.WorkspacePath = types.StringValue(finishedRun.WorkspacePath)
 	target.ModuleSource = types.StringValue(*finishedRun.ModuleSource)
 	target.ModuleVersion = types.StringValue(*finishedRun.ModuleVersion)
@@ -344,7 +344,7 @@ func (t *workspaceRunResource) doApplyOrDestroyRun(ctx context.Context,
 	return nil
 }
 
-func (t *workspaceRunResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
+func (t *workspaceDeployedModuleResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
 	if jobID == nil {
 		return fmt.Errorf("nil job ID")
 	}
@@ -368,9 +368,9 @@ func (t *workspaceRunResource) waitForJobCompletion(ctx context.Context, jobID *
 
 }
 
-// getCurrentDeployment returns a WorkspaceRunModel reflecting what is currently deployed.
-func (t *workspaceRunResource) getCurrentDeployment(ctx context.Context,
-	tfState WorkspaceRunModel, target *WorkspaceRunModel) diag.Diagnostics {
+// getCurrentDeployment returns a WorkspaceDeployedModuleModel reflecting what is currently deployed.
+func (t *workspaceDeployedModuleResource) getCurrentDeployment(ctx context.Context,
+	tfState WorkspaceDeployedModuleModel, target *WorkspaceDeployedModuleModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// Get latest run on the target workspace.
@@ -408,9 +408,9 @@ func (t *workspaceRunResource) getCurrentDeployment(ctx context.Context,
 	return nil
 }
 
-// copyWorkspaceRun copies the contents of a workspace run.
-// It copies the fields from the same type, because there is not a workspace run defined by Tharsis.
-func (t *workspaceRunResource) copyWorkspaceRun(src, dest *WorkspaceRunModel) {
+// copyWorkspaceDeployedModule copies the contents of a workspace deployed module.
+// It copies the fields from the same type, because there is not a workspace deployed module defined by Tharsis.
+func (t *workspaceDeployedModuleResource) copyWorkspaceDeployedModule(src, dest *WorkspaceDeployedModuleModel) {
 	dest.WorkspacePath = src.WorkspacePath
 	dest.ModuleSource = src.ModuleSource
 	dest.ModuleVersion = src.ModuleVersion
