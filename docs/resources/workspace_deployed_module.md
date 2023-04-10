@@ -25,8 +25,4 @@ Defines and manages a workspace deployed module.
 - `module_version` (String) The version identifier of the module.
 - `variables` (String) Optional variables for the run in the target workspace.
 
-### Read-Only
-
-- `has_changes` (Boolean) Marks that the workspace has changes that to do.
-
 

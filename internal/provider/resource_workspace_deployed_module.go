@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -42,7 +41,6 @@ type WorkspaceDeployedModuleModel struct {
 	ModuleSource  types.String `tfsdk:"module_source"`
 	ModuleVersion types.String `tfsdk:"module_version"`
 	Variables     types.String `tfsdk:"variables"`
-	HasChanges    types.Bool   `tfsdk:"has_changes"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -104,14 +102,6 @@ func (t *workspaceDeployedModuleResource) Schema(_ context.Context, _ resource.S
 				// Will remain unset if not supplied.
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"has_changes": schema.BoolAttribute{
-				MarkdownDescription: "Marks that the workspace has changes that to do.",
-				Description:         "Marks that the workspace has changes that to do.",
-				Computed:            true,
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 		},
@@ -180,8 +170,6 @@ func (t *workspaceDeployedModuleResource) Read(ctx context.Context,
 
 	// TODO: Eventually, when the API and SDK support speculative runs with a module source,
 	// this should do a speculative run here to determine whether changes are needed.
-	// For now, the Read method must assume changes are always needed so the Update method can always do a run.
-	state.HasChanges = types.BoolValue(true)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -200,24 +188,21 @@ func (t *workspaceDeployedModuleResource) Update(ctx context.Context,
 		return
 	}
 
-	// If the Read method's plan stage found that changes are needed, do a run.
-	// TODO: Please note that until the API and SDK support speculative runs with a module source,
-	// the Read method will always set HasChanges to true, so this method will always do a run.
-	// If no real changes were actually needed, then that run will determine nothing is to be changed.
-	if plan.HasChanges.ValueBool() {
+	// TODO: Please note that when the API and SDK support speculative runs with a module source,
+	// this will need to look at the results from the Read method's speculative run to determine
+	// whether to do an update.  A way will have to be found to force Terraform to allow the update.
 
-		// Do the run.
-		var updated WorkspaceDeployedModuleModel
-		resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
-			model: plan,
-		}, &updated)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		// Copy all fields returned by Tharsis back into the plan.
-		t.copyWorkspaceDeployedModule(&updated, &plan)
+	// Do the run.
+	var updated WorkspaceDeployedModuleModel
+	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
+		model: plan,
+	}, &updated)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	// Copy all fields returned by Tharsis back into the plan.
+	t.copyWorkspaceDeployedModule(&updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -348,7 +333,6 @@ func (t *workspaceDeployedModuleResource) doRun(ctx context.Context,
 		output.ModuleSource = types.StringValue(*plannedRun.ModuleSource)
 		output.ModuleVersion = types.StringValue(*plannedRun.ModuleVersion)
 		output.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
-		output.HasChanges = types.BoolValue(plannedRun.Plan.HasChanges)
 		return nil
 	}
 
@@ -405,8 +389,7 @@ func (t *workspaceDeployedModuleResource) doRun(ctx context.Context,
 	output.WorkspacePath = types.StringValue(finishedRun.WorkspacePath)
 	output.ModuleSource = types.StringValue(*finishedRun.ModuleSource)
 	output.ModuleVersion = types.StringValue(*finishedRun.ModuleVersion)
-	output.Variables = input.model.Variables   // Cannot get variables back from a workspace or run, so pass them through.
-	output.HasChanges = types.BoolValue(false) // all changes have just been resolved
+	output.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
 	return nil
 }
 
@@ -481,7 +464,6 @@ func (t *workspaceDeployedModuleResource) copyWorkspaceDeployedModule(src, dest 
 	dest.ModuleSource = src.ModuleSource
 	dest.ModuleVersion = src.ModuleVersion
 	dest.Variables = src.Variables
-	dest.HasChanges = src.HasChanges
 }
 
 // The End.
