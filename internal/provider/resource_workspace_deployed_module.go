@@ -22,7 +22,6 @@ import (
 
 type doRunInput struct {
 	model     WorkspaceDeployedModuleModel
-	runID     *string
 	planOnly  bool
 	doDestroy bool
 }
@@ -44,7 +43,6 @@ type WorkspaceDeployedModuleModel struct {
 	ModuleVersion types.String `tfsdk:"module_version"`
 	Variables     types.String `tfsdk:"variables"`
 	HasChanges    types.Bool   `tfsdk:"has_changes"`
-	RunID         types.String `tfsdk:"run_id"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -116,14 +114,6 @@ func (t *workspaceDeployedModuleResource) Schema(_ context.Context, _ resource.S
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"run_id": schema.StringAttribute{
-				MarkdownDescription: "The run ID in case there are changes to do.",
-				Description:         "The run ID in case there are changes to do.",
-				Computed:            true, // computed if not supplied
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
 		},
 	}
 }
@@ -188,19 +178,10 @@ func (t *workspaceDeployedModuleResource) Read(ctx context.Context,
 	// Update the state with the computed attribute values.
 	t.copyWorkspaceDeployedModule(&deployed, &state)
 
-	// To be completely accurate, must do a speculative plan in order to know whether changes are needed.
-	// Do plan, no apply, no destroy.
-	var planOutput WorkspaceDeployedModuleModel
-	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
-		planOnly: true,
-		model:    state,
-	}, &planOutput)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Update the plan with the computed attribute values, including the run ID and has-changes.
-	t.copyWorkspaceDeployedModule(&planOutput, &state)
+	// TODO: Eventually, when the API and SDK support speculative runs with a module source,
+	// this should do a speculative run here to determine whether changes are needed.
+	// For now, the Read method must assume changes are always needed so the Update method can always do a run.
+	state.HasChanges = types.BoolValue(true)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -219,14 +200,16 @@ func (t *workspaceDeployedModuleResource) Update(ctx context.Context,
 		return
 	}
 
-	// If the Read method's plan stage found there are changes needed, finish the run with the apply stage.
+	// If the Read method's plan stage found that changes are needed, do a run.
+	// TODO: Please note that until the API and SDK support speculative runs with a module source,
+	// the Read method will always set HasChanges to true, so this method will always do a run.
+	// If no real changes were actually needed, then that run will determine nothing is to be changed.
 	if plan.HasChanges.ValueBool() {
 
-		// Do the apply stage.
+		// Do the run.
 		var updated WorkspaceDeployedModuleModel
 		resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
 			model: plan,
-			runID: ptr.String(plan.RunID.ValueString()),
 		}, &updated)...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -297,79 +280,76 @@ func (t *workspaceDeployedModuleResource) ImportState(ctx context.Context,
 func (t *workspaceDeployedModuleResource) doRun(ctx context.Context,
 	input *doRunInput, output *WorkspaceDeployedModuleModel) diag.Diagnostics {
 	var diags diag.Diagnostics
-	var runID string
 
-	if input.runID == nil {
+	// FIXME: Remove this:
+	tflog.Info(ctx, "**************** doRun: starting", map[string]interface{}{"input": input})
 
-		// If variables are supplied, unmarshal them.
-		var vars []sdktypes.RunVariable
-		if !input.model.Variables.IsUnknown() {
-			s := input.model.Variables.ValueString()
-			if s != "" { // If empty string is passed in, don't try to unmarshal it.
-				if err := json.Unmarshal([]byte(s), &vars); err != nil {
-					diags.AddError("Failed to unmarshal the run variables", err.Error())
-					return diags
-				}
+	// If variables are supplied, unmarshal them.
+	var vars []sdktypes.RunVariable
+	if !input.model.Variables.IsUnknown() {
+		s := input.model.Variables.ValueString()
+		if s != "" { // If empty string is passed in, don't try to unmarshal it.
+			if err := json.Unmarshal([]byte(s), &vars); err != nil {
+				diags.AddError("Failed to unmarshal the run variables", err.Error())
+				return diags
 			}
 		}
+	}
 
-		// Call CreateRun
-		var moduleVersion *string
-		if !input.model.ModuleVersion.IsUnknown() {
-			moduleVersion = ptr.String(input.model.ModuleVersion.ValueString())
-		}
-		// Using module registry path and version, so no ConfigurationVersionID.
-		createdRun, err := t.client.Run.CreateRun(ctx, &sdktypes.CreateRunInput{
-			WorkspacePath: input.model.WorkspacePath.ValueString(),
-			IsDestroy:     input.doDestroy,
-			ModuleSource:  ptr.String(input.model.ModuleSource.ValueString()),
-			ModuleVersion: moduleVersion,
-			Variables:     vars,
-		})
-		if err != nil {
-			diags.AddError("Failed to create run", err.Error())
-			return diags
-		}
+	// Call CreateRun
+	var moduleVersion *string
+	if !input.model.ModuleVersion.IsUnknown() {
+		moduleVersion = ptr.String(input.model.ModuleVersion.ValueString())
+	}
+	// Using module registry path and version, so no ConfigurationVersionID.
+	createdRun, err := t.client.Run.CreateRun(ctx, &sdktypes.CreateRunInput{
+		WorkspacePath: input.model.WorkspacePath.ValueString(),
+		IsDestroy:     input.doDestroy,
+		ModuleSource:  ptr.String(input.model.ModuleSource.ValueString()),
+		ModuleVersion: moduleVersion,
+		Variables:     vars,
+	})
+	if err != nil {
+		diags.AddError("Failed to create run", err.Error())
+		return diags
+	}
 
-		if err = t.waitForJobCompletion(ctx, createdRun.Plan.CurrentJobID); err != nil {
-			diags.AddError("Failed to wait for plan job completion", err.Error())
-			return diags
-		}
+	if err = t.waitForJobCompletion(ctx, createdRun.Plan.CurrentJobID); err != nil {
+		diags.AddError("Failed to wait for plan job completion", err.Error())
+		return diags
+	}
 
-		plannedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
-		if err != nil {
-			diags.AddError("Failed to get planned run", err.Error())
-			return diags
-		}
+	plannedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
+	if err != nil {
+		diags.AddError("Failed to get planned run", err.Error())
+		return diags
+	}
 
-		// If the plan fails, both plannedRun.Status and plannedRun.Plan.Status are "errored".
-		// If the plan succeeds, plannedRun.Status is "planned",
-		// while plannedRun.Plan.Status is "finished".
-		//
-		if !strings.HasPrefix(string(plannedRun.Status), "planned") {
-			diags.AddError("Plan failed", string(plannedRun.Status))
-			return diags
-		}
-		if plannedRun.Plan.Status != "finished" {
-			diags.AddError("Plan failed", string(plannedRun.Plan.Status))
-			return diags
-		}
+	// If the plan fails, both plannedRun.Status and plannedRun.Plan.Status are "errored".
+	// If the plan succeeds, plannedRun.Status is "planned",
+	// while plannedRun.Plan.Status is "finished".
+	//
+	if !strings.HasPrefix(string(plannedRun.Status), "planned") {
+		diags.AddError("Plan failed", string(plannedRun.Status))
+		return diags
+	}
+	if plannedRun.Plan.Status != "finished" {
+		diags.AddError("Plan failed", string(plannedRun.Plan.Status))
+		return diags
+	}
 
-		if input.planOnly {
-			// Return the output.
-			output.WorkspacePath = types.StringValue(plannedRun.WorkspacePath)
-			output.ModuleSource = types.StringValue(*plannedRun.ModuleSource)
-			output.ModuleVersion = types.StringValue(*plannedRun.ModuleVersion)
-			output.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
-			output.HasChanges = types.BoolValue(plannedRun.Plan.HasChanges)
-			output.RunID = types.StringValue(runID)
-			return nil
-		}
+	// Capture the run ID.
+	runID := plannedRun.Metadata.ID
 
-		runID = plannedRun.Metadata.ID
-	} else {
-		// apply-only means the run ID is passed in
-		runID = *input.runID
+	// TODO: Please note that planOnly will be used after the API and SDK support a speculative plan with a module source.
+	if input.planOnly {
+		// Return the output.
+		output.WorkspacePath = types.StringValue(plannedRun.WorkspacePath)
+		output.ModuleSource = types.StringValue(*plannedRun.ModuleSource)
+		output.ModuleVersion = types.StringValue(*plannedRun.ModuleVersion)
+		output.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
+		output.HasChanges = types.BoolValue(plannedRun.Plan.HasChanges)
+		return nil
 	}
 
 	// Do the apply run.
@@ -427,7 +407,6 @@ func (t *workspaceDeployedModuleResource) doRun(ctx context.Context,
 	output.ModuleVersion = types.StringValue(*finishedRun.ModuleVersion)
 	output.Variables = input.model.Variables   // Cannot get variables back from a workspace or run, so pass them through.
 	output.HasChanges = types.BoolValue(false) // all changes have just been resolved
-	output.RunID = types.StringValue(finishedRun.Metadata.ID)
 	return nil
 }
 
@@ -503,7 +482,6 @@ func (t *workspaceDeployedModuleResource) copyWorkspaceDeployedModule(src, dest 
 	dest.ModuleVersion = src.ModuleVersion
 	dest.Variables = src.Variables
 	dest.HasChanges = src.HasChanges
-	dest.RunID = src.RunID
 }
 
 // The End.

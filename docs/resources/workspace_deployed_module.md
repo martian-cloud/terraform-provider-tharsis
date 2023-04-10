@@ -28,6 +28,5 @@ Defines and manages a workspace deployed module.
 ### Read-Only
 
 - `has_changes` (Boolean) Marks that the workspace has changes that to do.
-- `run_id` (String) The run ID in case there are changes to do.
 
 
