@@ -21,7 +21,6 @@ import (
 
 type doRunInput struct {
 	model     WorkspaceDeployedModuleModel
-	planOnly  bool
 	doDestroy bool
 }
 
@@ -82,8 +81,8 @@ func (t *workspaceDeployedModuleResource) Schema(_ context.Context, _ resource.S
 				},
 			},
 			"module_source": schema.StringAttribute{
-				MarkdownDescription: "The source of the module, including the API hostname.",
-				Description:         "The source of the module, including the API hostname.",
+				MarkdownDescription: "The source of the module.",
+				Description:         "The source of the module.",
 				Required:            true,
 			},
 			"module_version": schema.StringAttribute{
@@ -326,8 +325,9 @@ func (t *workspaceDeployedModuleResource) doRun(ctx context.Context,
 	// Capture the run ID.
 	runID := plannedRun.Metadata.ID
 
-	// TODO: Please note that planOnly will be used after the API and SDK support a speculative plan with a module source.
-	if input.planOnly {
+	// TODO: When the API and SDK support speculative runs and PlanOnly is implemented, take this early return.
+
+	if plannedRun.Status == "planned_and_finished" {
 		// Return the output.
 		output.WorkspacePath = types.StringValue(plannedRun.WorkspacePath)
 		output.ModuleSource = types.StringValue(*plannedRun.ModuleSource)

@@ -17,7 +17,7 @@ Defines and manages a workspace deployed module.
 
 ### Required
 
-- `module_source` (String) The source of the module, including the API hostname.
+- `module_source` (String) The source of the module.
 - `workspace_path` (String) The full path of the workspace.
 
 ### Optional

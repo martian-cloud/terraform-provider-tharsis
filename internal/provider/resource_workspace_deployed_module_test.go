@@ -20,18 +20,13 @@ func TestWorkspaceDeployedModule(t *testing.T) {
 
 	// Don't leave the pre-config resources around after this function is finished.
 	// Must defer in case any test steps fail.
+	PreConfigForTestWorkspaceDeployedModule()
 	defer PostDestroyForTestWorkspaceDeployedModule()
 
 	resource.Test(t, resource.TestCase{
 
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
-			// Step to pre-configure things that cannot be done via HCL:
-			{
-				PreConfig: PreConfigForTestWorkspaceDeployedModule,
-				Config:    emptyConfig(), // PreConfig requires a Config.
-			},
 
 			// Create two workspaces and perhaps other resources.
 			{
@@ -120,14 +115,6 @@ func PostDestroyForTestWorkspaceDeployedModule() {
 	}
 
 	fmt.Printf("Function PostDestroyForTestWorkspaceDeployedModule succeeded.\n")
-}
-
-func emptyConfig() string {
-	return `
-
-# empty HCL
-
-`
 }
 
 func testWorkspaceDeployedModuleConfigurationCreate() string {
