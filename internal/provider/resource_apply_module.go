@@ -20,7 +20,7 @@ import (
 )
 
 type doRunInput struct {
-	model     WorkspaceDeployedModuleModel
+	model     ApplyModuleModel
 	doDestroy bool
 }
 
@@ -32,10 +32,10 @@ var (
 	applyRunComment = "terraform-provider-tharsis" // must be var, not const, to take address
 )
 
-// WorkspaceDeployedModuleModel is the model for a workspace_deployed_module.
+// ApplyModuleModel is the model for an apply_module.
 // Please note: Unlike many/most other resources, this model does not exist in the Tharsis API.
-// The workspace path, module source, and module version uniquely identify this workspace_deployed_module.
-type WorkspaceDeployedModuleModel struct {
+// The workspace path, module source, and module version uniquely identify this apply_module.
+type ApplyModuleModel struct {
 	WorkspacePath types.String `tfsdk:"workspace_path"`
 	ModuleSource  types.String `tfsdk:"module_source"`
 	ModuleVersion types.String `tfsdk:"module_version"`
@@ -44,28 +44,28 @@ type WorkspaceDeployedModuleModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = (*workspaceDeployedModuleResource)(nil)
-	_ resource.ResourceWithConfigure   = (*workspaceDeployedModuleResource)(nil)
-	_ resource.ResourceWithImportState = (*workspaceDeployedModuleResource)(nil)
+	_ resource.Resource                = (*applyModuleResource)(nil)
+	_ resource.ResourceWithConfigure   = (*applyModuleResource)(nil)
+	_ resource.ResourceWithImportState = (*applyModuleResource)(nil)
 )
 
-// NewWorkspaceDeployedModuleResource is a helper function to simplify the provider implementation.
-func NewWorkspaceDeployedModuleResource() resource.Resource {
-	return &workspaceDeployedModuleResource{}
+// NewApplyModuleResource is a helper function to simplify the provider implementation.
+func NewApplyModuleResource() resource.Resource {
+	return &applyModuleResource{}
 }
 
-type workspaceDeployedModuleResource struct {
+type applyModuleResource struct {
 	client *tharsis.Client
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *workspaceDeployedModuleResource) Metadata(ctx context.Context,
+func (t *applyModuleResource) Metadata(ctx context.Context,
 	req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = "tharsis_workspace_deployed_module"
+	resp.TypeName = "tharsis_apply_module"
 }
 
-func (t *workspaceDeployedModuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	description := "Defines and manages a workspace deployed module."
+func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	description := "Defines and manages an apply module."
 
 	resp.Schema = schema.Schema{
 		Version:             1,
@@ -108,7 +108,7 @@ func (t *workspaceDeployedModuleResource) Schema(_ context.Context, _ resource.S
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
-func (t *workspaceDeployedModuleResource) Configure(_ context.Context,
+func (t *applyModuleResource) Configure(_ context.Context,
 	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -116,56 +116,56 @@ func (t *workspaceDeployedModuleResource) Configure(_ context.Context,
 	t.client = req.ProviderData.(*tharsis.Client)
 }
 
-func (t *workspaceDeployedModuleResource) Create(ctx context.Context,
+func (t *applyModuleResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse) {
 
 	// FIXME: Remove this:
 	tflog.Info(ctx, "******** Create method starting.")
 
-	// Retrieve values from workspace deployed module.
-	var workspaceDeployedModule WorkspaceDeployedModuleModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &workspaceDeployedModule)...)
+	// Retrieve values from apply module.
+	var applyModule ApplyModuleModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &applyModule)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Do plan and apply, no destroy.
-	var created WorkspaceDeployedModuleModel
+	var created ApplyModuleModel
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
-		model: workspaceDeployedModule,
+		model: applyModule,
 	}, &created)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Update the plan with the computed attribute values.
-	t.copyWorkspaceDeployedModule(&created, &workspaceDeployedModule)
+	t.copyApplyModule(&created, &applyModule)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
-	resp.Diagnostics.Append(resp.State.Set(ctx, workspaceDeployedModule)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, applyModule)...)
 }
 
-func (t *workspaceDeployedModuleResource) Read(ctx context.Context,
+func (t *applyModuleResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse) {
 
 	// FIXME: Remove this:
 	tflog.Info(ctx, "******** Read method starting.")
 
 	// Get the current state.
-	var state WorkspaceDeployedModuleModel
+	var state ApplyModuleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var deployed WorkspaceDeployedModuleModel
-	resp.Diagnostics.Append(t.getCurrentDeployment(ctx, state, &deployed)...)
+	var applied ApplyModuleModel
+	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &applied)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Update the state with the computed attribute values.
-	t.copyWorkspaceDeployedModule(&deployed, &state)
+	t.copyApplyModule(&applied, &state)
 
 	// TODO: Eventually, when the API and SDK support speculative runs with a module source,
 	// this should do a speculative run here to determine whether changes are needed.
@@ -174,14 +174,14 @@ func (t *workspaceDeployedModuleResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *workspaceDeployedModuleResource) Update(ctx context.Context,
+func (t *applyModuleResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
 	// FIXME: Remove this:
 	tflog.Info(ctx, "******** Update method starting.")
 
 	// Retrieve values from plan.
-	var plan WorkspaceDeployedModuleModel
+	var plan ApplyModuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -192,7 +192,7 @@ func (t *workspaceDeployedModuleResource) Update(ctx context.Context,
 	// whether to do an update.  A way will have to be found to force Terraform to allow the update.
 
 	// Do the run.
-	var updated WorkspaceDeployedModuleModel
+	var updated ApplyModuleModel
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
 		model: plan,
 	}, &updated)...)
@@ -201,43 +201,43 @@ func (t *workspaceDeployedModuleResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyWorkspaceDeployedModule(&updated, &plan)
+	t.copyApplyModule(&updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (t *workspaceDeployedModuleResource) Delete(ctx context.Context,
+func (t *applyModuleResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse) {
 
 	// FIXME: Remove this:
 	tflog.Info(ctx, "******** Delete method starting.")
 
 	// Get the current state.
-	var state WorkspaceDeployedModuleModel
+	var state ApplyModuleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var deployed WorkspaceDeployedModuleModel
-	resp.Diagnostics.Append(t.getCurrentDeployment(ctx, state, &deployed)...)
+	var applied ApplyModuleModel
+	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &applied)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// If the module source or module version differs, error out.
-	if state.ModuleSource != deployed.ModuleSource {
+	if state.ModuleSource != applied.ModuleSource {
 		resp.Diagnostics.AddError("Module source differs, cannot delete", "")
 		return
 	}
-	if state.ModuleVersion != deployed.ModuleVersion {
+	if state.ModuleVersion != applied.ModuleVersion {
 		resp.Diagnostics.AddError("Module version differs, cannot delete", "")
 		return
 	}
 
-	// The workspace deployed module is being deleted, so don't use the returned value.
-	var deleted WorkspaceDeployedModuleModel
+	// The apply module is being deleted, so don't use the returned value.
+	var deleted ApplyModuleModel
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
 		model:     state,
 		doDestroy: true,
@@ -248,7 +248,7 @@ func (t *workspaceDeployedModuleResource) Delete(ctx context.Context,
 }
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
-func (t *workspaceDeployedModuleResource) ImportState(ctx context.Context,
+func (t *applyModuleResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
 	// FIXME: Remove this:
@@ -261,8 +261,8 @@ func (t *workspaceDeployedModuleResource) ImportState(ctx context.Context,
 }
 
 // doRun does a run
-func (t *workspaceDeployedModuleResource) doRun(ctx context.Context,
-	input *doRunInput, output *WorkspaceDeployedModuleModel) diag.Diagnostics {
+func (t *applyModuleResource) doRun(ctx context.Context,
+	input *doRunInput, output *ApplyModuleModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// FIXME: Remove this:
@@ -393,7 +393,7 @@ func (t *workspaceDeployedModuleResource) doRun(ctx context.Context,
 	return nil
 }
 
-func (t *workspaceDeployedModuleResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
+func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
 	if jobID == nil {
 		return fmt.Errorf("nil job ID")
 	}
@@ -417,9 +417,9 @@ func (t *workspaceDeployedModuleResource) waitForJobCompletion(ctx context.Conte
 
 }
 
-// getCurrentDeployment returns a WorkspaceDeployedModuleModel reflecting what is currently deployed.
-func (t *workspaceDeployedModuleResource) getCurrentDeployment(ctx context.Context,
-	tfState WorkspaceDeployedModuleModel, target *WorkspaceDeployedModuleModel) diag.Diagnostics {
+// getCurrentApplied returns an ApplyModuleModel reflecting what is currently applied.
+func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
+	tfState ApplyModuleModel, target *ApplyModuleModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// Get latest run on the target workspace.
@@ -457,9 +457,9 @@ func (t *workspaceDeployedModuleResource) getCurrentDeployment(ctx context.Conte
 	return nil
 }
 
-// copyWorkspaceDeployedModule copies the contents of a workspace deployed module.
-// It copies the fields from the same type, because there is not a workspace deployed module defined by Tharsis.
-func (t *workspaceDeployedModuleResource) copyWorkspaceDeployedModule(src, dest *WorkspaceDeployedModuleModel) {
+// copyApplyModule copies the contents of an apply module.
+// It copies the fields from the same type, because there is not an apply module defined by Tharsis.
+func (t *applyModuleResource) copyApplyModule(src, dest *ApplyModuleModel) {
 	dest.WorkspacePath = src.WorkspacePath
 	dest.ModuleSource = src.ModuleSource
 	dest.ModuleVersion = src.ModuleVersion

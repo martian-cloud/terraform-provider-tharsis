@@ -12,7 +12,7 @@ import (
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
-func TestWorkspaceDeployedModule(t *testing.T) {
+func TestApplyModule(t *testing.T) {
 	ws1Name := "workspace-1"
 	ws1Desc := "this is workspace 1"
 	ws2Name := "workspace-2"
@@ -20,8 +20,8 @@ func TestWorkspaceDeployedModule(t *testing.T) {
 
 	// Don't leave the pre-config resources around after this function is finished.
 	// Must defer in case any test steps fail.
-	PreConfigForTestWorkspaceDeployedModule()
-	defer PostDestroyForTestWorkspaceDeployedModule()
+	PreConfigForTestApplyModule()
+	defer PostDestroyForTestApplyModule()
 
 	resource.Test(t, resource.TestCase{
 
@@ -30,7 +30,7 @@ func TestWorkspaceDeployedModule(t *testing.T) {
 
 			// Create two workspaces and perhaps other resources.
 			{
-				Config: testWorkspaceDeployedModuleConfigurationCreate(),
+				Config: testApplyModuleConfigurationCreate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_workspace.tw1", "name", ws1Name),
@@ -55,9 +55,9 @@ func TestWorkspaceDeployedModule(t *testing.T) {
 	})
 }
 
-// PreConfigForTestWorkspaceDeployedModule pre-configures some resources that our provider does
+// PreConfigForTestApplyModule pre-configures some resources that our provider does
 // not support creating from HCL, including any pre-requisites (like the root group).
-func PreConfigForTestWorkspaceDeployedModule() {
+func PreConfigForTestApplyModule() {
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -76,7 +76,7 @@ func PreConfigForTestWorkspaceDeployedModule() {
 	_, err = client.Group.CreateGroup(ctx,
 		&types.CreateGroupInput{
 			Name:        testGroupPath,
-			Description: "This is the root group for testing workspace deployed module.",
+			Description: "This is the root group for testing apply module.",
 		},
 	)
 	if err != nil {
@@ -84,11 +84,11 @@ func PreConfigForTestWorkspaceDeployedModule() {
 		return
 	}
 
-	fmt.Printf("Function PreConfigForTestWorkspaceDeployedModule succeeded.\n")
+	fmt.Printf("Function PreConfigForTestApplyModule succeeded.\n")
 }
 
-// PostDestroyForTestWorkspaceDeployedModule destroys the resources created by the pre-config function.
-func PostDestroyForTestWorkspaceDeployedModule() {
+// PostDestroyForTestApplyModule destroys the resources created by the pre-config function.
+func PostDestroyForTestApplyModule() {
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -114,10 +114,10 @@ func PostDestroyForTestWorkspaceDeployedModule() {
 		return
 	}
 
-	fmt.Printf("Function PostDestroyForTestWorkspaceDeployedModule succeeded.\n")
+	fmt.Printf("Function PostDestroyForTestApplyModule succeeded.\n")
 }
 
-func testWorkspaceDeployedModuleConfigurationCreate() string {
+func testApplyModuleConfigurationCreate() string {
 	ws1Name := "workspace-1"
 	ws1Desc := "this is workspace 1"
 	ws2Name := "workspace-2"
