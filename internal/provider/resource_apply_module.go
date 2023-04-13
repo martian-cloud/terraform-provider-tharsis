@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -150,7 +149,6 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Optional:            true,
 				Computed:            true, // Terraform requires it to be computed if it's optional.
 				PlanModifiers: []planmodifier.List{
-					listplanmodifier.UseStateForUnknown(),
 					modifiers.ListDefault([]attr.Value{}),
 				},
 				NestedObject: schema.NestedAttributeObject{
