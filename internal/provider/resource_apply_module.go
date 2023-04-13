@@ -473,23 +473,24 @@ func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *s
 		return fmt.Errorf("nil job ID")
 	}
 
-	// Poll until job has finished.
+	// Poll until job has finished or the context expires.
 	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context expired while waiting for job ID %s", *jobID)
+		case <-time.After(jobCompletionPollInterval):
+			job, err := t.client.Job.GetJob(ctx, &sdktypes.GetJobInput{
+				ID: *jobID,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to get job ID %s", *jobID)
+			}
 
-		job, err := t.client.Job.GetJob(ctx, &sdktypes.GetJobInput{
-			ID: *jobID,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to get job ID %s", *jobID)
+			if job.Status == "finished" {
+				return nil
+			}
 		}
-
-		if job.Status == "finished" {
-			return nil
-		}
-
-		time.Sleep(jobCompletionPollInterval)
 	}
-
 }
 
 // getCurrentApplied returns an ApplyModuleModel reflecting what is currently applied.
@@ -506,6 +507,15 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 		diags.AddError(fmt.Sprintf("Failed to get specified workspace by path: %s", wsPath), err.Error())
 		return diags
 	}
+	if ws.CurrentStateVersion == nil {
+		diags.AddError("Workspace has no current state version: %s", wsPath)
+		return diags
+	}
+	if ws.CurrentStateVersion.RunID == "" {
+		diags.AddError("Workspace current state version has no run ID: %s", wsPath)
+		return diags
+	}
+
 	latestRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{
 		ID: ws.CurrentStateVersion.RunID,
 	})
@@ -514,19 +524,19 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 		return diags
 	}
 
-	// Make sure the module source and module version are not nil.
+	// Detect if the module source--cannot return a valid apply module, because module source is required.
 	if latestRun.ModuleSource == nil {
 		diags.AddError("No module source available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
-		return diags
-	}
-	if latestRun.ModuleVersion == nil {
-		diags.AddError("No module version available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
 		return diags
 	}
 
 	target.WorkspacePath = tfState.WorkspacePath
 	target.ModuleSource = types.StringValue(*latestRun.ModuleSource)
-	target.ModuleVersion = types.StringValue(*latestRun.ModuleVersion)
+	if latestRun.ModuleVersion != nil {
+		target.ModuleVersion = types.StringValue(*latestRun.ModuleVersion)
+	} else {
+		target.ModuleVersion = types.StringUnknown()
+	}
 	target.Variables = tfState.Variables
 
 	return nil
