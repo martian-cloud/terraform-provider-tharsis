@@ -1,10 +1,10 @@
-# Contributing to Tharsis projects.
+# Contributing to Martian Cloud projects.
 
-There are many ways you can contribute to Tharsis projects.  This document describes some of those ways.  It also describes a few things we request you do as part of making any code or documentation contributions.
+There are many ways you can contribute to Martian Cloud projects.  This document describes some of those ways.  It also describes a few things we request you do as part of making any code or documentation contributions.
 
 ## Prerequisites
 
-* **Go >= 1.18** ( [https://golang.org/dl/](https://golang.org/dl/) or [https://golang.org/doc/install](https://golang.org/doc/install) )
+* **Go >= 1.20** ( [https://golang.org/dl/](https://golang.org/dl/) or [https://golang.org/doc/install](https://golang.org/doc/install) )
 
 ## Ways to Contribute
 
@@ -23,7 +23,7 @@ There are many ways you can contribute to Tharsis projects.  This document descr
 - If no existing issue matches, file a new GitLab issue.
 - Please use [this GitLab-supplied template.](https://gitlab.com/gitlab-org/gitlab/-/blob/master/.gitlab/issue_templates/Bug.md)
 - Make sure the following items are clearly described in your bug report:
-    - the versions of Tharsis projects you're using
+    - the versions of Martian Cloud projects you're using
     - steps to reproduce the problem
     - how actual results differ from expected results
 - If you can include a patch as a proposed fix, please do so.
@@ -71,7 +71,7 @@ If your talents lean more toward writing documentation than code, your contribut
 
 ## Answering Questions
 
-If your talents include answering questions asked by other users, we encourage you to do so in considerate and helpful ways.  In time, we may establish a discussion forum or other official place to discuss use of Tharsis projects.
+If your talents include answering questions asked by other users, we encourage you to do so in considerate and helpful ways.  In time, we may establish a discussion forum or other official place to discuss use of Martian Cloud projects.
 
 ## Testing
 
