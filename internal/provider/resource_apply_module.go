@@ -2,19 +2,23 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/martian-cloud/terraform-provider-tharsis/internal/modifiers"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
@@ -32,14 +36,60 @@ var (
 	applyRunComment = "terraform-provider-tharsis" // must be var, not const, to take address
 )
 
+// RunVariableModel is used in apply modules to set Terraform and environment variables.
+type RunVariableModel struct {
+	Value         *string `tfsdk:"value"`
+	NamespacePath *string `tfsdk:"namespace_path"`
+	Key           string  `tfsdk:"key"`
+	Category      string  `tfsdk:"category"`
+	HCL           bool    `tfsdk:"hcl"`
+}
+
+// FromTerraform5Value converts a RunVariable from Terraform values to Go equivalent.
+func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
+
+	v := map[string]tftypes.Value{}
+	err := val.As(&v)
+	if err != nil {
+		return err
+	}
+
+	err = v["value"].As(&e.Value)
+	if err != nil {
+		return err
+	}
+
+	err = v["namespace_path"].As(&e.NamespacePath)
+	if err != nil {
+		return err
+	}
+
+	err = v["key"].As(&e.Key)
+	if err != nil {
+		return err
+	}
+
+	err = v["category"].As(&e.Category)
+	if err != nil {
+		return err
+	}
+
+	err = v["hcl"].As(&e.HCL)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ApplyModuleModel is the model for an apply_module.
 // Please note: Unlike many/most other resources, this model does not exist in the Tharsis API.
 // The workspace path, module source, and module version uniquely identify this apply_module.
 type ApplyModuleModel struct {
-	WorkspacePath types.String `tfsdk:"workspace_path"`
-	ModuleSource  types.String `tfsdk:"module_source"`
-	ModuleVersion types.String `tfsdk:"module_version"`
-	Variables     types.String `tfsdk:"variables"`
+	WorkspacePath types.String        `tfsdk:"workspace_path"`
+	ModuleSource  types.String        `tfsdk:"module_source"`
+	ModuleVersion types.String        `tfsdk:"module_version"`
+	Variables     basetypes.ListValue `tfsdk:"variables"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -94,13 +144,43 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"variables": schema.StringAttribute{
-				MarkdownDescription: "Optional variables for the run in the target workspace.",
-				Description:         "Optional variables for the run in the target workspace.",
+			"variables": schema.ListNestedAttribute{
+				MarkdownDescription: "Optional list of variables for the run in the target workspace.",
+				Description:         "Optional list of variables for the run in the target workspace.",
 				Optional:            true,
-				// Will remain unset if not supplied.
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+				Computed:            true, // Terraform requires it to be computed if it's optional.
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.UseStateForUnknown(),
+					modifiers.ListDefault([]attr.Value{}),
+				},
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"value": schema.StringAttribute{
+							MarkdownDescription: "Value of the variable.",
+							Description:         "Value of the variable.",
+							Required:            true,
+						},
+						"namespace_path": schema.StringAttribute{
+							MarkdownDescription: "Path of the host namespace for this variable.",
+							Description:         "Path of the host namespace for this variable.",
+							Required:            true,
+						},
+						"key": schema.StringAttribute{
+							MarkdownDescription: "Key or name of this variable.",
+							Description:         "Key or name of this variable.",
+							Required:            true,
+						},
+						"category": schema.StringAttribute{
+							MarkdownDescription: "Category of this variable, 'terraform' or 'environment'.",
+							Description:         "Category of this variable, 'terraform' or 'environment'.",
+							Required:            true,
+						},
+						"hcl": schema.BoolAttribute{
+							MarkdownDescription: "Whether this variable is HCL (vs. environment).",
+							Description:         "Whether this variable is HCL (vs. environment).",
+							Required:            true,
+						},
+					},
 				},
 			},
 		},
@@ -139,7 +219,7 @@ func (t *applyModuleResource) Create(ctx context.Context,
 	}
 
 	// Update the plan with the computed attribute values.
-	t.copyApplyModule(&created, &applyModule)
+	resp.Diagnostics.Append(t.copyApplyModule(ctx, &created, &applyModule)...)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, applyModule)...)
@@ -165,7 +245,7 @@ func (t *applyModuleResource) Read(ctx context.Context,
 	}
 
 	// Update the state with the computed attribute values.
-	t.copyApplyModule(&applied, &state)
+	resp.Diagnostics.Append(t.copyApplyModule(ctx, &applied, &state)...)
 
 	// TODO: Eventually, when the API and SDK support speculative runs with a module source,
 	// this should do a speculative run here to determine whether changes are needed.
@@ -201,7 +281,7 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyApplyModule(&updated, &plan)
+	resp.Diagnostics.Append(t.copyApplyModule(ctx, &updated, &plan)...)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -260,7 +340,7 @@ func (t *applyModuleResource) ImportState(ctx context.Context,
 	)
 }
 
-// doRun does a run
+// doRun launches a remote run and waits for it to complete.
 func (t *applyModuleResource) doRun(ctx context.Context,
 	input *doRunInput, output *ApplyModuleModel) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -268,16 +348,11 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 	// FIXME: Remove this:
 	tflog.Info(ctx, "**************** doRun: starting", map[string]interface{}{"input": input})
 
-	// If variables are supplied, unmarshal them.
-	var vars []sdktypes.RunVariable
-	if !input.model.Variables.IsUnknown() {
-		s := input.model.Variables.ValueString()
-		if s != "" { // If empty string is passed in, don't try to unmarshal it.
-			if err := json.Unmarshal([]byte(s), &vars); err != nil {
-				diags.AddError("Failed to unmarshal the run variables", err.Error())
-				return diags
-			}
-		}
+	// Convert the run variables.
+	vars, err := t.copyRunVariablesToInput(ctx, &input.model.Variables)
+	if err != nil {
+		diags.AddError("Failed to convert variables to SDK types", err.Error())
+		return diags
 	}
 
 	// Call CreateRun
@@ -325,7 +400,7 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 	// Capture the run ID.
 	runID := plannedRun.Metadata.ID
 
-	// TODO: When the API and SDK support speculative runs and PlanOnly is implemented, take this early return.
+	// TODO: Also take this early return when the API and SDK support speculative runs and PlanOnly is implemented.
 
 	if plannedRun.Status == "planned_and_finished" {
 		// Return the output.
@@ -459,11 +534,63 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 
 // copyApplyModule copies the contents of an apply module.
 // It copies the fields from the same type, because there is not an apply module defined by Tharsis.
-func (t *applyModuleResource) copyApplyModule(src, dest *ApplyModuleModel) {
+func (t *applyModuleResource) copyApplyModule(ctx context.Context, src, dest *ApplyModuleModel) diag.Diagnostics {
 	dest.WorkspacePath = src.WorkspacePath
 	dest.ModuleSource = src.ModuleSource
 	dest.ModuleVersion = src.ModuleVersion
 	dest.Variables = src.Variables
+
+	// Make sure variables aren't unknown, because Terraform doesn't like that.
+	var listDiags diag.Diagnostics
+	if dest.Variables.IsUnknown() {
+		dest.Variables, listDiags = basetypes.NewListValueFrom(ctx, basetypes.ObjectType{
+			AttrTypes: map[string]attr.Type{
+				"value":          types.StringType,
+				"namespace_path": types.StringType,
+				"key":            types.StringType,
+				"category":       types.StringType,
+				"hcl":            types.BoolType,
+			},
+		}, []types.Object{})
+		if listDiags.HasError() {
+			return listDiags
+		}
+	}
+
+	return nil
+}
+
+// copyRunVariablesToInput converts from RunVariableModel to SDK equivalent.
+func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list *basetypes.ListValue,
+) ([]sdktypes.RunVariable, error) {
+	result := []sdktypes.RunVariable{}
+
+	for _, element := range list.Elements() {
+		terraformValue, err := element.ToTerraformValue(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		var model RunVariableModel
+		if err = terraformValue.As(&model); err != nil {
+			return nil, err
+		}
+
+		result = append(result, sdktypes.RunVariable{
+			Value:         model.Value,
+			NamespacePath: model.NamespacePath,
+			Key:           model.Key,
+			Category:      sdktypes.VariableCategory(model.Category),
+			HCL:           model.HCL,
+		})
+	}
+
+	// Terraform generally wants to see nil rather than an empty list.
+	if len(result) == 0 {
+		result = nil
+	}
+
+	return result, nil
 }
 
 // The End.

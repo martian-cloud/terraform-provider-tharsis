@@ -23,6 +23,17 @@ Defines and manages an apply module.
 ### Optional
 
 - `module_version` (String) The version identifier of the module.
-- `variables` (String) Optional variables for the run in the target workspace.
+- `variables` (Attributes List) Optional list of variables for the run in the target workspace. (see [below for nested schema](#nestedatt--variables))
+
+<a id="nestedatt--variables"></a>
+### Nested Schema for `variables`
+
+Required:
+
+- `category` (String) Category of this variable, 'terraform' or 'environment'.
+- `hcl` (Boolean) Whether this variable is HCL (vs. environment).
+- `key` (String) Key or name of this variable.
+- `namespace_path` (String) Path of the host namespace for this variable.
+- `value` (String) Value of the variable.
 
 
