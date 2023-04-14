@@ -1,120 +1,112 @@
 package provider
 
 import (
-	"context"
 	"fmt"
+	"strconv"
 	"testing"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/config"
-	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+)
+
+const (
+	moduleSource = "registry.terraform.io/vancluever/module/null"
+	// FIXME: Switch to this:
+	// moduleSource := "registry.terraform.io/martian-cloud/module/terraform-null-module"
 )
 
 func TestApplyModule(t *testing.T) {
 	ws1Name := "workspace-1"
 	ws1Desc := "this is workspace 1"
+	ws1Path := testGroupPath + "/" + ws1Name
 	ws2Name := "workspace-2"
 	ws2Desc := "this is workspace 2"
-
-	// Don't leave the pre-config resources around after this function is finished.
-	// Must defer in case any test steps fail.
-	PreConfigForTestApplyModule()
-	defer PostDestroyForTestApplyModule()
+	wsPreventDestroyPlan := false
+	varValueBase := "some variable value "
+	varKey := "a-variable-name"
+	varCategory := "terraform"
+	varHCL := false
 
 	resource.Test(t, resource.TestCase{
 
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 
-			// Create two workspaces and perhaps other resources.
+			// Create a root group and two workspaces.
 			{
 				Config: testApplyModuleConfigurationCreate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "name", testGroupPath),
 					resource.TestCheckResourceAttr("tharsis_workspace.tw1", "name", ws1Name),
 					resource.TestCheckResourceAttr("tharsis_workspace.tw1", "description", ws1Desc),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw1", "group_path", testGroupPath),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw1", "prevent_destroy_plan",
+						strconv.FormatBool(wsPreventDestroyPlan)),
 					resource.TestCheckResourceAttr("tharsis_workspace.tw2", "name", ws2Name),
 					resource.TestCheckResourceAttr("tharsis_workspace.tw2", "description", ws2Desc),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw2", "group_path", testGroupPath),
+					resource.TestCheckResourceAttr("tharsis_workspace.tw2", "prevent_destroy_plan",
+						strconv.FormatBool(wsPreventDestroyPlan)),
 				),
 			},
 
-			// FIXME: Write the tests.
+			// Do the apply/create run.
+			{
+				Config: testDoApplyCreateRun(1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "workspace_path", ws1Path),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "module_source", moduleSource),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"1"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
+				),
+			},
 
-			// Planned steps:
-			// 1. Create the remote workspace, uploaded module, etc.; then do the apply/create run.
-			// 2. Repeat the apply/create run with no changes.
-			// 3. Do an apply/create run with changes to a variable's value.
-			// 4. Do a destroy/delete run.
+			// Repeat the apply/create run with no changes.
+			{
+				Config: testDoApplyCreateRun(1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "workspace_path", ws1Path),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "module_source", moduleSource),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"1"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
+				),
+			},
 
-			// Destroy should mostly be covered automatically by TestCase.
-			// The leftovers are handled by the deferred PostDestroy... function.
+			// Do an apply/create run with changes to the variable's value.
+			{
+				Config: testDoApplyCreateRun(2),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "workspace_path", ws1Path),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "module_source", moduleSource),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"2"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
+				),
+			},
+
+			// Do a destroy/delete run.
+			{
+				Config:  testDoApplyCreateRun(2),
+				Destroy: true,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckNoResourceAttr("tharsis_apply_module.tam", "workspace_path"),
+					resource.TestCheckNoResourceAttr("tharsis_apply_module.tam", "module_source"),
+				),
+			},
+
+			// Destroy should be covered automatically by TestCase.
 
 		},
 	})
-}
-
-// PreConfigForTestApplyModule pre-configures some resources that our provider does
-// not support creating from HCL, including any pre-requisites (like the root group).
-func PreConfigForTestApplyModule() {
-
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Printf("ERROR 1: %s", err)
-		return
-	}
-
-	client, err := tharsis.NewClient(cfg)
-	if err != nil {
-		fmt.Printf("ERROR 2: %s", err)
-		return
-	}
-
-	// Create the root group.
-	ctx := context.Background()
-	_, err = client.Group.CreateGroup(ctx,
-		&types.CreateGroupInput{
-			Name:        testGroupPath,
-			Description: "This is the root group for testing apply module.",
-		},
-	)
-	if err != nil {
-		fmt.Printf("ERROR 3: %s", err)
-		return
-	}
-
-	fmt.Printf("Function PreConfigForTestApplyModule succeeded.\n")
-}
-
-// PostDestroyForTestApplyModule destroys the resources created by the pre-config function.
-func PostDestroyForTestApplyModule() {
-
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Printf("ERROR 11: %s", err)
-		return
-	}
-
-	client, err := tharsis.NewClient(cfg)
-	if err != nil {
-		fmt.Printf("ERROR 12: %s", err)
-		return
-	}
-
-	// Create the root group.
-	ctx := context.Background()
-	err = client.Group.DeleteGroup(ctx,
-		&types.DeleteGroupInput{
-			GroupPath: ptr.String(testGroupPath),
-		},
-	)
-	if err != nil {
-		fmt.Printf("ERROR 13: %s", err)
-		return
-	}
-
-	fmt.Printf("Function PostDestroyForTestApplyModule succeeded.\n")
 }
 
 func testApplyModuleConfigurationCreate() string {
@@ -126,25 +118,55 @@ func testApplyModuleConfigurationCreate() string {
 
 	return fmt.Sprintf(`
 
-# Root group has already been created by pre-config.
+%s
 
 resource "tharsis_workspace" "tw1" {
-	name = "%s"
-	description = "%s"
-	group_path = "%s"
+	name                 = "%s"
+	description          = "%s"
+	group_path           = tharsis_group.root-group.full_path
 	prevent_destroy_plan = "%v"
 }
 
 resource "tharsis_workspace" "tw2" {
-	name = "%s"
-	description = "%s"
-	group_path = "%s"
+	name                 = "%s"
+	description          = "%s"
+	group_path           = tharsis_group.root-group.full_path
 	prevent_destroy_plan = "%v"
 }
 
-	`,
-		ws1Name, ws1Desc, testGroupPath, wsPreventDestroyPlan,
-		ws2Name, ws2Desc, testGroupPath, wsPreventDestroyPlan,
+	`, createRootGroup(),
+		ws1Name, ws1Desc, wsPreventDestroyPlan,
+		ws2Name, ws2Desc, wsPreventDestroyPlan,
+	)
+}
+
+func testDoApplyCreateRun(val int) string {
+	ws1Name := "workspace-1"
+	ws1Path := testGroupPath + "/" + ws1Name
+	varValueBase := "some variable value "
+	varKey := "a-variable-name"
+	varCategory := "terraform"
+	varHCL := false
+
+	return fmt.Sprintf(`
+
+%s
+
+resource "tharsis_apply_module" "tam" {
+  workspace_path = "%s"
+  module_source  = "%s"
+  variables      = [
+    {
+      value = "%s%d"
+      key = "%s"
+      category = "%s"
+      hcl = %v
+    }
+  ]
+}
+
+	`, testApplyModuleConfigurationCreate(),
+		ws1Path, moduleSource, varValueBase, val, varKey, varCategory, varHCL,
 	)
 }
 
