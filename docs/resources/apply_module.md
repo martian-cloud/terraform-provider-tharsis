@@ -33,7 +33,6 @@ Required:
 - `category` (String) Category of this variable, 'terraform' or 'environment'.
 - `hcl` (Boolean) Whether this variable is HCL (vs. environment).
 - `key` (String) Key or name of this variable.
-- `namespace_path` (String) Path of the host namespace for this variable.
 - `value` (String) Value of the variable.
 
 

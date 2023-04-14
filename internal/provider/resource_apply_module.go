@@ -37,11 +37,10 @@ var (
 
 // RunVariableModel is used in apply modules to set Terraform and environment variables.
 type RunVariableModel struct {
-	Value         *string `tfsdk:"value"`
-	NamespacePath *string `tfsdk:"namespace_path"`
-	Key           string  `tfsdk:"key"`
-	Category      string  `tfsdk:"category"`
-	HCL           bool    `tfsdk:"hcl"`
+	Value    *string `tfsdk:"value"`
+	Key      string  `tfsdk:"key"`
+	Category string  `tfsdk:"category"`
+	HCL      bool    `tfsdk:"hcl"`
 }
 
 // FromTerraform5Value converts a RunVariable from Terraform values to Go equivalent.
@@ -54,11 +53,6 @@ func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
 	}
 
 	err = v["value"].As(&e.Value)
-	if err != nil {
-		return err
-	}
-
-	err = v["namespace_path"].As(&e.NamespacePath)
 	if err != nil {
 		return err
 	}
@@ -156,11 +150,6 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 						"value": schema.StringAttribute{
 							MarkdownDescription: "Value of the variable.",
 							Description:         "Value of the variable.",
-							Required:            true,
-						},
-						"namespace_path": schema.StringAttribute{
-							MarkdownDescription: "Path of the host namespace for this variable.",
-							Description:         "Path of the host namespace for this variable.",
 							Required:            true,
 						},
 						"key": schema.StringAttribute{
@@ -553,11 +542,10 @@ func (t *applyModuleResource) copyApplyModule(ctx context.Context, src, dest *Ap
 	if dest.Variables.IsUnknown() {
 		dest.Variables, listDiags = basetypes.NewListValueFrom(ctx, basetypes.ObjectType{
 			AttrTypes: map[string]attr.Type{
-				"value":          types.StringType,
-				"namespace_path": types.StringType,
-				"key":            types.StringType,
-				"category":       types.StringType,
-				"hcl":            types.BoolType,
+				"value":    types.StringType,
+				"key":      types.StringType,
+				"category": types.StringType,
+				"hcl":      types.BoolType,
 			},
 		}, []types.Object{})
 		if listDiags.HasError() {
@@ -585,11 +573,10 @@ func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list 
 		}
 
 		result = append(result, sdktypes.RunVariable{
-			Value:         model.Value,
-			NamespacePath: model.NamespacePath,
-			Key:           model.Key,
-			Category:      sdktypes.VariableCategory(model.Category),
-			HCL:           model.HCL,
+			Value:    model.Value,
+			Key:      model.Key,
+			Category: sdktypes.VariableCategory(model.Category),
+			HCL:      model.HCL,
 		})
 	}
 
