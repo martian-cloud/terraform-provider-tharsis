@@ -25,6 +25,10 @@ Defines and manages an apply module.
 - `module_version` (String) The version identifier of the module.
 - `variables` (Attributes List) Optional list of variables for the run in the target workspace. (see [below for nested schema](#nestedatt--variables))
 
+### Read-Only
+
+- `id` (String) An ID for this variable.
+
 <a id="nestedatt--variables"></a>
 ### Nested Schema for `variables`
 

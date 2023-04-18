@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/martian-cloud/terraform-provider-tharsis/internal/modifiers"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
@@ -196,9 +195,6 @@ func (t *applyModuleResource) Configure(_ context.Context,
 func (t *applyModuleResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse) {
 
-	// FIXME: Remove this:
-	tflog.Info(ctx, "******** Create method starting.")
-
 	// Retrieve values from apply module.
 	var applyModule ApplyModuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &applyModule)...)
@@ -221,17 +217,10 @@ func (t *applyModuleResource) Create(ctx context.Context,
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, applyModule)...)
-
-	// FIXME: Remove this:
-	tflog.Info(ctx, fmt.Sprintf("******** Created state: %s", created.ID.ValueString()))
-
 }
 
 func (t *applyModuleResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse) {
-
-	// FIXME: Remove this:
-	tflog.Info(ctx, "******** Read method starting.")
 
 	// Get the current state.
 	var state ApplyModuleModel
@@ -240,17 +229,11 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		return
 	}
 
-	// FIXME: Remove this:
-	tflog.Info(ctx, fmt.Sprintf("******** Read current state: %s", state.ID.ValueString()))
-
 	var applied ApplyModuleModel
 	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &applied)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// FIXME: Remove this:
-	tflog.Info(ctx, fmt.Sprintf("******** Read applied: %s", applied.ID.ValueString()))
 
 	// Update the state with the computed attribute values.
 	resp.Diagnostics.Append(t.copyApplyModule(ctx, &applied, &state)...)
@@ -260,17 +243,10 @@ func (t *applyModuleResource) Read(ctx context.Context,
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-
-	// FIXME: Remove this:
-	tflog.Info(ctx, fmt.Sprintf("******** Read final: %s", state.ID.ValueString()))
-
 }
 
 func (t *applyModuleResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
-	// FIXME: Remove this:
-	tflog.Info(ctx, "******** Update method starting.")
 
 	// Retrieve values from plan.
 	var plan ApplyModuleModel
@@ -280,9 +256,6 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	}
 	// Capture the original ID in order to restore it later.
 	originalID := plan.ID.ValueString()
-
-	// FIXME: Remove this:
-	tflog.Info(ctx, fmt.Sprintf("******** Update plan: %s", plan.ID.ValueString()))
 
 	// TODO: Please note that when the API and SDK support speculative runs with a module source,
 	// this will need to look at the results from the Read method's speculative run to determine
@@ -299,25 +272,15 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	// Restore the original ID.  It was empty at this point.
 	updated.ID = types.StringValue(originalID)
 
-	// FIXME: Remove this:
-	tflog.Info(ctx, fmt.Sprintf("******** Update updated: %s", updated.ID.ValueString()))
-
 	// Copy all fields returned by Tharsis back into the plan.
 	resp.Diagnostics.Append(t.copyApplyModule(ctx, &updated, &plan)...)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-
-	// FIXME: Remove this:
-	tflog.Info(ctx, fmt.Sprintf("******** Update final: %s", plan.ID.ValueString()))
-
 }
 
 func (t *applyModuleResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
-	// FIXME: Remove this:
-	tflog.Info(ctx, "******** Delete method starting.")
 
 	// Get the current state.
 	var state ApplyModuleModel
@@ -367,9 +330,6 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 	input *doRunInput, output *ApplyModuleModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	// FIXME: Remove this:
-	tflog.Info(ctx, "**************** doRun: starting", map[string]interface{}{"input": input})
-
 	// Convert the run variables.
 	vars, err := t.copyRunVariablesToInput(ctx, &input.model.Variables)
 	if err != nil {
@@ -394,9 +354,6 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		diags.AddError("Failed to create run", err.Error())
 		return diags
 	}
-
-	// FIXME: Remove this:
-	t.debugWatchJobLogs(ctx, createdRun.Metadata.ID, createdRun.WorkspacePath, *createdRun.Plan.CurrentJobID)
 
 	if err = t.waitForJobCompletion(ctx, createdRun.Plan.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for plan job completion", err.Error())
@@ -454,9 +411,6 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		return diags
 	}
 
-	// FIXME: Remove this:
-	t.debugWatchJobLogs(ctx, appliedRun.Metadata.ID, appliedRun.WorkspacePath, *appliedRun.Apply.CurrentJobID)
-
 	if err = t.waitForJobCompletion(ctx, appliedRun.Apply.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for apply job completion", err.Error())
 		return diags
@@ -496,41 +450,6 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 	output.ModuleVersion = types.StringValue(*finishedRun.ModuleVersion)
 	output.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
 	return nil
-}
-
-// FIXME: Remove this:
-func (t *applyModuleResource) debugWatchJobLogs(ctx context.Context, runID, workspacePath, jobID string) {
-	go func() {
-		func() {
-
-			logChannel, err := t.client.Job.SubscribeToJobLogs(ctx, &sdktypes.JobLogsSubscriptionInput{
-				RunID:         runID,
-				WorkspacePath: workspacePath,
-				JobID:         jobID,
-			})
-			if err != nil {
-				tflog.Error(ctx, fmt.Sprintf("failed to subscribe: %s", err))
-				return
-			}
-
-			fmt.Printf("*** starting debug job logs:\n")
-			for {
-				logsEvent, ok := <-logChannel
-				if !ok {
-					break
-				}
-
-				if logsEvent.Error != nil {
-					// Catch any incoming errors.
-					tflog.Error(ctx, fmt.Sprintf("log event error: %s", logsEvent.Error))
-					return
-				}
-
-				fmt.Printf("*** debug job log: %s\n", logsEvent.Logs)
-			}
-			fmt.Println("*** finished debug job logs.")
-		}()
-	}()
 }
 
 func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *string) error {

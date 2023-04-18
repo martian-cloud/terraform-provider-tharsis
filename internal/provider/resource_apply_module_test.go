@@ -10,8 +10,6 @@ import (
 )
 
 const (
-	// moduleSource = "registry.terraform.io/vancluever/module/null"
-	// FIXME: Switch to this:
 	moduleSource = "registry.terraform.io/martian-cloud/module/null"
 )
 
