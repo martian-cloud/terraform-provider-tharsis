@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -79,6 +80,7 @@ func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
 // Please note: Unlike many/most other resources, this model does not exist in the Tharsis API.
 // The workspace path, module source, and module version uniquely identify this apply_module.
 type ApplyModuleModel struct {
+	ID            types.String        `tfsdk:"id"`
 	WorkspacePath types.String        `tfsdk:"workspace_path"`
 	ModuleSource  types.String        `tfsdk:"module_source"`
 	ModuleVersion types.String        `tfsdk:"module_version"`
@@ -115,6 +117,14 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 		MarkdownDescription: description,
 		Description:         description,
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				MarkdownDescription: "An ID for this variable.",
+				Description:         "An ID for this variable.",
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(), // set once during create, kept in state thereafter
+				},
+			},
 			"workspace_path": schema.StringAttribute{
 				MarkdownDescription: "The full path of the workspace.",
 				Description:         "The full path of the workspace.",
@@ -206,10 +216,15 @@ func (t *applyModuleResource) Create(ctx context.Context,
 	}
 
 	// Update the plan with the computed attribute values.
+	created.ID = types.StringValue(uuid.New().String())
 	resp.Diagnostics.Append(t.copyApplyModule(ctx, &created, &applyModule)...)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, applyModule)...)
+
+	// FIXME: Remove this:
+	tflog.Info(ctx, fmt.Sprintf("******** Created state: %s", created.ID.ValueString()))
+
 }
 
 func (t *applyModuleResource) Read(ctx context.Context,
@@ -225,20 +240,30 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		return
 	}
 
+	// FIXME: Remove this:
+	tflog.Info(ctx, fmt.Sprintf("******** Read current state: %s", state.ID.ValueString()))
+
 	var applied ApplyModuleModel
 	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &applied)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	// FIXME: Remove this:
+	tflog.Info(ctx, fmt.Sprintf("******** Read applied: %s", applied.ID.ValueString()))
+
 	// Update the state with the computed attribute values.
 	resp.Diagnostics.Append(t.copyApplyModule(ctx, &applied, &state)...)
 
-	// TODO: Eventually, when the API and SDK support speculative runs with a module source,
-	// this should do a speculative run here to determine whether changes are needed.
+	// TODO: Eventually, when the API and SDK support speculative plan runs with a module source,
+	// this should do a speculative plan run here to determine whether changes are needed.
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+
+	// FIXME: Remove this:
+	tflog.Info(ctx, fmt.Sprintf("******** Read final: %s", state.ID.ValueString()))
+
 }
 
 func (t *applyModuleResource) Update(ctx context.Context,
@@ -253,6 +278,11 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// Capture the original ID in order to restore it later.
+	originalID := plan.ID.ValueString()
+
+	// FIXME: Remove this:
+	tflog.Info(ctx, fmt.Sprintf("******** Update plan: %s", plan.ID.ValueString()))
 
 	// TODO: Please note that when the API and SDK support speculative runs with a module source,
 	// this will need to look at the results from the Read method's speculative run to determine
@@ -266,12 +296,21 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// Restore the original ID.  It was empty at this point.
+	updated.ID = types.StringValue(originalID)
+
+	// FIXME: Remove this:
+	tflog.Info(ctx, fmt.Sprintf("******** Update updated: %s", updated.ID.ValueString()))
 
 	// Copy all fields returned by Tharsis back into the plan.
 	resp.Diagnostics.Append(t.copyApplyModule(ctx, &updated, &plan)...)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+
+	// FIXME: Remove this:
+	tflog.Info(ctx, fmt.Sprintf("******** Update final: %s", plan.ID.ValueString()))
+
 }
 
 func (t *applyModuleResource) Delete(ctx context.Context,
@@ -317,10 +356,6 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *applyModuleResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
-	// FIXME: Remove this:
-	tflog.Info(ctx, "******** ImportState method starting.")
-
 	resp.Diagnostics.AddError(
 		"Import of workspace is not supported.",
 		"",
@@ -360,6 +395,9 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		return diags
 	}
 
+	// FIXME: Remove this:
+	t.debugWatchJobLogs(ctx, createdRun.Metadata.ID, createdRun.WorkspacePath, *createdRun.Plan.CurrentJobID)
+
 	if err = t.waitForJobCompletion(ctx, createdRun.Plan.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for plan job completion", err.Error())
 		return diags
@@ -391,6 +429,7 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 
 	if plannedRun.Status == "planned_and_finished" {
 		// Return the output.
+		// Leave the ID field unknown here.
 		output.WorkspacePath = types.StringValue(plannedRun.WorkspacePath)
 		output.ModuleSource = types.StringValue(*plannedRun.ModuleSource)
 		output.ModuleVersion = types.StringValue(*plannedRun.ModuleVersion)
@@ -414,6 +453,9 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		diags.AddError(msg, "")
 		return diags
 	}
+
+	// FIXME: Remove this:
+	t.debugWatchJobLogs(ctx, appliedRun.Metadata.ID, appliedRun.WorkspacePath, *appliedRun.Apply.CurrentJobID)
 
 	if err = t.waitForJobCompletion(ctx, appliedRun.Apply.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for apply job completion", err.Error())
@@ -448,11 +490,47 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 	}
 
 	// Return the output.
+	// Leave the ID field unknown here.
 	output.WorkspacePath = types.StringValue(finishedRun.WorkspacePath)
 	output.ModuleSource = types.StringValue(*finishedRun.ModuleSource)
 	output.ModuleVersion = types.StringValue(*finishedRun.ModuleVersion)
 	output.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
 	return nil
+}
+
+// FIXME: Remove this:
+func (t *applyModuleResource) debugWatchJobLogs(ctx context.Context, runID, workspacePath, jobID string) {
+	go func() {
+		func() {
+
+			logChannel, err := t.client.Job.SubscribeToJobLogs(ctx, &sdktypes.JobLogsSubscriptionInput{
+				RunID:         runID,
+				WorkspacePath: workspacePath,
+				JobID:         jobID,
+			})
+			if err != nil {
+				tflog.Error(ctx, fmt.Sprintf("failed to subscribe: %s", err))
+				return
+			}
+
+			fmt.Printf("*** starting debug job logs:\n")
+			for {
+				logsEvent, ok := <-logChannel
+				if !ok {
+					break
+				}
+
+				if logsEvent.Error != nil {
+					// Catch any incoming errors.
+					tflog.Error(ctx, fmt.Sprintf("log event error: %s", logsEvent.Error))
+					return
+				}
+
+				fmt.Printf("*** debug job log: %s\n", logsEvent.Logs)
+			}
+			fmt.Println("*** finished debug job logs.")
+		}()
+	}()
 }
 
 func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
@@ -517,6 +595,7 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 		return diags
 	}
 
+	target.ID = tfState.ID
 	target.WorkspacePath = tfState.WorkspacePath
 	target.ModuleSource = types.StringValue(*latestRun.ModuleSource)
 	if latestRun.ModuleVersion != nil {
@@ -525,13 +604,13 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 		target.ModuleVersion = types.StringUnknown()
 	}
 	target.Variables = tfState.Variables
-
 	return nil
 }
 
 // copyApplyModule copies the contents of an apply module.
 // It copies the fields from the same type, because there is not an apply module defined by Tharsis.
 func (t *applyModuleResource) copyApplyModule(ctx context.Context, src, dest *ApplyModuleModel) diag.Diagnostics {
+	dest.ID = src.ID
 	dest.WorkspacePath = src.WorkspacePath
 	dest.ModuleSource = src.ModuleSource
 	dest.ModuleVersion = src.ModuleVersion
