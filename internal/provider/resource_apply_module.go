@@ -31,6 +31,13 @@ type doRunOutput struct {
 	moduleVersion string
 }
 
+// appliedModuleInfo contains what information was available about the latest applied run.
+// One or both fields may be nil, in which case information was not available.
+type appliedModuleInfo struct {
+	moduleSource  *string
+	moduleVersion *string
+}
+
 const (
 	jobCompletionPollInterval = 5 * time.Second
 )
@@ -234,14 +241,16 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		return
 	}
 
-	var applied ApplyModuleModel
-	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &applied)...)
+	var appliedModuleInfo appliedModuleInfo
+	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &appliedModuleInfo)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Update the state with the computed attribute values.
-	resp.Diagnostics.Append(t.copyApplyModule(ctx, &applied, &state)...)
+	// Update the state with the computed module version.
+	if appliedModuleInfo.moduleVersion != nil {
+		state.ModuleVersion = types.StringValue(*appliedModuleInfo.moduleVersion)
+	}
 
 	// TODO: Eventually, when the API and SDK support speculative plan runs with a module source,
 	// this should do a speculative plan run here to determine whether changes are needed.
@@ -290,20 +299,24 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 		return
 	}
 
-	var applied ApplyModuleModel
-	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &applied)...)
+	var appliedModuleInfo appliedModuleInfo
+	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &appliedModuleInfo)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// If the module source or module version differs, error out.
-	if state.ModuleSource != applied.ModuleSource {
-		resp.Diagnostics.AddError("Module source differs, cannot delete", "")
-		return
+	// If the module source or module version if available and differs, error out.
+	if appliedModuleInfo.moduleSource != nil {
+		if state.ModuleSource.ValueString() != *appliedModuleInfo.moduleSource {
+			resp.Diagnostics.AddError("Module source differs, cannot delete", "")
+			return
+		}
 	}
-	if state.ModuleVersion != applied.ModuleVersion {
-		resp.Diagnostics.AddError("Module version differs, cannot delete", "")
-		return
+	if appliedModuleInfo.moduleVersion != nil {
+		if state.ModuleVersion.ValueString() != *appliedModuleInfo.moduleVersion {
+			resp.Diagnostics.AddError("Module version differs, cannot delete", "")
+			return
+		}
 	}
 
 	// The apply module is being deleted, so don't use the returned value.
@@ -475,7 +488,7 @@ func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *s
 
 // getCurrentApplied returns an ApplyModuleModel reflecting what is currently applied.
 func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
-	tfState ApplyModuleModel, target *ApplyModuleModel) diag.Diagnostics {
+	tfState ApplyModuleModel, moduleInfoOutput *appliedModuleInfo) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// Get latest run on the target workspace.
@@ -487,38 +500,28 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 		diags.AddError(fmt.Sprintf("Failed to get specified workspace by path: %s", wsPath), err.Error())
 		return diags
 	}
-	if ws.CurrentStateVersion == nil {
-		diags.AddError("Workspace has no current state version: %s", wsPath)
-		return diags
-	}
-	if ws.CurrentStateVersion.RunID == "" {
-		diags.AddError("Workspace current state version has no run ID: %s", wsPath)
-		return diags
+
+	// Get whatever information may be available about the latest applied module.
+	if ws.CurrentStateVersion != nil {
+		if ws.CurrentStateVersion.RunID != "" {
+			latestRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{
+				ID: ws.CurrentStateVersion.RunID,
+			})
+			if err != nil {
+				diags.AddError("Failed to get latest run", err.Error())
+				return diags
+			}
+
+			// Copy out the information that might have been available.
+			if latestRun.ModuleSource != nil {
+				moduleInfoOutput.moduleSource = latestRun.ModuleSource
+			}
+			if latestRun.ModuleVersion != nil {
+				moduleInfoOutput.moduleVersion = latestRun.ModuleVersion
+			}
+		}
 	}
 
-	latestRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{
-		ID: ws.CurrentStateVersion.RunID,
-	})
-	if err != nil {
-		diags.AddError("Failed to get latest run", err.Error())
-		return diags
-	}
-
-	// Detect if the module source--cannot return a valid apply module, because module source is required.
-	if latestRun.ModuleSource == nil {
-		diags.AddError("No module source available", fmt.Sprintf("for workspace %s", latestRun.WorkspacePath))
-		return diags
-	}
-
-	target.ID = tfState.ID
-	target.WorkspacePath = tfState.WorkspacePath
-	target.ModuleSource = types.StringValue(*latestRun.ModuleSource)
-	if latestRun.ModuleVersion != nil {
-		target.ModuleVersion = types.StringValue(*latestRun.ModuleVersion)
-	} else {
-		target.ModuleVersion = types.StringUnknown()
-	}
-	target.Variables = tfState.Variables
 	return nil
 }
 
