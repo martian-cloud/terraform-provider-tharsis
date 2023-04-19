@@ -27,6 +27,10 @@ type doRunInput struct {
 	doDestroy bool
 }
 
+type doRunOutput struct {
+	moduleVersion string
+}
+
 const (
 	jobCompletionPollInterval = 5 * time.Second
 )
@@ -204,17 +208,17 @@ func (t *applyModuleResource) Create(ctx context.Context,
 	}
 
 	// Do plan and apply, no destroy.
-	var created ApplyModuleModel
+	var didRun doRunOutput
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
 		model: &applyModule,
-	}, &created)...)
+	}, &didRun)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Update the plan with the computed attribute values.
-	created.ID = types.StringValue(uuid.New().String())
-	resp.Diagnostics.Append(t.copyApplyModule(ctx, &created, &applyModule)...)
+	// Update the plan with the computed ID.
+	applyModule.ID = types.StringValue(uuid.New().String())
+	applyModule.ModuleVersion = types.StringValue(didRun.moduleVersion)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, applyModule)...)
@@ -261,16 +265,16 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	// whether to do an update.  A way will have to be found to force Terraform to allow the update.
 
 	// Do the run.
-	var updated ApplyModuleModel
+	var didRun doRunOutput
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
 		model: &plan,
-	}, &updated)...)
+	}, &didRun)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Copy all fields returned by Tharsis back into the plan.
-	resp.Diagnostics.Append(t.copyApplyModule(ctx, &updated, &plan)...)
+	// Capture the module version in case it changed.
+	plan.ModuleVersion = types.StringValue(didRun.moduleVersion)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -303,11 +307,10 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 	}
 
 	// The apply module is being deleted, so don't use the returned value.
-	var deleted ApplyModuleModel
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
 		model:     &state,
 		doDestroy: true,
-	}, &deleted)...)
+	}, nil)...) // nil means no module version output is wanted
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -324,7 +327,7 @@ func (t *applyModuleResource) ImportState(ctx context.Context,
 
 // doRun launches a remote run and waits for it to complete.
 func (t *applyModuleResource) doRun(ctx context.Context,
-	input *doRunInput, output *ApplyModuleModel) diag.Diagnostics {
+	input *doRunInput, output *doRunOutput) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// Convert the run variables.
@@ -380,14 +383,11 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 	runID := plannedRun.Metadata.ID
 
 	if plannedRun.Status == "planned_and_finished" {
-		// Return the output.
-		if input.model.ID.ValueString() != "" {
-			output.ID = input.model.ID
+		if (output != nil) && (plannedRun.ModuleVersion != nil) {
+			*output = doRunOutput{
+				moduleVersion: *plannedRun.ModuleVersion,
+			}
 		}
-		output.WorkspacePath = types.StringValue(plannedRun.WorkspacePath)
-		output.ModuleSource = types.StringValue(*plannedRun.ModuleSource)
-		output.ModuleVersion = types.StringValue(*plannedRun.ModuleVersion)
-		output.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
 		return nil
 	}
 
@@ -440,14 +440,11 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		return diags
 	}
 
-	// Return the output.
-	if input.model.ID.ValueString() != "" {
-		output.ID = input.model.ID
+	if (output != nil) && (finishedRun.ModuleVersion != nil) {
+		*output = doRunOutput{
+			moduleVersion: *finishedRun.ModuleVersion,
+		}
 	}
-	output.WorkspacePath = types.StringValue(finishedRun.WorkspacePath)
-	output.ModuleSource = types.StringValue(*finishedRun.ModuleSource)
-	output.ModuleVersion = types.StringValue(*finishedRun.ModuleVersion)
-	output.Variables = input.model.Variables // Cannot get variables back from a workspace or run, so pass them through.
 	return nil
 }
 
