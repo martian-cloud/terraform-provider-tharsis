@@ -3,12 +3,12 @@
 page_title: "tharsis_apply_module Resource - terraform-provider-tharsis"
 subcategory: ""
 description: |-
-  Defines and manages an apply module.
+  Defines and manages tharsisapply module resources, which launch runs in other workspaces.
 ---
 
 # tharsis_apply_module (Resource)
 
-Defines and manages an apply module.
+Defines and manages tharsis_apply_ module resources, which launch runs in other workspaces.
 
 
 
@@ -27,7 +27,7 @@ Defines and manages an apply module.
 
 ### Read-Only
 
-- `id` (String) An ID for this variable.
+- `id` (String) An ID for this tharsis_apply_module resource.
 
 <a id="nestedatt--variables"></a>
 ### Nested Schema for `variables`

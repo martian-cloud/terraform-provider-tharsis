@@ -23,7 +23,7 @@ import (
 )
 
 type doRunInput struct {
-	model     ApplyModuleModel
+	model     *ApplyModuleModel
 	doDestroy bool
 }
 
@@ -37,13 +37,14 @@ var (
 
 // RunVariableModel is used in apply modules to set Terraform and environment variables.
 type RunVariableModel struct {
-	Value    *string `tfsdk:"value"`
-	Key      string  `tfsdk:"key"`
-	Category string  `tfsdk:"category"`
-	HCL      bool    `tfsdk:"hcl"`
+	Value    string `tfsdk:"value"`
+	Key      string `tfsdk:"key"`
+	Category string `tfsdk:"category"`
+	HCL      bool   `tfsdk:"hcl"`
 }
 
 // FromTerraform5Value converts a RunVariable from Terraform values to Go equivalent.
+// The digit in the name is necessary in order to pass the acceptance test.
 func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
 
 	v := map[string]tftypes.Value{}
@@ -109,7 +110,7 @@ func (t *applyModuleResource) Metadata(ctx context.Context,
 }
 
 func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	description := "Defines and manages an apply module."
+	description := "Defines and manages tharsis_apply_ module resources, which launch runs in other workspaces."
 
 	resp.Schema = schema.Schema{
 		Version:             1,
@@ -117,8 +118,8 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 		Description:         description,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "An ID for this variable.",
-				Description:         "An ID for this variable.",
+				MarkdownDescription: "An ID for this tharsis_apply_module resource.",
+				Description:         "An ID for this tharsis_apply_module resource.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(), // set once during create, kept in state thereafter
@@ -205,7 +206,7 @@ func (t *applyModuleResource) Create(ctx context.Context,
 	// Do plan and apply, no destroy.
 	var created ApplyModuleModel
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
-		model: applyModule,
+		model: &applyModule,
 	}, &created)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -264,7 +265,7 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	// Do the run.
 	var updated ApplyModuleModel
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
-		model: plan,
+		model: &plan,
 	}, &updated)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -308,7 +309,7 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 	// The apply module is being deleted, so don't use the returned value.
 	var deleted ApplyModuleModel
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
-		model:     state,
+		model:     &state,
 		doDestroy: true,
 	}, &deleted)...)
 	if resp.Diagnostics.HasError() {
@@ -381,8 +382,6 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 
 	// Capture the run ID.
 	runID := plannedRun.Metadata.ID
-
-	// TODO: Also take this early return when the API and SDK support speculative runs and PlanOnly is implemented.
 
 	if plannedRun.Status == "planned_and_finished" {
 		// Return the output.
@@ -571,7 +570,7 @@ func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list 
 		}
 
 		result = append(result, sdktypes.RunVariable{
-			Value:    model.Value,
+			Value:    &model.Value,
 			Key:      model.Key,
 			Category: sdktypes.VariableCategory(model.Category),
 			HCL:      model.HCL,
