@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"testing"
 
@@ -138,9 +139,7 @@ func testApplyModuleConfigurationCreate() string {
 	wsPreventDestroyPlan := false
 	managedIdentityName := "mi1"
 	serviceAccountName := "sa1"
-
-	// FIXME: Probably need to change this to work in GitHub's automation:
-	issuer := "https://local.tharsis.dev.cts.infor.com"
+	issuer := os.Getenv("THARSIS_ENDPOINT")
 
 	return fmt.Sprintf(`
 
