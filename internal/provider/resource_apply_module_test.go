@@ -51,7 +51,7 @@ func TestApplyModule(t *testing.T) {
 
 			// Do the apply/create run.
 			{
-				Config: testDoApplyCreateRun(1),
+				Config: testApplyModuleConfigurationCreate() + testDoApplyCreateRun(1),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					testAccCheckTharsisApplyModuleExists("tharsis_apply_module.tam", true),
@@ -66,7 +66,7 @@ func TestApplyModule(t *testing.T) {
 
 			// Repeat the apply/create run with no changes.
 			{
-				Config: testDoApplyCreateRun(1),
+				Config: testApplyModuleConfigurationCreate() + testDoApplyCreateRun(1),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					testAccCheckTharsisApplyModuleExists("tharsis_apply_module.tam", true),
@@ -81,7 +81,7 @@ func TestApplyModule(t *testing.T) {
 
 			// Do an apply/create run with changes to the variable's value.
 			{
-				Config: testDoApplyCreateRun(2),
+				Config: testApplyModuleConfigurationCreate() + testDoApplyCreateRun(2),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					testAccCheckTharsisApplyModuleExists("tharsis_apply_module.tam", true),
@@ -136,6 +136,11 @@ func testApplyModuleConfigurationCreate() string {
 	ws2Name := "workspace-2"
 	ws2Desc := "this is workspace 2"
 	wsPreventDestroyPlan := false
+	managedIdentityName := "mi1"
+	serviceAccountName := "sa1"
+
+	// FIXME: Probably need to change this to work in GitHub's automation:
+	issuer := "https://local.tharsis.dev.cts.infor.com"
 
 	return fmt.Sprintf(`
 
@@ -155,9 +160,26 @@ resource "tharsis_workspace" "tw2" {
 	prevent_destroy_plan = "%v"
 }
 
+resource "tharsis_managed_identity" "mi1" {
+	type                         = "tharsis_federated"
+	group_path                   = tharsis_group.root-group.full_path
+	name                         = "%s"
+	description                  = "this is the managed identity"
+	tharsis_service_account_path = "${tharsis_group.root-group.full_path}/%s"
+}
+
+resource "tharsis_service_account" "sa1" {
+	group_path          = tharsis_group.root-group.full_path
+	name                = "%s"
+	description         = "this is the service account"
+	oidc_trust_policies = [{issuer = "%s", bound_claims = {"sub" = tharsis_managed_identity.mi1.id}}]
+}
+
 	`, createRootGroup(),
 		ws1Name, ws1Desc, wsPreventDestroyPlan,
 		ws2Name, ws2Desc, wsPreventDestroyPlan,
+		managedIdentityName, serviceAccountName,
+		serviceAccountName, issuer,
 	)
 }
 
@@ -170,8 +192,6 @@ func testDoApplyCreateRun(val int) string {
 	varHCL := false
 
 	return fmt.Sprintf(`
-
-%s
 
 resource "tharsis_apply_module" "tam" {
   workspace_path = "%s"
@@ -186,7 +206,7 @@ resource "tharsis_apply_module" "tam" {
   ]
 }
 
-	`, testApplyModuleConfigurationCreate(),
+	`,
 		ws1Path, moduleSource, varValueBase, val, varKey, varCategory, varHCL,
 	)
 }
