@@ -525,34 +525,6 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 	return nil
 }
 
-// copyApplyModule copies the contents of an apply module.
-// It copies the fields from the same type, because there is not an apply module defined by Tharsis.
-func (t *applyModuleResource) copyApplyModule(ctx context.Context, src, dest *ApplyModuleModel) diag.Diagnostics {
-	dest.ID = src.ID
-	dest.WorkspacePath = src.WorkspacePath
-	dest.ModuleSource = src.ModuleSource
-	dest.ModuleVersion = src.ModuleVersion
-	dest.Variables = src.Variables
-
-	// Make sure variables aren't unknown, because Terraform doesn't like that.
-	var listDiags diag.Diagnostics
-	if dest.Variables.IsUnknown() {
-		dest.Variables, listDiags = basetypes.NewListValueFrom(ctx, basetypes.ObjectType{
-			AttrTypes: map[string]attr.Type{
-				"value":    types.StringType,
-				"key":      types.StringType,
-				"category": types.StringType,
-				"hcl":      types.BoolType,
-			},
-		}, []types.Object{})
-		if listDiags.HasError() {
-			return listDiags
-		}
-	}
-
-	return nil
-}
-
 // copyRunVariablesToInput converts from RunVariableModel to SDK equivalent.
 func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list *basetypes.ListValue,
 ) ([]sdktypes.RunVariable, error) {
