@@ -255,8 +255,6 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// Capture the original ID in order to restore it later.
-	originalID := plan.ID.ValueString()
 
 	// TODO: Please note that when the API and SDK support speculative runs with a module source,
 	// this will need to look at the results from the Read method's speculative run to determine
@@ -270,8 +268,6 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// Restore the original ID.  It was empty at this point.
-	updated.ID = types.StringValue(originalID)
 
 	// Copy all fields returned by Tharsis back into the plan.
 	resp.Diagnostics.Append(t.copyApplyModule(ctx, &updated, &plan)...)
@@ -385,7 +381,9 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 
 	if plannedRun.Status == "planned_and_finished" {
 		// Return the output.
-		// Leave the ID field unknown here.
+		if input.model.ID.ValueString() != "" {
+			output.ID = input.model.ID
+		}
 		output.WorkspacePath = types.StringValue(plannedRun.WorkspacePath)
 		output.ModuleSource = types.StringValue(*plannedRun.ModuleSource)
 		output.ModuleVersion = types.StringValue(*plannedRun.ModuleVersion)
@@ -443,7 +441,9 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 	}
 
 	// Return the output.
-	// Leave the ID field unknown here.
+	if input.model.ID.ValueString() != "" {
+		output.ID = input.model.ID
+	}
 	output.WorkspacePath = types.StringValue(finishedRun.WorkspacePath)
 	output.ModuleSource = types.StringValue(*finishedRun.ModuleSource)
 	output.ModuleVersion = types.StringValue(*finishedRun.ModuleVersion)

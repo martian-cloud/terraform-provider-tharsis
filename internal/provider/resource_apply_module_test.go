@@ -2,7 +2,6 @@ package provider
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"testing"
 
@@ -137,9 +136,6 @@ func testApplyModuleConfigurationCreate() string {
 	ws2Name := "workspace-2"
 	ws2Desc := "this is workspace 2"
 	wsPreventDestroyPlan := false
-	managedIdentityName := "mi1"
-	serviceAccountName := "sa1"
-	issuer := os.Getenv("THARSIS_ENDPOINT")
 
 	return fmt.Sprintf(`
 
@@ -159,26 +155,9 @@ resource "tharsis_workspace" "tw2" {
 	prevent_destroy_plan = "%v"
 }
 
-resource "tharsis_managed_identity" "mi1" {
-	type                         = "tharsis_federated"
-	group_path                   = tharsis_group.root-group.full_path
-	name                         = "%s"
-	description                  = "this is the managed identity"
-	tharsis_service_account_path = "${tharsis_group.root-group.full_path}/%s"
-}
-
-resource "tharsis_service_account" "sa1" {
-	group_path          = tharsis_group.root-group.full_path
-	name                = "%s"
-	description         = "this is the service account"
-	oidc_trust_policies = [{issuer = "%s", bound_claims = {"sub" = tharsis_managed_identity.mi1.id}}]
-}
-
 	`, createRootGroup(),
 		ws1Name, ws1Desc, wsPreventDestroyPlan,
 		ws2Name, ws2Desc, wsPreventDestroyPlan,
-		managedIdentityName, serviceAccountName,
-		serviceAccountName, issuer,
 	)
 }
 
