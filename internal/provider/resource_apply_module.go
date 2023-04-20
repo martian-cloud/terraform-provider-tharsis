@@ -247,9 +247,16 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		return
 	}
 
-	// Update the state with the computed module version.
+	// Update the state with the computed module source and version.
+	if appliedModuleInfo.moduleSource != nil {
+		state.ModuleSource = types.StringValue(*appliedModuleInfo.moduleSource)
+	} else {
+		state.ModuleSource = types.StringNull()
+	}
 	if appliedModuleInfo.moduleVersion != nil {
 		state.ModuleVersion = types.StringValue(*appliedModuleInfo.moduleVersion)
+	} else {
+		state.ModuleVersion = types.StringNull()
 	}
 
 	// TODO: Eventually, when the API and SDK support speculative plan runs with a module source,
@@ -311,12 +318,18 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 			resp.Diagnostics.AddError("Module source differs, cannot delete", "")
 			return
 		}
+	} else if !state.ModuleSource.IsNull() {
+		resp.Diagnostics.AddError("Module source is null but state is not null, cannot delete", "")
+		return
 	}
 	if appliedModuleInfo.moduleVersion != nil {
 		if state.ModuleVersion.ValueString() != *appliedModuleInfo.moduleVersion {
 			resp.Diagnostics.AddError("Module version differs, cannot delete", "")
 			return
 		}
+	} else if !state.ModuleVersion.IsNull() {
+		resp.Diagnostics.AddError("Module version is null but state is not null, cannot delete", "")
+		return
 	}
 
 	// The apply module is being deleted, so don't use the returned value.
