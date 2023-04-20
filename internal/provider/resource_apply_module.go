@@ -481,7 +481,7 @@ func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *s
 			}
 
 			// FIXME: Remove this:
-			tflog.Error(ctx, fmt.Sprintf("***** in waitForJobCompletion: job status: %s", job.Status))
+			tflog.Info(ctx, fmt.Sprintf("***** in waitForJobCompletion: job status: %s", job.Status))
 
 			if job.Status == "finished" {
 				return nil
