@@ -87,8 +87,6 @@ jobs:
       - env:
           TF_ACC: "1"
           THARSIS_ENDPOINT: http://localhost:8000
-          # FIXME: Remove this after finishing troubleshooting:
-          TF_LOG: "INFO"
         run: |
           THARSIS_STATIC_TOKEN=$(curl -L -X POST 'http://localhost:8080/realms/tharsis/protocol/openid-connect/token' \
           -H 'Content-Type: application/x-www-form-urlencoded' --data-urlencode 'client_id=tharsis' \

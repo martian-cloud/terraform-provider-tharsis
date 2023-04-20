@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/martian-cloud/terraform-provider-tharsis/internal/modifiers"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
@@ -479,9 +478,6 @@ func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *s
 			if err != nil {
 				return fmt.Errorf("failed to get job ID %s", *jobID)
 			}
-
-			// FIXME: Remove this:
-			tflog.Info(ctx, fmt.Sprintf("***** in waitForJobCompletion: job status: %s", job.Status))
 
 			if job.Status == "finished" {
 				return nil
