@@ -42,9 +42,7 @@ const (
 	jobCompletionPollInterval = 5 * time.Second
 )
 
-var (
-	applyRunComment = "terraform-provider-tharsis" // must be var, not const, to take address
-)
+var applyRunComment = "terraform-provider-tharsis" // must be var, not const, to take address
 
 // RunVariableModel is used in apply modules to set Terraform and environment variables.
 type RunVariableModel struct {
@@ -54,7 +52,8 @@ type RunVariableModel struct {
 }
 
 // FromTerraform5Value converts a RunVariable from Terraform values to Go equivalent.
-// The digit in the name is necessary in order to pass the acceptance test.
+// This method name is required by the interface we are implementing.  Please see
+// https://pkg.go.dev/github.com/hashicorp/terraform-plugin-go/tfprotov5/tftypes
 func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
 
 	v := map[string]tftypes.Value{}
@@ -230,20 +229,20 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		return
 	}
 
-	var appliedModuleInfo appliedModuleInfo
-	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &appliedModuleInfo)...)
+	var currentApplied appliedModuleInfo
+	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &currentApplied)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Update the state with the computed module source and version.
-	if appliedModuleInfo.moduleSource != nil {
-		state.ModuleSource = types.StringValue(*appliedModuleInfo.moduleSource)
+	if currentApplied.moduleSource != nil {
+		state.ModuleSource = types.StringValue(*currentApplied.moduleSource)
 	} else {
 		state.ModuleSource = types.StringNull()
 	}
-	if appliedModuleInfo.moduleVersion != nil {
-		state.ModuleVersion = types.StringValue(*appliedModuleInfo.moduleVersion)
+	if currentApplied.moduleVersion != nil {
+		state.ModuleVersion = types.StringValue(*currentApplied.moduleVersion)
 	} else {
 		state.ModuleVersion = types.StringNull()
 	}
@@ -295,15 +294,15 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 		return
 	}
 
-	var appliedModuleInfo appliedModuleInfo
-	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &appliedModuleInfo)...)
+	var currentApplied appliedModuleInfo
+	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &currentApplied)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// If the module source or module version if available and differs, error out.
-	if appliedModuleInfo.moduleSource != nil {
-		if state.ModuleSource.ValueString() != *appliedModuleInfo.moduleSource {
+	if currentApplied.moduleSource != nil {
+		if state.ModuleSource.ValueString() != *currentApplied.moduleSource {
 			resp.Diagnostics.AddError("Module source differs, cannot delete", "")
 			return
 		}
@@ -311,8 +310,8 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 		resp.Diagnostics.AddError("Module source is null but state is not null, cannot delete", "")
 		return
 	}
-	if appliedModuleInfo.moduleVersion != nil {
-		if state.ModuleVersion.ValueString() != *appliedModuleInfo.moduleVersion {
+	if currentApplied.moduleVersion != nil {
+		if state.ModuleVersion.ValueString() != *currentApplied.moduleVersion {
 			resp.Diagnostics.AddError("Module version differs, cannot delete", "")
 			return
 		}
