@@ -34,8 +34,9 @@ type doRunOutput struct {
 // appliedModuleInfo contains what information was available about the latest applied run.
 // One or both fields may be nil, in which case information was not available.
 type appliedModuleInfo struct {
-	moduleSource  *string
-	moduleVersion *string
+	moduleSource         *string
+	moduleVersion        *string
+	wasSuccessfulDestroy bool
 }
 
 const (
@@ -300,7 +301,7 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 		return
 	}
 
-	// If the module source or module version if available and differs, error out.
+	// If the module source or module version is available and differs, error out.
 	if currentApplied.moduleSource != nil {
 		if state.ModuleSource.ValueString() != *currentApplied.moduleSource {
 			resp.Diagnostics.AddError("Module source differs, cannot delete", "")
@@ -320,7 +321,13 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 		return
 	}
 
-	// The apply module is being deleted, so don't use the returned value.
+	// If the latest run was a successful destroy, all resources have already
+	// been destroyed, so there's nothing that needs to be done here.
+	if currentApplied.wasSuccessfulDestroy {
+		return
+	}
+
+	// The apply module is being deleted, so don't use the module version output.
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
 		model:     &state,
 		doDestroy: true,
@@ -519,6 +526,9 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 			}
 			if latestRun.ModuleVersion != nil {
 				moduleInfoOutput.moduleVersion = latestRun.ModuleVersion
+			}
+			if latestRun.IsDestroy && (latestRun.Status == sdktypes.RunApplied) && (latestRun.Apply != nil) {
+				moduleInfoOutput.wasSuccessfulDestroy = true
 			}
 		}
 	}
