@@ -22,7 +22,6 @@ func TestApplyModule(t *testing.T) {
 	wsPreventDestroyPlan := false
 	varValueBase := "some variable value "
 	varKey := "trigger_name"
-	varCategory := "terraform"
 	varHCL := false
 
 	resource.Test(t, resource.TestCase{
@@ -59,7 +58,6 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "module_source", moduleSource),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"1"),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
 				),
 			},
@@ -74,7 +72,6 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "module_source", moduleSource),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"1"),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
 				),
 			},
@@ -89,7 +86,6 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "module_source", moduleSource),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"2"),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
 				),
 			},
@@ -166,7 +162,6 @@ func testDoApplyCreateRun(val int) string {
 	ws1Path := testGroupPath + "/" + ws1Name
 	varValueBase := "some variable value "
 	varKey := "trigger_name"
-	varCategory := "terraform"
 	varHCL := false
 
 	return fmt.Sprintf(`
@@ -178,14 +173,13 @@ resource "tharsis_apply_module" "tam" {
     {
       value = "%s%d"
       key = "%s"
-      category = "%s"
       hcl = %v
     }
   ]
 }
 
 	`,
-		ws1Path, moduleSource, varValueBase, val, varKey, varCategory, varHCL,
+		ws1Path, moduleSource, varValueBase, val, varKey, varHCL,
 	)
 }
 

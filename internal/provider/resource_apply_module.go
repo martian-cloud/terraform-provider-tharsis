@@ -48,10 +48,9 @@ var (
 
 // RunVariableModel is used in apply modules to set Terraform and environment variables.
 type RunVariableModel struct {
-	Value    string `tfsdk:"value"`
-	Key      string `tfsdk:"key"`
-	Category string `tfsdk:"category"`
-	HCL      bool   `tfsdk:"hcl"`
+	Value string `tfsdk:"value"`
+	Key   string `tfsdk:"key"`
+	HCL   bool   `tfsdk:"hcl"`
 }
 
 // FromTerraform5Value converts a RunVariable from Terraform values to Go equivalent.
@@ -70,11 +69,6 @@ func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
 	}
 
 	err = v["key"].As(&e.Key)
-	if err != nil {
-		return err
-	}
-
-	err = v["category"].As(&e.Category)
 	if err != nil {
 		return err
 	}
@@ -178,14 +172,9 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 							Description:         "Key or name of this variable.",
 							Required:            true,
 						},
-						"category": schema.StringAttribute{
-							MarkdownDescription: "Category of this variable, 'terraform' or 'environment'.",
-							Description:         "Category of this variable, 'terraform' or 'environment'.",
-							Required:            true,
-						},
 						"hcl": schema.BoolAttribute{
-							MarkdownDescription: "Whether this variable is HCL (vs. environment).",
-							Description:         "Whether this variable is HCL (vs. environment).",
+							MarkdownDescription: "Whether this variable is HCL (vs. string).",
+							Description:         "Whether this variable is HCL (vs. string).",
 							Required:            true,
 						},
 					},
@@ -554,10 +543,11 @@ func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list 
 			return nil, err
 		}
 
+		// Tharsis SDK/API require category be set.  This provider supports only Terraform variables.
 		result = append(result, sdktypes.RunVariable{
 			Value:    &model.Value,
 			Key:      model.Key,
-			Category: sdktypes.VariableCategory(model.Category),
+			Category: sdktypes.VariableCategory("terraform"),
 			HCL:      model.HCL,
 		})
 	}
