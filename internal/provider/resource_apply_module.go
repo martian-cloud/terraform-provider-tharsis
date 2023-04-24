@@ -100,9 +100,8 @@ type ApplyModuleModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = (*applyModuleResource)(nil)
-	_ resource.ResourceWithConfigure   = (*applyModuleResource)(nil)
-	_ resource.ResourceWithImportState = (*applyModuleResource)(nil)
+	_ resource.Resource              = (*applyModuleResource)(nil)
+	_ resource.ResourceWithConfigure = (*applyModuleResource)(nil)
 )
 
 // NewApplyModuleResource is a helper function to simplify the provider implementation.
@@ -340,15 +339,6 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 	if resp.Diagnostics.HasError() {
 		return
 	}
-}
-
-// ImportState helps the provider implement the ResourceWithImportState interface.
-func (t *applyModuleResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resp.Diagnostics.AddError(
-		"Import of workspace is not supported.",
-		"",
-	)
 }
 
 // doRun launches a remote run and waits for it to complete.
