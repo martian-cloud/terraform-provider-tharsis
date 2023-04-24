@@ -312,30 +312,24 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 		return
 	}
 
+	// If the latest run was a successful destroy, all resources have already
+	// been destroyed, so there's nothing that needs to be done here.
+	if currentApplied.wasSuccessfulDestroy {
+		return
+	}
+
 	// If the module source or module version is available and differs, error out.
 	if currentApplied.moduleSource != nil {
 		if state.ModuleSource.ValueString() != *currentApplied.moduleSource {
 			resp.Diagnostics.AddError("Module source differs, cannot delete", "")
 			return
 		}
-	} else if !state.ModuleSource.IsNull() {
-		resp.Diagnostics.AddError("Module source is null but state is not null, cannot delete", "")
-		return
 	}
 	if currentApplied.moduleVersion != nil {
 		if state.ModuleVersion.ValueString() != *currentApplied.moduleVersion {
 			resp.Diagnostics.AddError("Module version differs, cannot delete", "")
 			return
 		}
-	} else if !state.ModuleVersion.IsNull() {
-		resp.Diagnostics.AddError("Module version is null but state is not null, cannot delete", "")
-		return
-	}
-
-	// If the latest run was a successful destroy, all resources have already
-	// been destroyed, so there's nothing that needs to be done here.
-	if currentApplied.wasSuccessfulDestroy {
-		return
 	}
 
 	// The apply module is being deleted, so don't use the module version output.
