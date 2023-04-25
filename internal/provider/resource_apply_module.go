@@ -121,7 +121,7 @@ func (t *applyModuleResource) Metadata(ctx context.Context,
 }
 
 func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	description := "Defines and manages tharsis_apply_ module resources, which launch runs in other workspaces."
+	description := "Defines and manages tharsis_apply_module resources, which launch runs in other workspaces."
 
 	resp.Schema = schema.Schema{
 		Version:             1,
