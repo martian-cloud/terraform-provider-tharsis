@@ -37,6 +37,7 @@ type appliedModuleInfo struct {
 	moduleSource         *string
 	moduleVersion        *string
 	wasSuccessfulDestroy bool
+	wasManualUpdate      bool
 }
 
 const (
@@ -317,6 +318,22 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 		return
 	}
 
+	// Refuse to destroy if a configuration version was deployed by the latest run
+	// (as measured by lack of a module source).
+	if currentApplied.moduleSource == nil {
+		resp.Diagnostics.AddError("Workspace's latest run had deployed a configuration version, will not delete", "")
+		return
+	}
+
+	// Refuse to destroy if the current state was manually modified
+	// (as measured by the current state having no run ID).
+	if currentApplied.wasManualUpdate {
+		resp.Diagnostics.AddError("Current state had been manually updated, will not delete", "")
+		return
+	}
+
+	// Note: There's no need to check the PreventDestroyPlan flag, because the Tharsis API enforces that.
+
 	// If the module source or module version is available and differs, error out.
 	if currentApplied.moduleSource != nil {
 		if state.ModuleSource.ValueString() != *currentApplied.moduleSource {
@@ -525,6 +542,9 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 			if latestRun.IsDestroy && (latestRun.Status == sdktypes.RunApplied) && (latestRun.Apply != nil) {
 				moduleInfoOutput.wasSuccessfulDestroy = true
 			}
+		} else {
+			// Current state has no run ID, so it must have been manually updated.
+			moduleInfoOutput.wasManualUpdate = true
 		}
 	}
 
