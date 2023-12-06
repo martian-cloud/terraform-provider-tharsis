@@ -32,5 +32,3 @@ Defines and manages a Terraform module.
 - `last_updated` (String) Timestamp when this terraform module was most recently updated.
 - `registry_namespace` (String) The top-level group in which this module resides.
 - `resource_path` (String) The path of the parent namespace plus the name of the terraform module.
-
-

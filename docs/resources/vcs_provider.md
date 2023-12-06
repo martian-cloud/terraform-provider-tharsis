@@ -36,5 +36,3 @@ Defines and manages a VCS provider.
 - `last_updated` (String) Timestamp when this VCS provider was most recently updated.
 - `oauth_authorization_url` (String) URL to use to complete OAuth flow for any links to this VCS provider.
 - `resource_path` (String) The path within the Tharsis group hierarchy to this VCS provider.
-
-

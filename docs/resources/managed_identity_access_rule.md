@@ -42,5 +42,3 @@ Required:
 Optional:
 
 - `predicate_type` (String) Optional predicate type for this attestation policy.
-
-

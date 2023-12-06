@@ -31,5 +31,3 @@ Defines and manages a Terraform provider.
 - `last_updated` (String) Timestamp when this Terraform provider was most recently updated.
 - `registry_namespace` (String) The top-level group where this Terraform provider resides.
 - `resource_path` (String) String identifier of this Terraform provider.
-
-

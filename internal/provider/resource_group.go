@@ -78,6 +78,7 @@ func (t *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Description:         "A description of the group.",
 				Optional:            true,
 				Default:             stringdefault.StaticString(""),
+				Computed:            true,
 				// Description can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"parent_path": schema.StringAttribute{
