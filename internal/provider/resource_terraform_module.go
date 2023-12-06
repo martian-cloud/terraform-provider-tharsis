@@ -45,8 +45,8 @@ type terraformModuleResource struct {
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *terraformModuleResource) Metadata(ctx context.Context,
-	req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (t *terraformModuleResource) Metadata(_ context.Context,
+	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = "tharsis_terraform_module"
 }
 

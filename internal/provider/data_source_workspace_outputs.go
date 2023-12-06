@@ -38,7 +38,7 @@ var (
 // Metadata effectively replaces the DataSourceType (and thus workspaceOutputsDataSourceType)
 // It returns the full name of the data source.
 func (t workspaceOutputsDataSource) Metadata(_ context.Context,
-	req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	_ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	typeName := "tharsis_workspace_outputs"
 	if t.isJSONEncoded {
 		typeName += "_json"

@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
@@ -43,8 +44,8 @@ type groupResource struct {
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *groupResource) Metadata(ctx context.Context,
-	req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (t *groupResource) Metadata(_ context.Context,
+	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = "tharsis_group"
 }
 
@@ -76,6 +77,7 @@ func (t *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				MarkdownDescription: "A description of the group.",
 				Description:         "A description of the group.",
 				Optional:            true,
+				Default:             stringdefault.StaticString(""),
 				// Description can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"parent_path": schema.StringAttribute{

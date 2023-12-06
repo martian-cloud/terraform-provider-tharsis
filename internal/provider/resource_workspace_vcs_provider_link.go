@@ -50,8 +50,8 @@ type workspaceVCSProviderLinkResource struct {
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *workspaceVCSProviderLinkResource) Metadata(ctx context.Context,
-	req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (t *workspaceVCSProviderLinkResource) Metadata(_ context.Context,
+	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = "tharsis_workspace_vcs_provider_link"
 }
 

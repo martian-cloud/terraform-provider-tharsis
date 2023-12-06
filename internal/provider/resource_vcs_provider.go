@@ -50,8 +50,8 @@ type vcsProviderResource struct {
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *vcsProviderResource) Metadata(ctx context.Context,
-	req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (t *vcsProviderResource) Metadata(_ context.Context,
+	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = "tharsis_vcs_provider"
 }
 
