@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -134,16 +133,25 @@ func (t *managedIdentityAliasResource) Create(ctx context.Context,
 		return
 	}
 
-	var sourceIdentityID, sourceIdentityPath *string
+	var (
+		sourceIdentityID, sourceIdentityPath *string
+		count                                int
+	)
 
-	if managedIdentityAlias.AliasSourceID.ValueString() != "" {
-		sourceIdentityID = ptr.String(managedIdentityAlias.AliasSourceID.ValueString())
-	} else if managedIdentityAlias.AliasSourcePath.ValueString() != "" {
-		sourceIdentityPath = ptr.String(managedIdentityAlias.AliasSourcePath.ValueString())
-	} else {
+	if v := managedIdentityAlias.AliasSourceID.ValueString(); v != "" {
+		sourceIdentityID = &v
+		count++
+	}
+
+	if v := managedIdentityAlias.AliasSourcePath.ValueString(); v != "" {
+		sourceIdentityPath = &v
+		count++
+	}
+
+	if count != 1 {
 		resp.Diagnostics.AddError(
 			"Error creating managed identity alias",
-			"Either alias_source_id or alias_source_path must be specified",
+			"Exactly one of alias_source_id or alias_source_path must be specified",
 		)
 		return
 	}
