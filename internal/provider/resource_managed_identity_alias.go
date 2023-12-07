@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -18,12 +17,13 @@ import (
 
 // ManagedIdentityAliasModel is the model for a managed identity alias.
 type ManagedIdentityAliasModel struct {
-	ID            types.String `tfsdk:"id"`
-	ResourcePath  types.String `tfsdk:"resource_path"`
-	Name          types.String `tfsdk:"name"`
-	GroupPath     types.String `tfsdk:"group_path"`
-	LastUpdated   types.String `tfsdk:"last_updated"`
-	AliasSourceID types.String `tfsdk:"alias_source_id"`
+	ID              types.String `tfsdk:"id"`
+	ResourcePath    types.String `tfsdk:"resource_path"`
+	Name            types.String `tfsdk:"name"`
+	GroupPath       types.String `tfsdk:"group_path"`
+	LastUpdated     types.String `tfsdk:"last_updated"`
+	AliasSourceID   types.String `tfsdk:"alias_source_id"`
+	AliasSourcePath types.String `tfsdk:"alias_source_path"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -94,9 +94,18 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				Computed:            true,
 			},
 			"alias_source_id": schema.StringAttribute{
-				MarkdownDescription: "ID of the managed identity being aliased",
-				Description:         "ID of the managed identity being aliased",
-				Required:            true,
+				MarkdownDescription: "ID of the managed identity being aliased.",
+				Description:         "ID of the managed identity being aliased.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"alias_source_path": schema.StringAttribute{
+				MarkdownDescription: "Full path of the managed identity being aliased.",
+				Description:         "Full path of the managed identity being aliased.",
+				Optional:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -124,12 +133,36 @@ func (t *managedIdentityAliasResource) Create(ctx context.Context,
 		return
 	}
 
+	var (
+		sourceIdentityID, sourceIdentityPath *string
+		count                                int
+	)
+
+	if v := managedIdentityAlias.AliasSourceID.ValueString(); v != "" {
+		sourceIdentityID = &v
+		count++
+	}
+
+	if v := managedIdentityAlias.AliasSourcePath.ValueString(); v != "" {
+		sourceIdentityPath = &v
+		count++
+	}
+
+	if count != 1 {
+		resp.Diagnostics.AddError(
+			"Error creating managed identity alias",
+			"Exactly one of alias_source_id or alias_source_path must be specified",
+		)
+		return
+	}
+
 	// Create the managed identity alias.
 	created, err := t.client.ManagedIdentity.CreateManagedIdentityAlias(ctx,
 		&ttypes.CreateManagedIdentityAliasInput{
-			Name:          managedIdentityAlias.Name.ValueString(),
-			AliasSourceID: ptr.String(managedIdentityAlias.AliasSourceID.ValueString()),
-			GroupPath:     managedIdentityAlias.GroupPath.ValueString(),
+			Name:            managedIdentityAlias.Name.ValueString(),
+			AliasSourceID:   sourceIdentityID,
+			AliasSourcePath: sourceIdentityPath,
+			GroupPath:       managedIdentityAlias.GroupPath.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(

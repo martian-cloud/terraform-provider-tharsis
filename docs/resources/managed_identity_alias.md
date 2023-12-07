@@ -17,9 +17,13 @@ Defines and manages a managed identity alias.
 
 ### Required
 
-- `alias_source_id` (String) ID of the managed identity being aliased
 - `group_path` (String) Full path of the group where alias will be created.
 - `name` (String) The name of the managed identity alias.
+
+### Optional
+
+- `alias_source_id` (String) ID of the managed identity being aliased.
+- `alias_source_path` (String) Full path of the managed identity being aliased.
 
 ### Read-Only
 
