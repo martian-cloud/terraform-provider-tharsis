@@ -19,10 +19,8 @@ func TestTerraformModule(t *testing.T) {
 	updatePrivate := false
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a Terraform module.
 			{
 				Config: testTerraformModuleConfigurationCreate(),
@@ -92,7 +90,7 @@ resource "tharsis_terraform_module" "ttm" {
 	repository_url = "%s"
 	private = "%v"
 }
-	`, createRootGroup(), createName, createSystem, createRepositoryURL, createPrivate)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, createSystem, createRepositoryURL, createPrivate)
 }
 
 func testTerraformModuleConfigurationUpdate() string {
@@ -112,7 +110,5 @@ resource "tharsis_terraform_module" "ttm" {
 	repository_url = "%s"
 	private = "%v"
 }
-	`, createRootGroup(), createName, createSystem, updateRepositoryURL, updatePrivate)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, createSystem, updateRepositoryURL, updatePrivate)
 }
-
-// The End.

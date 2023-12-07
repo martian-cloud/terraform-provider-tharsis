@@ -58,7 +58,6 @@ type RunVariableModel struct {
 // This method name is required by the interface we are implementing.  Please see
 // https://pkg.go.dev/github.com/hashicorp/terraform-plugin-go/tfprotov5/tftypes
 func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
-
 	v := map[string]tftypes.Value{}
 	err := val.As(&v)
 	if err != nil {
@@ -116,7 +115,8 @@ type applyModuleResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *applyModuleResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_apply_module"
 }
 
@@ -197,7 +197,8 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *applyModuleResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -205,8 +206,8 @@ func (t *applyModuleResource) Configure(_ context.Context,
 }
 
 func (t *applyModuleResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from apply module.
 	var applyModule ApplyModuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &applyModule)...)
@@ -232,8 +233,8 @@ func (t *applyModuleResource) Create(ctx context.Context,
 }
 
 func (t *applyModuleResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state ApplyModuleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -267,8 +268,8 @@ func (t *applyModuleResource) Read(ctx context.Context,
 }
 
 func (t *applyModuleResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// Retrieve values from plan.
 	var plan ApplyModuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -297,8 +298,8 @@ func (t *applyModuleResource) Update(ctx context.Context,
 }
 
 func (t *applyModuleResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state ApplyModuleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -360,7 +361,8 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 
 // doRun launches a remote run and waits for it to complete.
 func (t *applyModuleResource) doRun(ctx context.Context,
-	input *doRunInput, output *doRunOutput) diag.Diagnostics {
+	input *doRunInput, output *doRunOutput,
+) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// Convert the run variables.
@@ -508,7 +510,8 @@ func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *s
 
 // getCurrentApplied returns an ApplyModuleModel reflecting what is currently applied.
 func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
-	tfState ApplyModuleModel, moduleInfoOutput *appliedModuleInfo) diag.Diagnostics {
+	tfState ApplyModuleModel, moduleInfoOutput *appliedModuleInfo,
+) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// Get latest run on the target workspace.
@@ -582,5 +585,3 @@ func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list 
 
 	return result, nil
 }
-
-// The End.

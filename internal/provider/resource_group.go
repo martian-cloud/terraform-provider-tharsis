@@ -45,7 +45,8 @@ type groupResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *groupResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_group"
 }
 
@@ -108,7 +109,8 @@ func (t *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *groupResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -116,8 +118,8 @@ func (t *groupResource) Configure(_ context.Context,
 }
 
 func (t *groupResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from group.
 	var group GroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &group)...)
@@ -153,8 +155,8 @@ func (t *groupResource) Create(ctx context.Context,
 }
 
 func (t *groupResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state GroupModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -186,8 +188,8 @@ func (t *groupResource) Read(ctx context.Context,
 }
 
 func (t *groupResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// Retrieve values from plan.
 	var plan GroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -219,8 +221,8 @@ func (t *groupResource) Update(ctx context.Context,
 }
 
 func (t *groupResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state GroupModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -249,8 +251,8 @@ func (t *groupResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *groupResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
 	// Get the group by full path from Tharsis.
 	found, err := t.client.Group.GetGroup(ctx, &ttypes.GetGroupInput{
 		Path: &req.ID,
@@ -300,5 +302,3 @@ func (t *groupResource) getParentPath(fullPath string) string {
 	// A root group has no non-empty parent path.
 	return ""
 }
-
-// The End.

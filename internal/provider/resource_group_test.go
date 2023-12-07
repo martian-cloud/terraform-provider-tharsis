@@ -9,35 +9,33 @@ import (
 
 func TestRootGroup(t *testing.T) {
 	createName := "trg_name"
-	createDescription := "this is trg, a test root group"
-	updatedDescription := "this is an updated description for trg, a test root group"
+	createDescription := "this is root-group, a test root group"
+	updatedDescription := "this is an updated description for root-group, a test root group"
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a root group.
 			{
-				Config: testGroupRootConfigurationCreate(),
+				Config: createRootGroup(createName, createDescription),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_group.trg", "name", createName),
-					resource.TestCheckResourceAttr("tharsis_group.trg", "description", createDescription),
-					resource.TestCheckResourceAttr("tharsis_group.trg", "full_path", createName),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "description", createDescription),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "full_path", createName),
 
 					// Verify that the parent path is _NOT_ set.
-					resource.TestCheckNoResourceAttr("tharsis_group.trg", "parent_path"),
+					resource.TestCheckNoResourceAttr("tharsis_group.root-group", "parent_path"),
 
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet("tharsis_group.trg", "id"),
-					resource.TestCheckResourceAttrSet("tharsis_group.trg", "last_updated"),
+					resource.TestCheckResourceAttrSet("tharsis_group.root-group", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_group.root-group", "last_updated"),
 				),
 			},
 
 			// Import the state.
 			{
-				ResourceName:      "tharsis_group.trg",
+				ResourceName:      "tharsis_group.root-group",
 				ImportStateId:     createName,
 				ImportState:       true,
 				ImportStateVerify: true,
@@ -45,19 +43,77 @@ func TestRootGroup(t *testing.T) {
 
 			// Update and read.
 			{
-				Config: testGroupRootConfigurationUpdate(),
+				Config: createRootGroup(createName, updatedDescription),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_group.trg", "name", createName),
-					resource.TestCheckResourceAttr("tharsis_group.trg", "description", updatedDescription),
-					resource.TestCheckResourceAttr("tharsis_group.trg", "full_path", createName),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "description", updatedDescription),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "full_path", createName),
 
 					// Verify that the parent path is _NOT_ set.
-					resource.TestCheckNoResourceAttr("tharsis_group.trg", "parent_path"),
+					resource.TestCheckNoResourceAttr("tharsis_group.root-group", "parent_path"),
 
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet("tharsis_group.trg", "id"),
-					resource.TestCheckResourceAttrSet("tharsis_group.trg", "last_updated"),
+					resource.TestCheckResourceAttrSet("tharsis_group.root-group", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_group.root-group", "last_updated"),
+				),
+			},
+
+			// Destroy should be covered automatically by TestCase.
+
+		},
+	})
+}
+
+func TestGroupEmptyDescription(t *testing.T) {
+	createName := "trg_name"
+	createDescription := ""
+	updatedDescription := "this is an updated description for root-group, a test root group"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and read back a root group.
+			{
+				Config: createRootGroup(createName, createDescription),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "description", createDescription),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "full_path", createName),
+
+					// Verify that the parent path is _NOT_ set.
+					resource.TestCheckNoResourceAttr("tharsis_group.root-group", "parent_path"),
+
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttrSet("tharsis_group.root-group", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_group.root-group", "last_updated"),
+				),
+			},
+
+			// Import the state.
+			{
+				ResourceName:      "tharsis_group.root-group",
+				ImportStateId:     createName,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Update and read.
+			{
+				Config: createRootGroup(createName, updatedDescription),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "description", updatedDescription),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "full_path", createName),
+
+					// Verify that the parent path is _NOT_ set.
+					resource.TestCheckNoResourceAttr("tharsis_group.root-group", "parent_path"),
+
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttrSet("tharsis_group.root-group", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_group.root-group", "last_updated"),
 				),
 			},
 
@@ -69,35 +125,33 @@ func TestRootGroup(t *testing.T) {
 
 func TestNestedGroup(t *testing.T) {
 	createName := "tng_name"
-	createDescription := "this is tng, a test nested group"
+	createDescription := "this is nested-group, a test nested group"
 	createParentPath := testGroupPath
 	createFullPath := createParentPath + "/" + createName
-	updatedDescription := "this is an updated description for tng, a test nested group"
+	updatedDescription := "this is an updated description for nested-group, a test nested group"
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a nested group.
 			{
-				Config: testGroupNestedConfigurationCreate(),
+				Config: testGroupNestedConfiguration(createName, createDescription),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_group.tng", "name", createName),
-					resource.TestCheckResourceAttr("tharsis_group.tng", "description", createDescription),
-					resource.TestCheckResourceAttr("tharsis_group.tng", "parent_path", createParentPath),
-					resource.TestCheckResourceAttr("tharsis_group.tng", "full_path", createFullPath),
+					resource.TestCheckResourceAttr("tharsis_group.nested-group", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_group.nested-group", "description", createDescription),
+					resource.TestCheckResourceAttr("tharsis_group.nested-group", "parent_path", createParentPath),
+					resource.TestCheckResourceAttr("tharsis_group.nested-group", "full_path", createFullPath),
 
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet("tharsis_group.tng", "id"),
-					resource.TestCheckResourceAttrSet("tharsis_group.tng", "last_updated"),
+					resource.TestCheckResourceAttrSet("tharsis_group.nested-group", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_group.nested-group", "last_updated"),
 				),
 			},
 
 			// Import the state.
 			{
-				ResourceName:      "tharsis_group.tng",
+				ResourceName:      "tharsis_group.nested-group",
 				ImportStateId:     createFullPath,
 				ImportState:       true,
 				ImportStateVerify: true,
@@ -105,17 +159,17 @@ func TestNestedGroup(t *testing.T) {
 
 			// Update and read.
 			{
-				Config: testGroupNestedConfigurationUpdate(),
+				Config: testGroupNestedConfiguration(createName, updatedDescription),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
-					resource.TestCheckResourceAttr("tharsis_group.tng", "name", createName),
-					resource.TestCheckResourceAttr("tharsis_group.tng", "description", updatedDescription),
-					resource.TestCheckResourceAttr("tharsis_group.tng", "parent_path", createParentPath),
-					resource.TestCheckResourceAttr("tharsis_group.tng", "full_path", createFullPath),
+					resource.TestCheckResourceAttr("tharsis_group.nested-group", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_group.nested-group", "description", updatedDescription),
+					resource.TestCheckResourceAttr("tharsis_group.nested-group", "parent_path", createParentPath),
+					resource.TestCheckResourceAttr("tharsis_group.nested-group", "full_path", createFullPath),
 
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet("tharsis_group.tng", "id"),
-					resource.TestCheckResourceAttrSet("tharsis_group.tng", "last_updated"),
+					resource.TestCheckResourceAttrSet("tharsis_group.nested-group", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_group.nested-group", "last_updated"),
 				),
 			},
 
@@ -125,75 +179,25 @@ func TestNestedGroup(t *testing.T) {
 	})
 }
 
-func testGroupRootConfigurationCreate() string {
-	createName := "trg_name"
-	createDescription := "this is trg, a test root group"
-
-	return fmt.Sprintf(`
-
-resource "tharsis_group" "trg" {
-	name = "%s"
-	description = "%s"
-}
-	`, createName, createDescription)
-}
-
-func testGroupRootConfigurationUpdate() string {
-	createName := "trg_name"
-	updatedDescription := "this is an updated description for trg, a test root group"
-
-	return fmt.Sprintf(`
-
-	resource "tharsis_group" "trg" {
-		name = "%s"
-		description = "%s"
-	}
-		`, createName, updatedDescription)
-}
-
-func testGroupNestedConfigurationCreate() string {
-	createName := "tng_name"
-	createDescription := "this is tng, a test nested group"
-
-	return fmt.Sprintf(`
-
-%s
-
-resource "tharsis_group" "tng" {
-	name = "%s"
-	description = "%s"
-	parent_path = tharsis_group.root-group.full_path
-}
-	`, createRootGroup(), createName, createDescription)
-}
-
-func testGroupNestedConfigurationUpdate() string {
-	createName := "tng_name"
-	updatedDescription := "this is an updated description for tng, a test nested group"
-
-	return fmt.Sprintf(`
-
-%s
-
-resource "tharsis_group" "tng" {
-	name = "%s"
-	description = "%s"
-	parent_path = tharsis_group.root-group.full_path
-}
-	`, createRootGroup(), createName, updatedDescription)
-}
-
-func createRootGroup() string {
-	createRootGroupPath := testGroupPath
-	createRootGroupDescription := "this is a test root group"
-
+func createRootGroup(name, description string) string {
 	return fmt.Sprintf(`
 
 resource "tharsis_group" "root-group" {
 	name = "%s"
 	description = "%s"
 }
-	`, createRootGroupPath, createRootGroupDescription)
+	`, name, description)
 }
 
-// The End.
+func testGroupNestedConfiguration(name, description string) string {
+	return fmt.Sprintf(`
+
+%s
+
+resource "tharsis_group" "nested-group" {
+	name = "%s"
+	description = "%s"
+	parent_path = tharsis_group.root-group.full_path
+}
+	`, createRootGroup(testGroupPath, "this is a test root group"), name, description)
+}

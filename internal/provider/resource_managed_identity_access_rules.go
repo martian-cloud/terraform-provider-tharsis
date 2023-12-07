@@ -28,7 +28,6 @@ type ModuleAttestationPolicyModel struct {
 
 // FromTerraform5Value converts from Terraform values to Go equivalent.
 func (e *ModuleAttestationPolicyModel) FromTerraform5Value(val tftypes.Value) error {
-
 	v := map[string]tftypes.Value{}
 	err := val.As(&v)
 	if err != nil {
@@ -78,7 +77,8 @@ type managedIdentityAccessRuleResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *managedIdentityAccessRuleResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_managed_identity_access_rule"
 }
 
@@ -183,7 +183,8 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *managedIdentityAccessRuleResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -191,8 +192,8 @@ func (t *managedIdentityAccessRuleResource) Configure(_ context.Context,
 }
 
 func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from accessRule.
 	var accessRule ManagedIdentityAccessRuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &accessRule)...)
@@ -310,8 +311,8 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 }
 
 func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state ManagedIdentityAccessRuleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -394,8 +395,8 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 }
 
 func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// Retrieve values from plan for the fields to modify.
 	var plan ManagedIdentityAccessRuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -508,8 +509,8 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 }
 
 func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state ManagedIdentityAccessRuleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -540,13 +541,12 @@ func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *managedIdentityAccessRuleResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 
 	// Setting of the ManagedIdentityID field during import is handled in the Read method.
-
 }
 
 // valueStrings converts a slice of types.String to a slice of strings.
@@ -600,7 +600,8 @@ func (t *managedIdentityAccessRuleResource) copyAttestationPoliciesToInput(ctx c
 
 // toProviderAttestationPolicies converts from ManagedIdentityAccessRuleModuleAttestationPolicy to provider equivalent.
 func (t *managedIdentityAccessRuleResource) toProviderAttestationPolicies(ctx context.Context,
-	arg []ttypes.ManagedIdentityAccessRuleModuleAttestationPolicy) (basetypes.ListValue, diag.Diagnostics) {
+	arg []ttypes.ManagedIdentityAccessRuleModuleAttestationPolicy,
+) (basetypes.ListValue, diag.Diagnostics) {
 	policies := []types.Object{}
 
 	for _, policy := range arg {
@@ -633,5 +634,3 @@ func (t *managedIdentityAccessRuleResource) moduleAttestationPolicyObjectAttribu
 		"public_key":     types.StringType,
 	}
 }
-
-// The End.

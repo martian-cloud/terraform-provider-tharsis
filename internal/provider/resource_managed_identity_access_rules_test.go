@@ -16,7 +16,6 @@ const (
 // TestManagedIdentityAccessRules tests creation, reading, updating, and deletion
 // of managed identity access rule resources.
 func TestManagedIdentityAccessRules(t *testing.T) {
-
 	// Configuration for the parent managed identity.
 	parentName := "tmiar_parent_name"
 
@@ -34,7 +33,6 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create the parent managed identity and the access rule in one step.
 			// If done in separate steps, the access rule can't find its parent.
 			{
@@ -131,7 +129,7 @@ resource "tharsis_managed_identity" "tmiar_parent" {
 	aws_role    = "%s"
 }
 
-	`, createRootGroup(), parentType, parentName, parentDescription, parentAWSRole)
+	`, createRootGroup(testGroupPath, "this is a test root group"), parentType, parentName, parentDescription, parentAWSRole)
 }
 
 func testManagedIdentityAccessRulesConfigurationRule() string {
@@ -177,5 +175,3 @@ func testManagedIdentityAccessRulesConfigurationUpdate() string {
 	updateStage := "apply"
 	return strings.Replace(testManagedIdentityAccessRulesConfigurationRule(), ruleStage, updateStage, 1)
 }
-
-// The End.

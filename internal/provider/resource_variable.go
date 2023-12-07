@@ -43,7 +43,8 @@ type variableResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *variableResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_variable"
 }
 
@@ -103,7 +104,8 @@ func (t *variableResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *variableResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -111,8 +113,8 @@ func (t *variableResource) Configure(_ context.Context,
 }
 
 func (t *variableResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from namespace variable.
 	var variable VariableModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &variable)...)
@@ -152,8 +154,8 @@ func (t *variableResource) Create(ctx context.Context,
 }
 
 func (t *variableResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state VariableModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -192,8 +194,8 @@ func (t *variableResource) Read(ctx context.Context,
 }
 
 func (t *variableResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// Retrieve values from plan.
 	var plan VariableModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -233,8 +235,8 @@ func (t *variableResource) Update(ctx context.Context,
 }
 
 func (t *variableResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state VariableModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -264,8 +266,8 @@ func (t *variableResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *variableResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
@@ -286,5 +288,3 @@ func (t *variableResource) copyVariable(src ttypes.NamespaceVariable, dest *Vari
 
 	return nil
 }
-
-// The End.

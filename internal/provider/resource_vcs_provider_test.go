@@ -20,10 +20,8 @@ func TestVCSProvider(t *testing.T) {
 	updateDescription := "this is tvp's updated description"
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a VCS provider.
 			{
 				Config: testVCSProviderConfigurationCreate(),
@@ -98,7 +96,7 @@ func testVCSProviderConfigurationCreate() string {
 	createType := "gitlab"
 	createAutoCreateWebhooks := true
 	createOAuthClientID := "tvp-oauth-client-id"
-	createOAuthClientSecret := "tvp-oauth-client-secret"
+	createOAuthClientSecret := "tvp-oauth-client-secret" // #nosec G101 -- This is a false positive
 
 	return fmt.Sprintf(`
 
@@ -114,7 +112,7 @@ resource "tharsis_vcs_provider" "tvp" {
 	oauth_client_id = "%s"
 	oauth_client_secret = "%s"
 }
-	`, createRootGroup(), createName, createDescription,
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, createDescription,
 		createURL, createType, strconv.FormatBool(createAutoCreateWebhooks),
 		createOAuthClientID, createOAuthClientSecret)
 }
@@ -127,7 +125,7 @@ func testVCSProviderConfigurationUpdate() string {
 
 	updateDescription := "this is tvp's updated description"
 	updateOAuthClientID := "tvp-oauth-client-updated-id"
-	updateOAuthClientSecret := "tvp-oauth-client-updated-secret"
+	updateOAuthClientSecret := "tvp-oauth-client-updated-secret" // #nosec G101 -- This is a false positive
 
 	return fmt.Sprintf(`
 
@@ -143,9 +141,7 @@ resource "tharsis_vcs_provider" "tvp" {
 	oauth_client_id = "%s"
 	oauth_client_secret = "%s"
 }
-	`, createRootGroup(), createName, updateDescription,
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, updateDescription,
 		createURL, createType, strconv.FormatBool(createAutoCreateWebhooks),
 		updateOAuthClientID, updateOAuthClientSecret)
 }
-
-// The End.

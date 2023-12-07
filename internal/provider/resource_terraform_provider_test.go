@@ -19,10 +19,8 @@ func TestTerraformProvider(t *testing.T) {
 	updatePrivate := false
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a Terraform provider.
 			{
 				Config: testTerraformProviderConfigurationCreate(),
@@ -87,7 +85,7 @@ resource "tharsis_terraform_provider" "ttp" {
 	repository_url = "%s"
 	private = %v
 }
-	`, createRootGroup(), createName, createRepositoryURL, createPrivate)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, createRepositoryURL, createPrivate)
 }
 
 func testTerraformProviderConfigurationUpdate() string {
@@ -105,7 +103,5 @@ resource "tharsis_terraform_provider" "ttp" {
 	repository_url = "%s"
 	private = %v
 }
-`, createRootGroup(), createName, updateRepositoryURL, updatePrivate)
+`, createRootGroup(testGroupPath, "this is a test root group"), createName, updateRepositoryURL, updatePrivate)
 }
-
-// The End.
