@@ -69,8 +69,8 @@ type managedIdentityResource struct {
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *managedIdentityResource) Metadata(ctx context.Context,
-	req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (t *managedIdentityResource) Metadata(_ context.Context,
+	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = "tharsis_managed_identity"
 }
 

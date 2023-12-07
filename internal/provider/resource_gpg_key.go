@@ -46,8 +46,8 @@ type gpgKeyResource struct {
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *gpgKeyResource) Metadata(ctx context.Context,
-	req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (t *gpgKeyResource) Metadata(_ context.Context,
+	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = "tharsis_gpg_key"
 }
 
@@ -198,8 +198,8 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *gpgKeyResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (t *gpgKeyResource) Update(_ context.Context,
+	_ resource.UpdateRequest, resp *resource.UpdateResponse) {
 
 	// This method must exist to comply with the required interfaces,
 	// but all input attributes have the RequiresReplace plan modifier,

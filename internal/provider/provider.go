@@ -50,7 +50,7 @@ type tharsisProvider struct {
 	configured bool
 }
 
-func (p *tharsisProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+func (p *tharsisProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "tharsis"
 }
 

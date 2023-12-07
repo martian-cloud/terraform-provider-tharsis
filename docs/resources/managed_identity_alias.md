@@ -26,5 +26,3 @@ Defines and manages a managed identity alias.
 - `id` (String) String identifier of the managed identity alias.
 - `last_updated` (String) Timestamp when this managed identity alias was most recently updated.
 - `resource_path` (String) The path of the parent group plus the name of the managed identity alias.
-
-

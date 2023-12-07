@@ -26,5 +26,3 @@ Defines and manages a namespace variable.
 ### Read-Only
 
 - `id` (String) String identifier of the namespace variable.
-
-

@@ -25,5 +25,3 @@ Tharsis Workspace Outputs data source is used to retrieve outputs from workspace
 - `outputs` (Map of String) The outputs of the workspace specified by the path.
 - `state_version_id` (String) The ID of the workspace's current state version.
 - `workspace_id` (String) The ID of the workspace.
-
-

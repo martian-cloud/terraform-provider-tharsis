@@ -29,5 +29,3 @@ Defines and manages a group.
 - `full_path` (String) The path of the parent namespace plus the name of the group.
 - `id` (String) String identifier of the group.
 - `last_updated` (String) Timestamp when this group was most recently updated.
-
-

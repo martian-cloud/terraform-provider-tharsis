@@ -34,5 +34,3 @@ Required:
 
 - `bound_claims` (Map of String) Bound claims for this trust policy.
 - `issuer` (String) Issuer for this trust policy.
-
-

@@ -38,5 +38,3 @@ Required:
 - `hcl` (Boolean) Whether this variable is HCL (vs. string).
 - `key` (String) Key or name of this variable.
 - `value` (String) Value of the variable.
-
-

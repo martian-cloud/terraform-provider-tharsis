@@ -36,5 +36,3 @@ Defines and manages a workspace VCS provider link.
 - `last_updated` (String) Timestamp when this workspace VCS provider link was most recently updated.
 - `webhook_id` (String) String identifier of the webhook.
 - `workspace_id` (String) The ID of the workspace.
-
-

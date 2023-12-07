@@ -32,5 +32,3 @@ Defines and manages a workspace.
 - `full_path` (String) The path of the parent namespace plus the name of the workspace.
 - `id` (String) String identifier of the workspace.
 - `last_updated` (String) Timestamp when this workspace was most recently updated.
-
-

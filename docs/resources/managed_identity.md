@@ -35,5 +35,3 @@ Defines and manages a managed identity.
 - `last_updated` (String) Timestamp when this managed identity was most recently updated.
 - `resource_path` (String) The path of the parent group plus the name of the managed identity.
 - `subject` (String) subject string for AWS, Azure, and Tharsis
-
-
