@@ -18,19 +18,19 @@ import (
 // WorkspaceVCSProviderLinkModel is the model for a workspace VCS provider link.
 // Fields WebhookID, ModuleDirectory, and TagRegex are pointers in the SDK type but strings here.
 type WorkspaceVCSProviderLinkModel struct {
-	WebhookID           types.String   `tfsdk:"webhook_id"`
+	ID                  types.String   `tfsdk:"id"`
 	LastUpdated         types.String   `tfsdk:"last_updated"`
 	WorkspaceID         types.String   `tfsdk:"workspace_id"`
 	WorkspacePath       types.String   `tfsdk:"workspace_path"`
 	VCSProviderID       types.String   `tfsdk:"vcs_provider_id"`
 	RepositoryPath      types.String   `tfsdk:"repository_path"`
-	ID                  types.String   `tfsdk:"id"`
+	WebhookID           types.String   `tfsdk:"webhook_id"`
 	ModuleDirectory     types.String   `tfsdk:"module_directory"`
 	Branch              types.String   `tfsdk:"branch"`
 	TagRegex            types.String   `tfsdk:"tag_regex"`
+	GlobPatterns        []types.String `tfsdk:"glob_patterns"`
 	AutoSpeculativePlan types.Bool     `tfsdk:"auto_speculative_plan"`
 	WebhookDisabled     types.Bool     `tfsdk:"webhook_disabled"`
-	GlobPatterns        []types.String `tfsdk:"glob_patterns"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -51,12 +51,14 @@ type workspaceVCSProviderLinkResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *workspaceVCSProviderLinkResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_workspace_vcs_provider_link"
 }
 
 func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.SchemaRequest,
-	resp *resource.SchemaResponse) {
+	resp *resource.SchemaResponse,
+) {
 	description := "Defines and manages a workspace VCS provider link."
 
 	resp.Schema = schema.Schema{
@@ -162,7 +164,8 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *workspaceVCSProviderLinkResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -170,8 +173,8 @@ func (t *workspaceVCSProviderLinkResource) Configure(_ context.Context,
 }
 
 func (t *workspaceVCSProviderLinkResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from workspace VCS provider link.
 	var workspaceVCSProviderLink WorkspaceVCSProviderLinkModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &workspaceVCSProviderLink)...)
@@ -224,8 +227,8 @@ func (t *workspaceVCSProviderLinkResource) Create(ctx context.Context,
 }
 
 func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state WorkspaceVCSProviderLinkModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -258,8 +261,8 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 }
 
 func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// Retrieve values from plan.
 	var plan WorkspaceVCSProviderLinkModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -311,8 +314,8 @@ func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
 }
 
 func (t *workspaceVCSProviderLinkResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state WorkspaceVCSProviderLinkModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -342,8 +345,8 @@ func (t *workspaceVCSProviderLinkResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *workspaceVCSProviderLinkResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
@@ -351,7 +354,8 @@ func (t *workspaceVCSProviderLinkResource) ImportState(ctx context.Context,
 // copyWorkspaceVCSProviderLink copies the contents of a workspace VCS provider link.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
 func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src ttypes.WorkspaceVCSProviderLink,
-	dest *WorkspaceVCSProviderLinkModel) {
+	dest *WorkspaceVCSProviderLinkModel,
+) {
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.WorkspaceID = types.StringValue(src.WorkspaceID)
 	dest.WorkspacePath = types.StringValue(src.WorkspacePath)
@@ -380,5 +384,3 @@ func (t *workspaceVCSProviderLinkResource) stringValueFromStringPtr(sp *string) 
 
 	return types.StringValue(*sp)
 }
-
-// The End.

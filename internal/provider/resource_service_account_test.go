@@ -15,10 +15,8 @@ func TestServiceAccount(t *testing.T) {
 	updatedDescription := "this is an updated description for tsa, a test service account"
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a service account.
 			{
 				Config: testServiceAccountConfigurationCreate(),
@@ -79,7 +77,7 @@ resource "tharsis_service_account" "tsa" {
 	group_path = tharsis_group.root-group.full_path
 	oidc_trust_policies = [{bound_claims = {"%s" = "%s"}, issuer = "%s"}]
 }
-	`, createRootGroup(), createName, createDescription,
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, createDescription,
 		createTrustPolicyBoundClaimKey, createTrustPolicyBoundClaimValue, createTrustPolicyIssuer,
 	)
 }
@@ -101,9 +99,7 @@ resource "tharsis_service_account" "tsa" {
 	group_path = tharsis_group.root-group.full_path
 	oidc_trust_policies = [{bound_claims = {"%s" = "%s"}, issuer = "%s"}]
 }
-	`, createRootGroup(), createName, updatedDescription,
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, updatedDescription,
 		updateTrustPolicyBoundClaimKey, updateTrustPolicyBoundClaimValue, updateTrustPolicyIssuer,
 	)
 }
-
-// The End.

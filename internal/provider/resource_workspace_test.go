@@ -22,10 +22,8 @@ func TestWorkspace(t *testing.T) {
 	updatedPreventDestroyPlan := false
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a workspace.
 			{
 				Config: testWorkspaceConfigurationCreate(),
@@ -97,7 +95,7 @@ resource "tharsis_workspace" "tw" {
 	terraform_version = "%s"
 	prevent_destroy_plan = "%v"
 }
-	`, createRootGroup(), createName, createDescription,
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, createDescription,
 		createMaxJobDuration, createTerraformVersion, createPreventDestroyPlan)
 }
 
@@ -120,8 +118,6 @@ resource "tharsis_workspace" "tw" {
 	terraform_version = "%s"
 	prevent_destroy_plan = "%v"
 }
-	`, createRootGroup(), createName, updatedDescription,
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, updatedDescription,
 		updatedMaxJobDuration, updatedTerraformVersion, updatedPreventDestroyPlan)
 }
-
-// The End.

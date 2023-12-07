@@ -70,7 +70,8 @@ type managedIdentityResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *managedIdentityResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_managed_identity"
 }
 
@@ -168,7 +169,8 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *managedIdentityResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -176,8 +178,8 @@ func (t *managedIdentityResource) Configure(_ context.Context,
 }
 
 func (t *managedIdentityResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from managedIdentity.
 	var managedIdentity ManagedIdentityModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &managedIdentity)...)
@@ -232,8 +234,8 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 }
 
 func (t *managedIdentityResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state ManagedIdentityModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -272,8 +274,8 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 }
 
 func (t *managedIdentityResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// Retrieve values from plan for the ID, the description, and the data.
 	var plan ManagedIdentityModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -327,8 +329,8 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 }
 
 func (t *managedIdentityResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state ManagedIdentityModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -359,8 +361,8 @@ func (t *managedIdentityResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *managedIdentityResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
@@ -368,7 +370,6 @@ func (t *managedIdentityResource) ImportState(ctx context.Context,
 // copyManagedIdentity copies the contents of a managed identity.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
 func (t *managedIdentityResource) copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel) error {
-
 	decodedData, err := t.decodeDataString(src.Data)
 	if err != nil {
 		return err
@@ -448,7 +449,6 @@ func (t *managedIdentityResource) encodeDataString(managedIdentityType types.Str
 // decodeDataString base64 decodes and then unmarshals the
 // AWS role, Azure client ID, Azure tenant ID, Tharsis service account path, and subject fields
 func (t *managedIdentityResource) decodeDataString(encoded string) (*managedIdentityData, error) {
-
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		return nil, err
@@ -461,5 +461,3 @@ func (t *managedIdentityResource) decodeDataString(encoded string) (*managedIden
 
 	return &result, nil
 }
-
-// The End.

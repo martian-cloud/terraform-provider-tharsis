@@ -46,7 +46,8 @@ type terraformModuleResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *terraformModuleResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_terraform_module"
 }
 
@@ -130,7 +131,8 @@ func (t *terraformModuleResource) Schema(_ context.Context, _ resource.SchemaReq
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *terraformModuleResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -138,8 +140,8 @@ func (t *terraformModuleResource) Configure(_ context.Context,
 }
 
 func (t *terraformModuleResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from Terraform module.
 	var terraformModule TerraformModuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &terraformModule)...)
@@ -171,8 +173,8 @@ func (t *terraformModuleResource) Create(ctx context.Context,
 }
 
 func (t *terraformModuleResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state TerraformModuleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -204,8 +206,8 @@ func (t *terraformModuleResource) Read(ctx context.Context,
 }
 
 func (t *terraformModuleResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// Retrieve values from plan.
 	var plan TerraformModuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -237,8 +239,8 @@ func (t *terraformModuleResource) Update(ctx context.Context,
 }
 
 func (t *terraformModuleResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state TerraformModuleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -266,8 +268,8 @@ func (t *terraformModuleResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *terraformModuleResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
@@ -287,5 +289,3 @@ func (t *terraformModuleResource) copyTerraformModule(src ttypes.TerraformModule
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
 }
-
-// The End.

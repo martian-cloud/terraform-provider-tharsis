@@ -14,11 +14,9 @@ const (
 	testGroupPath = "provider-test-parent-group"
 )
 
-var (
-	testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-		"tharsis": providerserver.NewProtocol6WithError(New()),
-	}
-)
+var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
+	"tharsis": providerserver.NewProtocol6WithError(New()),
+}
 
 // TestProvider is a very simple preliminary test to connect to a provider.
 func TestProvider(t *testing.T) {
@@ -45,5 +43,3 @@ provider "tharsis" {
 }
 	`
 }
-
-// The End.

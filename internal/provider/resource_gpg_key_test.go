@@ -8,7 +8,6 @@ import (
 )
 
 func TestGPGKey(t *testing.T) {
-
 	// Use a made-up GPG key.
 	createASCIIArmor := `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -104,10 +103,8 @@ vF7bYisZMWZogpHZ39zCe8T8zjpZ0xipaOmAhvHKR+p2Tm+OwJL7qjs6dQ==
 	updateResourcePath := updateGroupPath + "/" + updateFingerprint
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a GPG key.
 			{
 				Config: testGPGKeyConfiguration(createASCIIArmor),
@@ -158,7 +155,6 @@ vF7bYisZMWZogpHZ39zCe8T8zjpZ0xipaOmAhvHKR+p2Tm+OwJL7qjs6dQ==
 }
 
 func testGPGKeyConfiguration(asciiArmor string) string {
-
 	// Using %#v for the ASCII armor field to escape the embedded newlines.  It supplies double-quotation marks.
 	return fmt.Sprintf(`
 
@@ -168,7 +164,5 @@ resource "tharsis_gpg_key" "tgk" {
 	ascii_armor = %#v
 	group_path = tharsis_group.root-group.full_path
 }
-	`, createRootGroup(), asciiArmor)
+	`, createRootGroup(testGroupPath, "this is a test root group"), asciiArmor)
 }
-
-// The End.

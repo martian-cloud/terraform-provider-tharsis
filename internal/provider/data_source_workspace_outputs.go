@@ -23,11 +23,11 @@ const (
 
 // WorkspacesOutputsDataSourceData represents the outputs for a workspace in Tharsis.
 type WorkspacesOutputsDataSourceData struct {
+	Outputs        map[string]string `tfsdk:"outputs"`
 	Path           types.String      `tfsdk:"path"`
 	FullPath       types.String      `tfsdk:"full_path"`
 	WorkspaceID    types.String      `tfsdk:"workspace_id"`
 	StateVersionID types.String      `tfsdk:"state_version_id"`
-	Outputs        map[string]string `tfsdk:"outputs"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -38,7 +38,8 @@ var (
 // Metadata effectively replaces the DataSourceType (and thus workspaceOutputsDataSourceType)
 // It returns the full name of the data source.
 func (t workspaceOutputsDataSource) Metadata(_ context.Context,
-	_ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	_ datasource.MetadataRequest, resp *datasource.MetadataResponse,
+) {
 	typeName := "tharsis_workspace_outputs"
 	if t.isJSONEncoded {
 		typeName += "_json"
@@ -89,7 +90,8 @@ type workspaceOutputsDataSource struct {
 }
 
 func (t workspaceOutputsDataSource) Read(ctx context.Context,
-	req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	req datasource.ReadRequest, resp *datasource.ReadResponse,
+) {
 	defer func() {
 		if r := recover(); r != nil {
 			resp.Diagnostics.AddError("Oops! Something went wrong", fmt.Sprintf("%v\n%v", r, string(debug.Stack())))

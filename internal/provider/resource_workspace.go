@@ -49,7 +49,8 @@ type workspaceResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *workspaceResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_workspace"
 }
 
@@ -131,7 +132,8 @@ func (t *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *workspaceResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -139,8 +141,8 @@ func (t *workspaceResource) Configure(_ context.Context,
 }
 
 func (t *workspaceResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from workspace.
 	var workspace WorkspaceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &workspace)...)
@@ -187,8 +189,8 @@ func (t *workspaceResource) Create(ctx context.Context,
 }
 
 func (t *workspaceResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state WorkspaceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -221,8 +223,8 @@ func (t *workspaceResource) Read(ctx context.Context,
 }
 
 func (t *workspaceResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// Retrieve values from plan.
 	var plan WorkspaceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -269,8 +271,8 @@ func (t *workspaceResource) Update(ctx context.Context,
 }
 
 func (t *workspaceResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state WorkspaceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -300,8 +302,8 @@ func (t *workspaceResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *workspaceResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
 	// Get the workspace by full path from Tharsis.
 	found, err := t.client.Workspaces.GetWorkspace(ctx, &ttypes.GetWorkspaceInput{
 		Path: &req.ID,
@@ -341,5 +343,3 @@ func (t *workspaceResource) copyWorkspace(src ttypes.Workspace, dest *WorkspaceM
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
 }
-
-// The End.

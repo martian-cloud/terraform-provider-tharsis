@@ -26,10 +26,8 @@ func TestApplyModule(t *testing.T) {
 	varHCL := false
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create a root group and two workspaces.
 			{
 				Config: testApplyModuleConfigurationCreate(),
@@ -155,7 +153,7 @@ resource "tharsis_workspace" "tw2" {
 	prevent_destroy_plan = "%v"
 }
 
-	`, createRootGroup(),
+	`, createRootGroup(testGroupPath, "this is a test root group"),
 		ws1Name, ws1Desc, wsPreventDestroyPlan,
 		ws2Name, ws2Desc, wsPreventDestroyPlan,
 	)
@@ -188,5 +186,3 @@ resource "tharsis_apply_module" "tam" {
 		ws1Path, moduleSource, varValueBase, val, varKey, varCategory, varHCL,
 	)
 }
-
-// The End.

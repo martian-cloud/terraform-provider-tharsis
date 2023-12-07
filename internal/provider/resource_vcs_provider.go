@@ -18,19 +18,19 @@ import (
 
 // VCSProviderModel is the model for a VCS provider.
 type VCSProviderModel struct {
-	ID                    types.String `tfsdk:"id"`
+	ResourcePath          types.String `tfsdk:"resource_path"`
 	LastUpdated           types.String `tfsdk:"last_updated"`
 	CreatedBy             types.String `tfsdk:"created_by"`
 	Name                  types.String `tfsdk:"name"`
 	Description           types.String `tfsdk:"description"`
 	GroupPath             types.String `tfsdk:"group_path"`
-	ResourcePath          types.String `tfsdk:"resource_path"`
+	ID                    types.String `tfsdk:"id"`
 	URL                   types.String `tfsdk:"url"`
 	Type                  types.String `tfsdk:"type"`
-	AutoCreateWebhooks    types.Bool   `tfsdk:"auto_create_webhooks"`
 	OAuthClientID         types.String `tfsdk:"oauth_client_id"`
 	OAuthClientSecret     types.String `tfsdk:"oauth_client_secret"`
 	OAuthAuthorizationURL types.String `tfsdk:"oauth_authorization_url"`
+	AutoCreateWebhooks    types.Bool   `tfsdk:"auto_create_webhooks"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -51,7 +51,8 @@ type vcsProviderResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *vcsProviderResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_vcs_provider"
 }
 
@@ -165,7 +166,8 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *vcsProviderResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -173,8 +175,8 @@ func (t *vcsProviderResource) Configure(_ context.Context,
 }
 
 func (t *vcsProviderResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from VCS provider.
 	var vcsProvider VCSProviderModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &vcsProvider)...)
@@ -211,8 +213,8 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 }
 
 func (t *vcsProviderResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state VCSProviderModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -245,8 +247,8 @@ func (t *vcsProviderResource) Read(ctx context.Context,
 }
 
 func (t *vcsProviderResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// Retrieve values from plan.
 	var plan VCSProviderModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -279,8 +281,8 @@ func (t *vcsProviderResource) Update(ctx context.Context,
 }
 
 func (t *vcsProviderResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state VCSProviderModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -310,8 +312,8 @@ func (t *vcsProviderResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *vcsProviderResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
@@ -336,5 +338,3 @@ func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSP
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
 }
-
-// The End.

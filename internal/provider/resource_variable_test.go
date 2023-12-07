@@ -19,10 +19,8 @@ func TestVariable(t *testing.T) {
 	updateValue := "updated-value"
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a variable.
 			{
 				Config: testVariableConfigurationCreate(),
@@ -85,7 +83,7 @@ resource "tharsis_variable" "tnv" {
 	key = "%s"
 	value = "%s"
 }
-	`, createRootGroup(), createCategory, createHCL, createKey, createValue)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createCategory, createHCL, createKey, createValue)
 }
 
 func testVariableConfigurationUpdate() string {
@@ -105,7 +103,5 @@ resource "tharsis_variable" "tnv" {
 	key = "%s"
 	value = "%s"
 }
-	`, createRootGroup(), createCategory, updateHCL, updateKey, updateValue)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createCategory, updateHCL, updateKey, updateValue)
 }
-
-// The End.
