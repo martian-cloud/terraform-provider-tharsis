@@ -20,11 +20,9 @@ func TestManagedIdentityAWS(t *testing.T) {
 	updatedAWSRole := "updated-iam-role"
 
 	resource.Test(t, resource.TestCase{
-
 		// AWS managed identities
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a managed identity.
 			{
 				Config: testSharedProviderConfiguration() + testManagedIdentityAWSConfigurationCreate(),
@@ -92,11 +90,9 @@ func TestManagedIdentityAzure(t *testing.T) {
 	updatedAzureTenantID := "updated-azure-tenant-id"
 
 	resource.Test(t, resource.TestCase{
-
 		// Azure managed identities
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a managed identity.
 			{
 				Config: testSharedProviderConfiguration() + testManagedIdentityAzureConfigurationCreate(),
@@ -162,11 +158,9 @@ func TestManagedIdentityTharsis(t *testing.T) {
 	updatedTharsisServiceAccountPath := "updated-tharsis-service-account-path"
 
 	resource.Test(t, resource.TestCase{
-
 		// Tharsis managed identities
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a managed identity.
 			{
 				Config: testSharedProviderConfiguration() + testManagedIdentityTharsisConfigurationCreate(),
@@ -237,7 +231,7 @@ resource "tharsis_managed_identity" "tmi_aws" {
 	aws_role    = "%s"
 }
 
-	`, createRootGroup(), createType, createName, createDescription, createAWSRole)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createType, createName, createDescription, createAWSRole)
 }
 
 func testManagedIdentityAWSConfigurationUpdate() string {
@@ -257,7 +251,7 @@ resource "tharsis_managed_identity" "tmi_aws" {
 	aws_role    = "%s"
 }
 
-	`, createRootGroup(), createType, createName, updatedDescription, updatedAWSRole)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createType, createName, updatedDescription, updatedAWSRole)
 }
 
 func testManagedIdentityAzureConfigurationCreate() string {
@@ -279,7 +273,7 @@ resource "tharsis_managed_identity" "tmi_azure" {
 	azure_tenant_id = "%s"
 }
 
-	`, createRootGroup(), createType, createName, createDescription, createAzureClientID, createAzureTenantID)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createType, createName, createDescription, createAzureClientID, createAzureTenantID)
 }
 
 func testManagedIdentityAzureConfigurationUpdate() string {
@@ -301,7 +295,7 @@ resource "tharsis_managed_identity" "tmi_azure" {
 	azure_tenant_id = "%s"
 }
 
-	`, createRootGroup(), createType, createName, updatedDescription, updatedAzureClientID, updatedAzureTenantID)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createType, createName, updatedDescription, updatedAzureClientID, updatedAzureTenantID)
 }
 
 func testManagedIdentityTharsisConfigurationCreate() string {
@@ -321,7 +315,7 @@ resource "tharsis_managed_identity" "tmi_tharsis" {
 	tharsis_service_account_path = "%s"
 }
 
-	`, createRootGroup(), createType, createName, createDescription, createTharsisServiceAccountPath)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createType, createName, createDescription, createTharsisServiceAccountPath)
 }
 
 func testManagedIdentityTharsisConfigurationUpdate() string {
@@ -341,7 +335,5 @@ resource "tharsis_managed_identity" "tmi_tharsis" {
 	tharsis_service_account_path = "%s"
 }
 
-	`, createRootGroup(), createType, createName, updatedDescription, updatedTharsisServiceAccountPath)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createType, createName, updatedDescription, updatedTharsisServiceAccountPath)
 }
-
-// The End.

@@ -47,7 +47,8 @@ type gpgKeyResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *gpgKeyResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_gpg_key"
 }
 
@@ -126,7 +127,8 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *gpgKeyResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -134,8 +136,8 @@ func (t *gpgKeyResource) Configure(_ context.Context,
 }
 
 func (t *gpgKeyResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from GPG key.
 	var gpgKey GPGKeyModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &gpgKey)...)
@@ -165,8 +167,8 @@ func (t *gpgKeyResource) Create(ctx context.Context,
 }
 
 func (t *gpgKeyResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state GPGKeyModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -199,8 +201,8 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 }
 
 func (t *gpgKeyResource) Update(_ context.Context,
-	_ resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	_ resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// This method must exist to comply with the required interfaces,
 	// but all input attributes have the RequiresReplace plan modifier,
 	// so there's nothing for it to do.  It should never be called.
@@ -213,8 +215,8 @@ func (t *gpgKeyResource) Update(_ context.Context,
 }
 
 func (t *gpgKeyResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state GPGKeyModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -244,8 +246,8 @@ func (t *gpgKeyResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *gpgKeyResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
@@ -264,5 +266,3 @@ func (t *gpgKeyResource) copyGPGKey(src ttypes.GPGKey, dest *GPGKeyModel) {
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
 }
-
-// The End.

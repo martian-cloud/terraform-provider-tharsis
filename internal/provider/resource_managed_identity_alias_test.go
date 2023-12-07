@@ -15,10 +15,8 @@ func TestManagedIdentityAlias(t *testing.T) {
 	createResourcePath := createAliasRootGroupPath + "/" + createName
 
 	resource.Test(t, resource.TestCase{
-
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-
 			// Create and read back a managed identity alias.
 			{
 				Config: testSharedProviderConfiguration() + testManagedIdentityAliasConfiguration("tmi_aws"),
@@ -114,7 +112,7 @@ resource "tharsis_managed_identity_alias" "tmi_alias" {
 	alias_source_id = tharsis_managed_identity.%s.id
 }
 
-	`, createRootGroup(),
+	`, createRootGroup(testGroupPath, "this is a test root group"),
 		sourceIdentityAWSType,
 		sourceIdentityAWSName,
 		sourceIdentityAWSDescription,

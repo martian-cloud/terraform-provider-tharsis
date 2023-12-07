@@ -15,8 +15,8 @@ import (
 
 // OIDCTrustPolicyModel is the model for a trust policy.
 type OIDCTrustPolicyModel struct {
-	Issuer      types.String            `tfsdk:"issuer"`
 	BoundClaims map[string]types.String `tfsdk:"bound_claims"`
+	Issuer      types.String            `tfsdk:"issuer"`
 }
 
 // ServiceAccountModel is the model for a service account.
@@ -48,7 +48,8 @@ type serviceAccountResource struct {
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
 func (t *serviceAccountResource) Metadata(_ context.Context,
-	_ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	_ resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
 	resp.TypeName = "tharsis_service_account"
 }
 
@@ -125,7 +126,8 @@ func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequ
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
 func (t *serviceAccountResource) Configure(_ context.Context,
-	req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
+) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -133,8 +135,8 @@ func (t *serviceAccountResource) Configure(_ context.Context,
 }
 
 func (t *serviceAccountResource) Create(ctx context.Context,
-	req resource.CreateRequest, resp *resource.CreateResponse) {
-
+	req resource.CreateRequest, resp *resource.CreateResponse,
+) {
 	// Retrieve values from service account.
 	var serviceAccount ServiceAccountModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &serviceAccount)...)
@@ -167,8 +169,8 @@ func (t *serviceAccountResource) Create(ctx context.Context,
 }
 
 func (t *serviceAccountResource) Read(ctx context.Context,
-	req resource.ReadRequest, resp *resource.ReadResponse) {
-
+	req resource.ReadRequest, resp *resource.ReadResponse,
+) {
 	// Get the current state.
 	var state ServiceAccountModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -201,8 +203,8 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 }
 
 func (t *serviceAccountResource) Update(ctx context.Context,
-	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
+) {
 	// Retrieve values from plan.
 	var plan ServiceAccountModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -235,8 +237,8 @@ func (t *serviceAccountResource) Update(ctx context.Context,
 }
 
 func (t *serviceAccountResource) Delete(ctx context.Context,
-	req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
+	req resource.DeleteRequest, resp *resource.DeleteResponse,
+) {
 	// Get the current state.
 	var state ServiceAccountModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -266,8 +268,8 @@ func (t *serviceAccountResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 func (t *serviceAccountResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
@@ -318,5 +320,3 @@ func (t *serviceAccountResource) copyTrustPoliciesToInput(models []OIDCTrustPoli
 
 	return result
 }
-
-// The End.
