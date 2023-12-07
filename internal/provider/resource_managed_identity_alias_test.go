@@ -8,8 +8,7 @@ import (
 	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
-// TestManagedIdentityTharsis tests creation, reading, updating, and deletion of a managed identity alias resource.
-func TestManagedIdentityAlias(t *testing.T) {
+func TestManagedIdentityAliasWithSourceID(t *testing.T) {
 	createName := "tmi_test_alias"
 	createAliasRootGroupPath := "provider-test-managed-identity-alias-group"
 	createResourcePath := createAliasRootGroupPath + "/" + createName
@@ -21,7 +20,7 @@ func TestManagedIdentityAlias(t *testing.T) {
 
 			// Create and read back a managed identity alias.
 			{
-				Config: testSharedProviderConfiguration() + testManagedIdentityAliasConfiguration("tmi_aws"),
+				Config: testSharedProviderConfiguration() + testManagedIdentityAliasConfiguration("tmi_aws", false),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "resource_path", createResourcePath),
@@ -45,7 +44,7 @@ func TestManagedIdentityAlias(t *testing.T) {
 			// Update (which requires replacement) and read back.
 			{
 				// Update and read back a managed identity alias (doesn't change fields).
-				Config: testSharedProviderConfiguration() + testManagedIdentityAliasConfiguration("tmi_azure"),
+				Config: testSharedProviderConfiguration() + testManagedIdentityAliasConfiguration("tmi_azure", false),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "resource_path", createResourcePath),
@@ -64,7 +63,63 @@ func TestManagedIdentityAlias(t *testing.T) {
 	})
 }
 
-func testManagedIdentityAliasConfiguration(sourceName string) string {
+func TestManagedIdentityAliasWithSourcePath(t *testing.T) {
+	createName := "tmi_test_alias"
+	createAliasRootGroupPath := "provider-test-managed-identity-alias-group"
+	createResourcePath := createAliasRootGroupPath + "/" + createName
+
+	resource.Test(t, resource.TestCase{
+
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+
+			// Create and read back a managed identity alias.
+			{
+				Config: testSharedProviderConfiguration() + testManagedIdentityAliasConfiguration("tmi_aws", true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "resource_path", createResourcePath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "group_path", createAliasRootGroupPath),
+
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "last_updated"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "alias_source_id"),
+				),
+			},
+
+			// Import state.
+			{
+				ResourceName:            "tharsis_managed_identity_alias.tmi_alias",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"alias_source_path"},
+			},
+
+			// Update (which requires replacement) and read back.
+			{
+				// Update and read back a managed identity alias (doesn't change fields).
+				Config: testSharedProviderConfiguration() + testManagedIdentityAliasConfiguration("tmi_azure", true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "resource_path", createResourcePath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_alias.tmi_alias", "group_path", createAliasRootGroupPath),
+
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "last_updated"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity_alias.tmi_alias", "alias_source_id"),
+				),
+			},
+
+			// Destroy should be covered automatically by TestCase.
+		},
+	})
+}
+
+func testManagedIdentityAliasConfiguration(sourceName string, withPath bool) string {
 	sourceIdentityAWSType := string(ttypes.ManagedIdentityAWSFederated)
 	sourceIdentityAWSName := "tmi_aws_name"
 	sourceIdentityAWSDescription := "this is tmi_aws, a Tharsis managed identity of AWS type"
@@ -82,6 +137,13 @@ func testManagedIdentityAliasConfiguration(sourceName string) string {
 
 	// Alias fields.
 	createAliasName := "tmi_test_alias"
+
+	// Decide whether we're using path or ID for the alias source.
+	aliasSource := fmt.Sprintf("alias_source_id = tharsis_managed_identity.%s.id", sourceName)
+	if withPath {
+		aliasSource = fmt.Sprintf("alias_source_path = tharsis_managed_identity.%s.resource_path", sourceName)
+	}
+
 	return fmt.Sprintf(`
 
 %s
@@ -111,7 +173,7 @@ resource "tharsis_group" "alias-group" {
 resource "tharsis_managed_identity_alias" "tmi_alias" {
 	name = "%s"
 	group_path = tharsis_group.alias-group.full_path
-	alias_source_id = tharsis_managed_identity.%s.id
+	%s
 }
 
 	`, createRootGroup(),
@@ -127,6 +189,6 @@ resource "tharsis_managed_identity_alias" "tmi_alias" {
 		createAliasRootGroupPath,
 		createAliasRootGroupDescription,
 		createAliasName,
-		sourceName,
+		aliasSource,
 	)
 }
