@@ -65,9 +65,9 @@ func TestRootGroup(t *testing.T) {
 	})
 }
 
-func TestGroupEmptyDescription(t *testing.T) {
+func TestGroupNoDescription(t *testing.T) {
 	createName := "trg_name"
-	createDescription := ""
+	computedDescription := ""
 	updatedDescription := "this is an updated description for root-group, a test root group"
 
 	resource.Test(t, resource.TestCase{
@@ -75,11 +75,11 @@ func TestGroupEmptyDescription(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and read back a root group.
 			{
-				Config: createRootGroup(createName, createDescription),
+				Config: createRootGroupOptionalDescription(createName, nil),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_group.root-group", "name", createName),
-					resource.TestCheckResourceAttr("tharsis_group.root-group", "description", createDescription),
+					resource.TestCheckResourceAttr("tharsis_group.root-group", "description", computedDescription),
 					resource.TestCheckResourceAttr("tharsis_group.root-group", "full_path", createName),
 
 					// Verify that the parent path is _NOT_ set.
@@ -180,13 +180,21 @@ func TestNestedGroup(t *testing.T) {
 }
 
 func createRootGroup(name, description string) string {
+	return createRootGroupOptionalDescription(name, &description)
+}
+
+func createRootGroupOptionalDescription(name string, description *string) string {
+	fmtDescription := ""
+	if description != nil {
+		fmtDescription = fmt.Sprintf("\n	description = \"%s\"", *description)
+	}
+
 	return fmt.Sprintf(`
 
 resource "tharsis_group" "root-group" {
-	name = "%s"
-	description = "%s"
+	name = "%s"%s
 }
-	`, name, description)
+	`, name, fmtDescription)
 }
 
 func testGroupNestedConfiguration(name, description string) string {
