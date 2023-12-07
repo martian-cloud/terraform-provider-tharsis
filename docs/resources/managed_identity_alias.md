@@ -22,8 +22,8 @@ Defines and manages a managed identity alias.
 
 ### Optional
 
-- `alias_source_id` (String) ID of the managed identity being aliased
-- `alias_source_path` (String) Full path of the managed identity being aliased
+- `alias_source_id` (String) ID of the managed identity being aliased.
+- `alias_source_path` (String) Full path of the managed identity being aliased.
 
 ### Read-Only
 
