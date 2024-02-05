@@ -185,6 +185,7 @@ func (p *tharsisProvider) Resources(context.Context) []func() resource.Resource 
 		NewWorkspaceResource,
 		NewApplyModuleResource,
 		NewWorkspaceVCSProviderLinkResource,
+		NewAssignedManagedIdentityResource,
 	}
 }
 
