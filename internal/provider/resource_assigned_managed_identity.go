@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/aws/smithy-go/ptr"
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -16,6 +17,7 @@ import (
 
 // AssignedManagedIdentityModel is the model for an assigned managed identity.
 type AssignedManagedIdentityModel struct {
+	ID                types.String `tfsdk:"id"`
 	ManagedIdentityID types.String `tfsdk:"managed_identity_id"`
 	WorkspaceID       types.String `tfsdk:"workspace_id"`
 }
@@ -51,6 +53,14 @@ func (t *assignedManagedIdentityResource) Schema(_ context.Context, _ resource.S
 		MarkdownDescription: description,
 		Description:         description,
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				MarkdownDescription: "An ID for this tharsis_assigned_managed_identity resource.",
+				Description:         "An ID for this tharsis_assigned_managed_identity resource.",
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(), // set once during create, kept in state thereafter
+				},
+			},
 			"managed_identity_id": schema.StringAttribute{
 				MarkdownDescription: "The ID of the assigned managed identity.",
 				Description:         "The ID of the assigned managed identity.",
@@ -121,6 +131,7 @@ func (t *assignedManagedIdentityResource) Create(ctx context.Context,
 	}
 
 	created := AssignedManagedIdentityModel{
+		ID:                types.StringValue(uuid.New().String()), // computed with no input from any other resource
 		ManagedIdentityID: types.StringValue(managedIdentityID),
 		WorkspaceID:       types.StringValue(workspace.Metadata.ID),
 	}
