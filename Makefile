@@ -1,4 +1,5 @@
 
+PACKAGES := $(shell go list ./... | grep -v /vendor/)
 TEST?=$$(go list ./... | grep -v 'vendor')
 HOSTNAME=registry.terraform.io
 NAMESPACE=martian-cloud
@@ -19,6 +20,14 @@ build:
 install: build
 	mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
 	mv ${BINARY} ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
+
+.PHONY: vet
+vet: ## run golint on all Go package
+	@go vet $(PACKAGES)
+
+.PHONY: fmt
+fmt: ## run "go fmt" on all Go packages
+	@go fmt $(PACKAGES)
 
 test:
 	go test $(TEST) || exit 1
