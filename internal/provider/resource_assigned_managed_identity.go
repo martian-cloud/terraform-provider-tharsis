@@ -128,17 +128,12 @@ func (t *assignedManagedIdentityResource) Create(ctx context.Context,
 		return
 	}
 
-	created := AssignedManagedIdentityModel{
+	// Set the response state to the fully-populated plan, whether or not there is an error.
+	resp.Diagnostics.Append(resp.State.Set(ctx, AssignedManagedIdentityModel{
 		ID:                types.StringValue(uuid.New().String()), // computed with no input from any other resource
 		ManagedIdentityID: types.StringValue(managedIdentityID),
 		WorkspaceID:       types.StringValue(workspace.Metadata.ID),
-	}
-
-	// Map the response body to the schema.  (There are no computed values to update to the plan.)
-	t.copyAssignedManagedIdentity(&created, &assignment)
-
-	// Set the response state to the fully-populated plan, whether or not there is an error.
-	resp.Diagnostics.Append(resp.State.Set(ctx, assignment)...)
+	})...)
 }
 
 func (t *assignedManagedIdentityResource) Read(ctx context.Context,
