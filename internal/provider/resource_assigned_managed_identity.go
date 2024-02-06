@@ -130,8 +130,6 @@ func (t *assignedManagedIdentityResource) Create(ctx context.Context,
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	newManufacturedID := uuid.New().String()
-	// FIXME: Unless this line turns out to be necessary, remove it.
-	// resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), newManufacturedID)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &AssignedManagedIdentityModel{
 		ID:                types.StringValue(newManufacturedID), // computed with no input from any other resource
 		ManagedIdentityID: types.StringValue(managedIdentityID),
@@ -265,7 +263,7 @@ func (t *assignedManagedIdentityResource) Delete(ctx context.Context,
 func (t *assignedManagedIdentityResource) copyAssignedManagedIdentity(
 	src, dest *AssignedManagedIdentityModel,
 ) {
-	dest.ID = src.ID
+	// Do NOT copy the ID.	It is computed and set once during create, and kept in state thereafter.
 	dest.ManagedIdentityID = src.ManagedIdentityID
 	dest.WorkspaceID = src.WorkspaceID
 }
