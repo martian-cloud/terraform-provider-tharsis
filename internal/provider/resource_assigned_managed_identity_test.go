@@ -52,56 +52,46 @@ func TestAssignedManagedIdentity(t *testing.T) {
 }
 
 func testAssignedManagedIdentityConfiguration() string {
+	createWorkspaceName := "tw_name"
+	createWorkspaceDescription := "this is tw, a test workspace"
+	createMaxJobDuration := 1234      // must not exceed 1440
+	createTerraformVersion := "1.2.3" // must be a valid version
+	createPreventDestroyPlan := true
+
+	createType := string(ttypes.ManagedIdentityTharsisFederated)
+	createManagedIdentityName := "tmi_tharsis_name"
+	createManagedIdentityDescription := "this is tmi_tharsis, a Tharsis managed identity of Tharsis type"
+	createTharsisServiceAccountPath := "some-tharsis-service-account-path"
+
 	return createRootGroup(testGroupPath, "this is a test root group") +
-		testAssignedMICreateWorkspace() +
-		testAssignedManagedIdentityCreateManagedIdentity() +
 		fmt.Sprintf(`
+
+	resource "tharsis_workspace" "tw" {
+		name = "%s"
+		description = "%s"
+		group_path = tharsis_group.root-group.full_path
+		max_job_duration = "%d"
+		terraform_version = "%s"
+		prevent_destroy_plan = "%v"
+	}
+		`, createWorkspaceName, createWorkspaceDescription,
+			createMaxJobDuration, createTerraformVersion, createPreventDestroyPlan) +
+		fmt.Sprintf(`
+
+			resource "tharsis_managed_identity" "tmi_tharsis" {
+				type                         = "%s"
+				name                         = "%s"
+				description                  = "%s"
+				group_path                   = tharsis_group.root-group.full_path
+				tharsis_service_account_path = "%s"
+			}
+
+				`, createType, createManagedIdentityName, createManagedIdentityDescription, createTharsisServiceAccountPath) +
+		`
 
 resource "tharsis_assigned_managed_identity" "tami1" {
 	managed_identity_id = tharsis_managed_identity.tmi_tharsis.id
 	workspace_id = tharsis_workspace.tw.id
 }
-`,
-		)
-}
-
-func testAssignedMICreateWorkspace() string {
-	createName := "tw_name"
-	createDescription := "this is tw, a test workspace"
-	createMaxJobDuration := 1234      // must not exceed 1440
-	createTerraformVersion := "1.2.3" // must be a valid version
-	createPreventDestroyPlan := true
-
-	return fmt.Sprintf(`
-
-resource "tharsis_workspace" "tw" {
-	name = "%s"
-	description = "%s"
-	group_path = tharsis_group.root-group.full_path
-	max_job_duration = "%d"
-	terraform_version = "%s"
-	prevent_destroy_plan = "%v"
-}
-	`, createName, createDescription,
-		createMaxJobDuration, createTerraformVersion, createPreventDestroyPlan)
-
-}
-
-func testAssignedManagedIdentityCreateManagedIdentity() string {
-	createType := string(ttypes.ManagedIdentityTharsisFederated)
-	createName := "tmi_tharsis_name"
-	createDescription := "this is tmi_tharsis, a Tharsis managed identity of Tharsis type"
-	createTharsisServiceAccountPath := "some-tharsis-service-account-path"
-	return fmt.Sprintf(`
-
-resource "tharsis_managed_identity" "tmi_tharsis" {
-	type                         = "%s"
-	name                         = "%s"
-	description                  = "%s"
-	group_path                   = tharsis_group.root-group.full_path
-	tharsis_service_account_path = "%s"
-}
-
-	`, createType, createName, createDescription, createTharsisServiceAccountPath)
-
+`
 }

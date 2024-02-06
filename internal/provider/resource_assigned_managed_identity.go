@@ -153,25 +153,6 @@ func (t *assignedManagedIdentityResource) Read(ctx context.Context,
 		return
 	}
 
-	// Get the workspace from Tharsis so we can have its ID.
-	workspace, err := t.client.Workspaces.GetWorkspace(ctx,
-		&ttypes.GetWorkspaceInput{
-			ID: ptr.String(state.WorkspaceID.ValueString()),
-		},
-	)
-	if err != nil {
-		if tharsis.IsNotFoundError(err) {
-			resp.State.RemoveResource(ctx)
-			return
-		}
-
-		resp.Diagnostics.AddError(
-			"Error reading workspace",
-			err.Error(),
-		)
-		return
-	}
-
 	// Get the assigned managed identities from Tharsis.
 	managedIdentities, err := t.client.Workspaces.GetAssignedManagedIdentities(ctx,
 		&ttypes.GetAssignedManagedIdentitiesInput{
@@ -180,6 +161,10 @@ func (t *assignedManagedIdentityResource) Read(ctx context.Context,
 	if err != nil {
 		if tharsis.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
+			resp.Diagnostics.AddError(
+				"Error finding assigned specified workspace and its managed identities",
+				"error finding assigned specified workspace and its managed identities",
+			)
 			return
 		}
 
@@ -197,17 +182,13 @@ func (t *assignedManagedIdentityResource) Read(ctx context.Context,
 		if candidate.Metadata.ID == wantID {
 			found = &AssignedManagedIdentityModel{
 				ManagedIdentityID: types.StringValue(candidate.Metadata.ID),
-				WorkspaceID:       types.StringValue(workspace.Metadata.ID),
+				WorkspaceID:       state.WorkspaceID,
 			}
 			break
 		}
 	}
 	if found == nil {
 		resp.State.RemoveResource(ctx)
-		resp.Diagnostics.AddError(
-			"Error finding assigned specified managed identity",
-			"error finding assigned specified managed identity",
-		)
 		return
 	}
 
@@ -277,7 +258,7 @@ func (t *assignedManagedIdentityResource) Delete(ctx context.Context,
 		}
 
 		resp.Diagnostics.AddError(
-			"Error deleting assigned managed identity",
+			"Error removing assigned managed identity",
 			err.Error(),
 		)
 	}
@@ -296,6 +277,7 @@ func (t *assignedManagedIdentityResource) ImportState(ctx context.Context,
 func (t *assignedManagedIdentityResource) copyAssignedManagedIdentity(
 	src, dest *AssignedManagedIdentityModel,
 ) {
+	dest.ID = src.ID
 	dest.ManagedIdentityID = src.ManagedIdentityID
 	dest.WorkspaceID = src.WorkspaceID
 }
