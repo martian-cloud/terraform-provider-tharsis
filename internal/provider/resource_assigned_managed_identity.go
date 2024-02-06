@@ -5,7 +5,6 @@ import (
 
 	"github.com/aws/smithy-go/ptr"
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -131,7 +130,8 @@ func (t *assignedManagedIdentityResource) Create(ctx context.Context,
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	newManufacturedID := uuid.New().String()
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), newManufacturedID)...)
+	// FIXME: Unless this line turns out to be necessary, remove it.
+	// resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), newManufacturedID)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &AssignedManagedIdentityModel{
 		ID:                types.StringValue(newManufacturedID), // computed with no input from any other resource
 		ManagedIdentityID: types.StringValue(managedIdentityID),
