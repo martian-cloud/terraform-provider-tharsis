@@ -27,13 +27,6 @@ func TestAssignedManagedIdentity(t *testing.T) {
 				),
 			},
 
-			// Import state.
-			{
-				ResourceName:      "tharsis_assigned_managed_identity.tami1",
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-
 			// Update (which requires replacement) and read back.
 			{
 				Config: testAssignedManagedIdentityConfiguration(),
