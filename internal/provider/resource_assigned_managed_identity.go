@@ -5,7 +5,6 @@ import (
 
 	"github.com/aws/smithy-go/ptr"
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -24,9 +23,8 @@ type AssignedManagedIdentityModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = (*assignedManagedIdentityResource)(nil)
-	_ resource.ResourceWithConfigure   = (*assignedManagedIdentityResource)(nil)
-	_ resource.ResourceWithImportState = (*assignedManagedIdentityResource)(nil)
+	_ resource.Resource              = (*assignedManagedIdentityResource)(nil)
+	_ resource.ResourceWithConfigure = (*assignedManagedIdentityResource)(nil)
 )
 
 // NewAssignedManagedIdentityResource is a helper function to simplify the provider implementation.
@@ -262,14 +260,6 @@ func (t *assignedManagedIdentityResource) Delete(ctx context.Context,
 			err.Error(),
 		)
 	}
-}
-
-// ImportState helps the provider implement the ResourceWithImportState interface.
-func (t *assignedManagedIdentityResource) ImportState(ctx context.Context,
-	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
-) {
-	// Retrieve import ID and save to id attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // copyAssignedManagedIdentity copies the contents of an assigned managed identity.
