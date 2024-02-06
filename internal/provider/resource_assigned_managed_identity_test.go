@@ -22,8 +22,8 @@ func TestAssignedManagedIdentity(t *testing.T) {
 					// There are no values in an assigned managed identity that are known.
 
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet("tharsis_assigned_managed_identity.tami", "managed_identity_id"),
-					resource.TestCheckResourceAttrSet("tharsis_assigned_managed_identity.tami", "workspace_id"),
+					resource.TestCheckResourceAttrSet("tharsis_assigned_managed_identity.tami1", "managed_identity_id"),
+					resource.TestCheckResourceAttrSet("tharsis_assigned_managed_identity.tami1", "workspace_id"),
 				),
 			},
 
@@ -41,8 +41,8 @@ func TestAssignedManagedIdentity(t *testing.T) {
 					// There are no values in an assigned managed identity that are known.
 
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet("tharsis_assigned_managed_identity.tami", "managed_identity_id"),
-					resource.TestCheckResourceAttrSet("tharsis_assigned_managed_identity.tami", "workspace_id"),
+					resource.TestCheckResourceAttrSet("tharsis_assigned_managed_identity.tami1", "managed_identity_id"),
+					resource.TestCheckResourceAttrSet("tharsis_assigned_managed_identity.tami1", "workspace_id"),
 				),
 			},
 
