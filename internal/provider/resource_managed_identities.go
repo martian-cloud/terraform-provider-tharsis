@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -245,7 +246,7 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 
 	// Get the managed identity from Tharsis.
 	found, err := t.client.ManagedIdentity.GetManagedIdentity(ctx, &ttypes.GetManagedIdentityInput{
-		ID: state.ID.ValueString(),
+		ID: ptr.String(state.ID.ValueString()),
 	})
 	if err != nil {
 		if tharsis.IsNotFoundError(err) {
