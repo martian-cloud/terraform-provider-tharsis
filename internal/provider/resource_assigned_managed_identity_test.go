@@ -1,11 +1,9 @@
 package provider
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
 // TestAssignedManagedIdentity tests creation, reading, updating, and deletion of an assigned managed identity resource,
@@ -45,46 +43,30 @@ func TestAssignedManagedIdentity(t *testing.T) {
 }
 
 func testAssignedManagedIdentityConfiguration() string {
-	createWorkspaceName := "tw_name"
-	createWorkspaceDescription := "this is tw, a test workspace"
-	createMaxJobDuration := 1234      // must not exceed 1440
-	createTerraformVersion := "1.2.3" // must be a valid version
-	createPreventDestroyPlan := true
-
-	createType := string(ttypes.ManagedIdentityTharsisFederated)
-	createManagedIdentityName := "tmi_tharsis_name"
-	createManagedIdentityDescription := "this is tmi_tharsis, a Tharsis managed identity of Tharsis type"
-	createTharsisServiceAccountPath := "some-tharsis-service-account-path"
-
 	return createRootGroup(testGroupPath, "this is a test root group") +
-		fmt.Sprintf(`
-
-	resource "tharsis_workspace" "tw" {
-		name = "%s"
-		description = "%s"
-		group_path = tharsis_group.root-group.full_path
-		max_job_duration = "%d"
-		terraform_version = "%s"
-		prevent_destroy_plan = "%v"
-	}
-		`, createWorkspaceName, createWorkspaceDescription,
-			createMaxJobDuration, createTerraformVersion, createPreventDestroyPlan) +
-		fmt.Sprintf(`
-
-			resource "tharsis_managed_identity" "tmi_tharsis" {
-				type                         = "%s"
-				name                         = "%s"
-				description                  = "%s"
-				group_path                   = tharsis_group.root-group.full_path
-				tharsis_service_account_path = "%s"
-			}
-
-				`, createType, createManagedIdentityName, createManagedIdentityDescription, createTharsisServiceAccountPath) +
 		`
 
-resource "tharsis_assigned_managed_identity" "tami1" {
-	managed_identity_id = tharsis_managed_identity.tmi_tharsis.id
-	workspace_id = tharsis_workspace.tw.id
-}
-`
+	resource "tharsis_workspace" "tw" {
+		name = "tw_name"
+		description = "this is tw, a test workspace"
+		group_path = tharsis_group.root-group.full_path
+		max_job_duration = "1234"
+		terraform_version = "1.2.3"
+		prevent_destroy_plan = "true"
+	}
+
+	resource "tharsis_managed_identity" "tmi_tharsis" {
+		type                         = "tharsis_federated"
+		name                         = "tmi_tharsis_name"
+		description                  = "this is tmi_tharsis, a Tharsis managed identity of Tharsis type"
+		group_path                   = tharsis_group.root-group.full_path
+		tharsis_service_account_path = "some-tharsis-service-account-path"
+	}
+
+	resource "tharsis_assigned_managed_identity" "tami1" {
+		managed_identity_id = tharsis_managed_identity.tmi_tharsis.id
+		workspace_id = tharsis_workspace.tw.id
+	}
+
+	`
 }

@@ -157,7 +157,7 @@ func (t *assignedManagedIdentityResource) Read(ctx context.Context,
 			resp.State.RemoveResource(ctx)
 			resp.Diagnostics.AddError(
 				"Error finding assigned specified workspace and its managed identities",
-				"error finding assigned specified workspace and its managed identities",
+				"either the workspace no longer exists or there was another problem with database access",
 			)
 			return
 		}
@@ -187,7 +187,9 @@ func (t *assignedManagedIdentityResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyAssignedManagedIdentity(found, &state)
+	// Do NOT copy the ID.	It is computed and set once during create, and kept in state thereafter.
+	state.ManagedIdentityID = found.ManagedIdentityID
+	state.WorkspaceID = found.WorkspaceID
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -256,14 +258,4 @@ func (t *assignedManagedIdentityResource) Delete(ctx context.Context,
 			err.Error(),
 		)
 	}
-}
-
-// copyAssignedManagedIdentity copies the contents of an assigned managed identity.
-// It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *assignedManagedIdentityResource) copyAssignedManagedIdentity(
-	src, dest *AssignedManagedIdentityModel,
-) {
-	// Do NOT copy the ID.	It is computed and set once during create, and kept in state thereafter.
-	dest.ManagedIdentityID = src.ManagedIdentityID
-	dest.WorkspaceID = src.WorkspaceID
 }
