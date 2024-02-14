@@ -8,7 +8,6 @@ import (
 
 	"github.com/aws/smithy-go/ptr"
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -17,7 +16,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-	"github.com/martian-cloud/terraform-provider-tharsis/internal/modifiers"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
@@ -162,9 +160,6 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "Optional list of variables for the run in the target workspace.",
 				Description:         "Optional list of variables for the run in the target workspace.",
 				Optional:            true,
-				PlanModifiers: []planmodifier.List{
-					modifiers.ListDefault([]attr.Value{}),
-				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"value": schema.StringAttribute{
