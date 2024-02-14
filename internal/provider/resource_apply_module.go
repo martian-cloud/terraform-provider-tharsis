@@ -162,7 +162,6 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "Optional list of variables for the run in the target workspace.",
 				Description:         "Optional list of variables for the run in the target workspace.",
 				Optional:            true,
-				Computed:            true, // Terraform requires it to be computed if it's optional.
 				PlanModifiers: []planmodifier.List{
 					modifiers.ListDefault([]attr.Value{}),
 				},
