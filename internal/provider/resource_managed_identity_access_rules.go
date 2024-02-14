@@ -160,6 +160,7 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				MarkdownDescription: "Whether to verify the state lineage's attestation status, default is false.",
 				Description:         "Whether to verify the state lineage's attestation status, default is false.",
 				Optional:            true,
+				Computed:            true, // When not passed it, it needs to be set by Create.
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.RequiresReplace(),
 				},
@@ -257,11 +258,7 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 		AllowedServiceAccounts:    allowedServiceAccountsInput,
 		AllowedTeams:              allowedTeamsInput,
 		ModuleAttestationPolicies: policies,
-	}
-
-	// Don't set it unless it was specified.
-	if !accessRule.VerifyStateLineage.IsNull() {
-		accessRuleInput.VerifyStateLineage = ptr.Bool(accessRule.VerifyStateLineage.ValueBool())
+		VerifyStateLineage:        ptr.Bool(accessRule.VerifyStateLineage.ValueBool()),
 	}
 
 	// Create the managed identity access rule.
