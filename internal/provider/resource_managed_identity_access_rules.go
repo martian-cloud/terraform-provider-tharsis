@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -157,13 +156,10 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"verify_state_lineage": schema.BoolAttribute{
-				MarkdownDescription: "Whether to verify the state lineage's attestation status, default is false.",
-				Description:         "Whether to verify the state lineage's attestation status, default is false.",
+				MarkdownDescription: "Whether to verify that the workspace's current state is from the same module source, default is false.",
+				Description:         "Whether to verify that the workspace's current state is from the same module source, default is false.",
 				Optional:            true,
 				Computed:            true, // When not passed it, it needs to be set by Create.
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(),
-				},
 			},
 			"module_attestation_policies": schema.ListNestedAttribute{
 				MarkdownDescription: "Used to verify that a module has an in-toto attestation that is signed with the specified public key and an optional predicate type.",
@@ -258,7 +254,11 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 		AllowedServiceAccounts:    allowedServiceAccountsInput,
 		AllowedTeams:              allowedTeamsInput,
 		ModuleAttestationPolicies: policies,
-		VerifyStateLineage:        ptr.Bool(accessRule.VerifyStateLineage.ValueBool()),
+	}
+
+	// Pass in VerifyStateLineage if supplied.
+	if !accessRule.VerifyStateLineage.IsNull() {
+		accessRuleInput.VerifyStateLineage = ptr.Bool(accessRule.VerifyStateLineage.ValueBool())
 	}
 
 	// Create the managed identity access rule.
@@ -278,9 +278,7 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	accessRule.Type = types.StringValue(string(created.Type))
 	accessRule.RunStage = types.StringValue(string(created.RunStage))
 	accessRule.ManagedIdentityID = types.StringValue(created.ManagedIdentityID)
-	if !accessRule.VerifyStateLineage.IsNull() {
-		accessRule.VerifyStateLineage = types.BoolValue(created.VerifyStateLineage)
-	}
+	accessRule.VerifyStateLineage = types.BoolValue(created.VerifyStateLineage)
 
 	allowedUsers := []attr.Value{}
 	for _, user := range created.AllowedUsers {
@@ -406,9 +404,7 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		return
 	}
 
-	if state.VerifyStateLineage.IsNull() {
-		state.VerifyStateLineage = types.BoolValue(found.VerifyStateLineage)
-	}
+	state.VerifyStateLineage = types.BoolValue(found.VerifyStateLineage)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -523,9 +519,7 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		return
 	}
 
-	if !plan.VerifyStateLineage.IsNull() {
-		plan.VerifyStateLineage = types.BoolValue(updated.VerifyStateLineage)
-	}
+	plan.VerifyStateLineage = types.BoolValue(updated.VerifyStateLineage)
 
 	plan.ModuleAttestationPolicies, diags = t.toProviderAttestationPolicies(ctx, updated.ModuleAttestationPolicies)
 	if diags.HasError() {

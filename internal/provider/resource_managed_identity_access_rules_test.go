@@ -79,6 +79,8 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 						"tharsis_managed_identity_access_rule.rule01", "managed_identity_id"),
 					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01",
 						"type", ruleType),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule01",
+						"verify_state_lineage", "false"),
 
 					// Verify dynamic values have some value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity_access_rule.rule01", "id"),
@@ -101,6 +103,8 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 						"run_stage", ruleStage),
 					resource.TestCheckResourceAttrPair("tharsis_managed_identity.tmiar_parent", "id",
 						"tharsis_managed_identity_access_rule.rule02", "managed_identity_id"),
+					resource.TestCheckResourceAttr("tharsis_managed_identity_access_rule.rule02",
+						"verify_state_lineage", "true"),
 
 					// Verify dynamic values have some value set in the state.
 					resource.TestCheckResourceAttrSet("tharsis_managed_identity_access_rule.rule02", "id"),
@@ -132,6 +136,7 @@ resource "tharsis_managed_identity" "tmiar_parent" {
 	`, createRootGroup(testGroupPath, "this is a test root group"), parentType, parentName, parentDescription, parentAWSRole)
 }
 
+// Access rule rule01 leaves verify_state_lineage unset, so it should default to false.
 func testManagedIdentityAccessRulesConfigurationRule() string {
 	ruleStage := "plan"
 	ruleParentID := "tharsis_managed_identity.tmiar_parent.id"
@@ -164,6 +169,7 @@ resource "tharsis_managed_identity_access_rule" "rule02" {
 		predicate_type = "some-predicate"
 		public_key     = "%s"
 	}]
+	verify_state_lineage = true
 }
 
 `, ruleType, ruleStage, ruleParentID, dummyPublicKey)
