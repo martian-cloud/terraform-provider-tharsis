@@ -27,6 +27,7 @@ Defines and manages a managed identity access rule.
 - `allowed_teams` (Set of String) List of names of teams allowed to use the managed identity associated with this rule.
 - `allowed_users` (Set of String) List of usernames allowed to use the managed identity associated with this rule.
 - `module_attestation_policies` (Attributes List) Used to verify that a module has an in-toto attestation that is signed with the specified public key and an optional predicate type. (see [below for nested schema](#nestedatt--module_attestation_policies))
+- `verify_state_lineage` (Boolean) Whether to verify that the workspace's current state is from the same module source, default is false.
 
 ### Read-Only
 
