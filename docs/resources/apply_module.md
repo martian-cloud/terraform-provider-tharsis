@@ -23,14 +23,27 @@ Defines and manages tharsis_apply_module resources, which launch runs in other w
 ### Optional
 
 - `module_version` (String) The version identifier of the module.
+- `speculative` (Boolean) Whether the run will be speculative, default is false.
 - `variables` (Attributes List) Optional list of variables for the run in the target workspace. (see [below for nested schema](#nestedatt--variables))
 
 ### Read-Only
 
 - `id` (String) An ID for this tharsis_apply_module resource.
+- `run_variables` (Attributes List) The variables used by the run. (see [below for nested schema](#nestedatt--run_variables))
 
 <a id="nestedatt--variables"></a>
 ### Nested Schema for `variables`
+
+Read-Only:
+
+- `category` (String) Category of this variable, 'terraform' or 'environment'.
+- `hcl` (Boolean) Whether this variable is HCL (vs. string).
+- `key` (String) Key or name of this variable.
+- `value` (String) Value of the variable.
+
+
+<a id="nestedatt--run_variables"></a>
+### Nested Schema for `run_variables`
 
 Required:
 
@@ -38,3 +51,7 @@ Required:
 - `hcl` (Boolean) Whether this variable is HCL (vs. string).
 - `key` (String) Key or name of this variable.
 - `value` (String) Value of the variable.
+
+Read-Only:
+
+- `namespace_path` (String) Namespace path of the variable.

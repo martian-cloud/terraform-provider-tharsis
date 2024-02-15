@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/smithy-go/ptr"
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -16,13 +17,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/martian-cloud/terraform-provider-tharsis/internal/modifiers"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
 type doRunInput struct {
-	model     *ApplyModuleModel
-	doDestroy bool
+	model       *ApplyModuleModel
+	doDestroy   bool
+	speculative bool
 }
 
 type doRunOutput struct {
@@ -46,10 +49,11 @@ var applyRunComment = "terraform-provider-tharsis" // must be var, not const, to
 
 // RunVariableModel is used in apply modules to set Terraform and environment variables.
 type RunVariableModel struct {
-	Value    string `tfsdk:"value"`
-	Key      string `tfsdk:"key"`
-	Category string `tfsdk:"category"`
-	HCL      bool   `tfsdk:"hcl"`
+	Value         string `tfsdk:"value"`
+	NamespacePath string `tfsdk:"namespace_path"`
+	Key           string `tfsdk:"key"`
+	Category      string `tfsdk:"category"`
+	HCL           bool   `tfsdk:"hcl"`
 }
 
 // FromTerraform5Value converts a RunVariable from Terraform values to Go equivalent.
@@ -89,11 +93,13 @@ func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
 // Please note: Unlike many/most other resources, this model does not exist in the Tharsis API.
 // The workspace path, module source, and module version uniquely identify this apply_module.
 type ApplyModuleModel struct {
-	ID            types.String        `tfsdk:"id"`
-	WorkspacePath types.String        `tfsdk:"workspace_path"`
-	ModuleSource  types.String        `tfsdk:"module_source"`
-	ModuleVersion types.String        `tfsdk:"module_version"`
-	Variables     basetypes.ListValue `tfsdk:"variables"`
+	ID              types.String        `tfsdk:"id"`
+	WorkspacePath   types.String        `tfsdk:"workspace_path"`
+	ModuleSource    types.String        `tfsdk:"module_source"`
+	ModuleVersion   types.String        `tfsdk:"module_version"`
+	Variables       basetypes.ListValue `tfsdk:"variables"`
+	OutputVariables basetypes.ListValue `tfsdk:"run_variables"`
+	Speculative     types.Bool          `tfsdk:"speculative"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -160,12 +166,58 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "Optional list of variables for the run in the target workspace.",
 				Description:         "Optional list of variables for the run in the target workspace.",
 				Optional:            true,
+				//// FIXME: Remove this for final commit:
+				Computed: true, // Terraform requires it to be computed if it's optional.
+				PlanModifiers: []planmodifier.List{
+					modifiers.ListDefault([]attr.Value{}),
+				},
+				//// FIXME: Remove the above for final commit.
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"value": schema.StringAttribute{
+							MarkdownDescription: "Value of the variable.",
+							Description:         "Value of the variable.",
+							Computed:            true,
+						},
+						"key": schema.StringAttribute{
+							MarkdownDescription: "Key or name of this variable.",
+							Description:         "Key or name of this variable.",
+							Computed:            true,
+						},
+						"category": schema.StringAttribute{
+							MarkdownDescription: "Category of this variable, 'terraform' or 'environment'.",
+							Description:         "Category of this variable, 'terraform' or 'environment'.",
+							Computed:            true,
+						},
+						"hcl": schema.BoolAttribute{
+							MarkdownDescription: "Whether this variable is HCL (vs. string).",
+							Description:         "Whether this variable is HCL (vs. string).",
+							Computed:            true,
+						},
+					},
+				},
+			},
+			"speculative": schema.BoolAttribute{
+				MarkdownDescription: "Whether the run will be speculative, default is false.",
+				Description:         "Whether the run will be speculative, default is false.",
+				Optional:            true,
+				Computed:            true, // When not passed it, it needs to be set by Create.
+			},
+			"run_variables": schema.ListNestedAttribute{
+				MarkdownDescription: "The variables used by the run.",
+				Description:         "The variables used by the run.",
+				Computed:            true, // computed if not supplied
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"value": schema.StringAttribute{
 							MarkdownDescription: "Value of the variable.",
 							Description:         "Value of the variable.",
 							Required:            true,
+						},
+						"namespace_path": schema.StringAttribute{
+							MarkdownDescription: "Namespace path of the variable.",
+							Description:         "Namespace path of the variable.",
+							Computed:            true,
 						},
 						"key": schema.StringAttribute{
 							MarkdownDescription: "Key or name of this variable.",
@@ -209,10 +261,17 @@ func (t *applyModuleResource) Create(ctx context.Context,
 		return
 	}
 
+	// Pass in Speculative if supplied.
+	speculative := false
+	if !applyModule.Speculative.IsNull() {
+		speculative = applyModule.Speculative.ValueBool()
+	}
+
 	// Do plan and apply, no destroy.
 	var didRun doRunOutput
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
-		model: &applyModule,
+		model:       &applyModule,
+		speculative: speculative,
 	}, &didRun)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -221,6 +280,15 @@ func (t *applyModuleResource) Create(ctx context.Context,
 	// Update the plan with the computed ID.
 	applyModule.ID = types.StringValue(uuid.New().String())
 	applyModule.ModuleVersion = types.StringValue(didRun.moduleVersion)
+	applyModule.Speculative = types.BoolValue(speculative) // has to be consistent with inputs
+
+	// Add namespace paths to the variables.
+	outVars, diags := t.addNamespacePaths(ctx, &applyModule.Variables, applyModule.WorkspacePath.ValueString())
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+	applyModule.OutputVariables = *outVars
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, applyModule)...)
@@ -254,8 +322,18 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		state.ModuleVersion = types.StringNull()
 	}
 
-	// TODO: Eventually, when the API and SDK support speculative plan runs with a module source,
-	// this should do a speculative plan run here to determine whether changes are needed.
+	// not available from currentApplied; default it to false.
+	if state.Speculative.IsNull() {
+		state.Speculative = types.BoolValue(false)
+	}
+
+	// Add namespace paths to the variables.
+	outVars, diags := t.addNamespacePaths(ctx, &state.Variables, state.WorkspacePath.ValueString())
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+	state.OutputVariables = *outVars
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -271,14 +349,11 @@ func (t *applyModuleResource) Update(ctx context.Context,
 		return
 	}
 
-	// TODO: Please note that when the API and SDK support speculative runs with a module source,
-	// this will need to look at the results from the Read method's speculative run to determine
-	// whether to do an update.  A way will have to be found to force Terraform to allow the update.
-
 	// Do the run.
 	var didRun doRunOutput
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
-		model: &plan,
+		model:       &plan,
+		speculative: plan.Speculative.ValueBool(),
 	}, &didRun)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -286,6 +361,19 @@ func (t *applyModuleResource) Update(ctx context.Context,
 
 	// Capture the module version in case it changed.
 	plan.ModuleVersion = types.StringValue(didRun.moduleVersion)
+
+	// not available from didRun; default it to false.
+	if plan.Speculative.IsNull() {
+		plan.Speculative = types.BoolValue(false)
+	}
+
+	// Add namespace paths to the variables.
+	outVars, diags := t.addNamespacePaths(ctx, &plan.Variables, plan.WorkspacePath.ValueString())
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+	plan.OutputVariables = *outVars
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -359,7 +447,7 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	// Convert the run variables.
+	// Convert the input variables.
 	vars, err := t.copyRunVariablesToInput(ctx, &input.model.Variables)
 	if err != nil {
 		diags.AddError("Failed to convert variables to SDK types", err.Error())
@@ -371,12 +459,12 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 	if !input.model.ModuleVersion.IsUnknown() {
 		moduleVersion = ptr.String(input.model.ModuleVersion.ValueString())
 	}
-	// Using module registry path and version, so no ConfigurationVersionID.
 	createdRun, err := t.client.Run.CreateRun(ctx, &sdktypes.CreateRunInput{
 		WorkspacePath: input.model.WorkspacePath.ValueString(),
 		IsDestroy:     input.doDestroy,
 		ModuleSource:  ptr.String(input.model.ModuleSource.ValueString()),
 		ModuleVersion: moduleVersion,
+		Speculative:   &input.speculative,
 		Variables:     vars,
 	})
 	if err != nil {
@@ -548,6 +636,36 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 	return nil
 }
 
+// addNamespacePaths converts from TF-Provider typed variables, adds namespace paths, and converts back.
+func (t *applyModuleResource) addNamespacePaths(ctx context.Context,
+	inputs *basetypes.ListValue, namespacePath string) (*basetypes.ListValue, diag.Diagnostics) {
+	diags := diag.Diagnostics{}
+
+	// Convert variables to SDK types to prepare to add namespace paths.
+	sdkVariables, err := t.copyRunVariablesToInput(ctx, inputs)
+	if err != nil {
+		diags.AddError("Failed to convert variables to SDK types", err.Error())
+		return nil, diags
+	}
+
+	// Add namespace paths to the variables.
+	copies := make([]sdktypes.RunVariable, len(sdkVariables))
+	for _, input := range sdkVariables {
+		localCopy := input
+		newPath := namespacePath + "/" + localCopy.Key
+		localCopy.NamespacePath = &newPath
+		copies = append(copies, localCopy)
+	}
+
+	// Convert back to TF-Provider typed variables.
+	result, diags := t.toProviderOutputVariables(ctx, copies)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return &result, diags
+}
+
 // copyRunVariablesToInput converts from RunVariableModel to SDK equivalent.
 func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list *basetypes.ListValue,
 ) ([]sdktypes.RunVariable, error) {
@@ -578,4 +696,51 @@ func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list 
 	}
 
 	return result, nil
+}
+
+// toProviderOutputVariables converts SDK variables from a finished run to the types the provider can return to Terraform.
+func (t *applyModuleResource) toProviderOutputVariables(
+	ctx context.Context,
+	arg []sdktypes.RunVariable,
+) (basetypes.ListValue, diag.Diagnostics) {
+	variables := []types.Object{}
+
+	for _, variable := range arg {
+		model := &RunVariableModel{
+			Value:    *variable.Value,
+			Key:      variable.Key,
+			Category: string(variable.Category),
+			HCL:      variable.HCL,
+		}
+
+		if variable.NamespacePath != nil {
+			model.NamespacePath = *variable.NamespacePath
+		}
+
+		value, objectDiags := basetypes.NewObjectValueFrom(ctx, t.outputVariableAttributes(), model)
+		if objectDiags.HasError() {
+			return basetypes.ListValue{}, objectDiags
+		}
+
+		variables = append(variables, value)
+	}
+
+	list, listDiags := basetypes.NewListValueFrom(ctx, basetypes.ObjectType{
+		AttrTypes: t.outputVariableAttributes(),
+	}, variables)
+	if listDiags.HasError() {
+		return basetypes.ListValue{}, listDiags
+	}
+
+	return list, nil
+}
+
+func (t *applyModuleResource) outputVariableAttributes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"value":          types.StringType,
+		"namespace_path": types.StringType,
+		"key":            types.StringType,
+		"category":       types.StringType,
+		"hcl":            types.BoolType,
+	}
 }
