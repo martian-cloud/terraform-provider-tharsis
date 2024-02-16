@@ -365,10 +365,8 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	// Capture the module version in case it changed.
 	plan.ModuleVersion = types.StringValue(didRun.moduleVersion)
 
-	// not available from didRun; default it to false.
-	if plan.Speculative.IsNull() {
-		plan.Speculative = types.BoolValue(false)
-	}
+	// not available from didRun; convert null or unknown to false.
+	plan.Speculative = types.BoolValue(plan.Speculative.ValueBool())
 
 	// Add namespace paths to the variables.
 	outVars, diags := t.addNamespacePaths(ctx, &plan.Variables, plan.WorkspacePath.ValueString())
