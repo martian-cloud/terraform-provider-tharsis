@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/martian-cloud/terraform-provider-tharsis/internal/modifiers"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
@@ -92,13 +93,13 @@ func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
 // Please note: Unlike many/most other resources, this model does not exist in the Tharsis API.
 // The workspace path, module source, and module version uniquely identify this apply_module.
 type ApplyModuleModel struct {
-	ID              types.String        `tfsdk:"id"`
-	WorkspacePath   types.String        `tfsdk:"workspace_path"`
-	ModuleSource    types.String        `tfsdk:"module_source"`
-	ModuleVersion   types.String        `tfsdk:"module_version"`
-	Variables       basetypes.ListValue `tfsdk:"variables"`
-	OutputVariables basetypes.ListValue `tfsdk:"run_variables"`
-	Speculative     types.Bool          `tfsdk:"speculative"`
+	ID            types.String        `tfsdk:"id"`
+	WorkspacePath types.String        `tfsdk:"workspace_path"`
+	ModuleSource  types.String        `tfsdk:"module_source"`
+	ModuleVersion types.String        `tfsdk:"module_version"`
+	Variables     basetypes.ListValue `tfsdk:"variables"`
+	RunVariables  basetypes.ListValue `tfsdk:"run_variables"`
+	Speculative   types.Bool          `tfsdk:"speculative"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -176,22 +177,22 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 						"value": schema.StringAttribute{
 							MarkdownDescription: "Value of the variable.",
 							Description:         "Value of the variable.",
-							Computed:            true,
+							Required:            true,
 						},
 						"key": schema.StringAttribute{
 							MarkdownDescription: "Key or name of this variable.",
 							Description:         "Key or name of this variable.",
-							Computed:            true,
+							Required:            true,
 						},
 						"category": schema.StringAttribute{
 							MarkdownDescription: "Category of this variable, 'terraform' or 'environment'.",
 							Description:         "Category of this variable, 'terraform' or 'environment'.",
-							Computed:            true,
+							Required:            true,
 						},
 						"hcl": schema.BoolAttribute{
 							MarkdownDescription: "Whether this variable is HCL (vs. string).",
 							Description:         "Whether this variable is HCL (vs. string).",
-							Computed:            true,
+							Required:            true,
 						},
 					},
 				},
@@ -206,12 +207,15 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "The variables that were used by the run.",
 				Description:         "The variables that were used by the run.",
 				Computed:            true,
+				PlanModifiers: []planmodifier.List{
+					modifiers.ListDefault([]attr.Value{}),
+				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"value": schema.StringAttribute{
 							MarkdownDescription: "Value of the variable.",
 							Description:         "Value of the variable.",
-							Required:            true,
+							Computed:            true,
 						},
 						"namespace_path": schema.StringAttribute{
 							MarkdownDescription: "Namespace path of the variable.",
@@ -221,17 +225,17 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 						"key": schema.StringAttribute{
 							MarkdownDescription: "Key or name of this variable.",
 							Description:         "Key or name of this variable.",
-							Required:            true,
+							Computed:            true,
 						},
 						"category": schema.StringAttribute{
 							MarkdownDescription: "Category of this variable, 'terraform' or 'environment'.",
 							Description:         "Category of this variable, 'terraform' or 'environment'.",
-							Required:            true,
+							Computed:            true,
 						},
 						"hcl": schema.BoolAttribute{
 							MarkdownDescription: "Whether this variable is HCL (vs. string).",
 							Description:         "Whether this variable is HCL (vs. string).",
-							Required:            true,
+							Computed:            true,
 						},
 					},
 				},
@@ -287,7 +291,7 @@ func (t *applyModuleResource) Create(ctx context.Context,
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-	applyModule.OutputVariables = *outVars
+	applyModule.RunVariables = *outVars
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, applyModule)...)
@@ -332,7 +336,7 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-	state.OutputVariables = *outVars
+	state.RunVariables = *outVars
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -372,7 +376,7 @@ func (t *applyModuleResource) Update(ctx context.Context,
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-	plan.OutputVariables = *outVars
+	plan.RunVariables = *outVars
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)

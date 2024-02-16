@@ -29,12 +29,12 @@ Defines and manages tharsis_apply_module resources, which launch runs in other w
 ### Read-Only
 
 - `id` (String) An ID for this tharsis_apply_module resource.
-- `run_variables` (Attributes List) The variables used by the run. (see [below for nested schema](#nestedatt--run_variables))
+- `run_variables` (Attributes List) The variables that were used by the run. (see [below for nested schema](#nestedatt--run_variables))
 
 <a id="nestedatt--variables"></a>
 ### Nested Schema for `variables`
 
-Read-Only:
+Required:
 
 - `category` (String) Category of this variable, 'terraform' or 'environment'.
 - `hcl` (Boolean) Whether this variable is HCL (vs. string).
@@ -45,13 +45,10 @@ Read-Only:
 <a id="nestedatt--run_variables"></a>
 ### Nested Schema for `run_variables`
 
-Required:
+Read-Only:
 
 - `category` (String) Category of this variable, 'terraform' or 'environment'.
 - `hcl` (Boolean) Whether this variable is HCL (vs. string).
 - `key` (String) Key or name of this variable.
-- `value` (String) Value of the variable.
-
-Read-Only:
-
 - `namespace_path` (String) Namespace path of the variable.
+- `value` (String) Value of the variable.
