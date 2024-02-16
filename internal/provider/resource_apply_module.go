@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-	"github.com/martian-cloud/terraform-provider-tharsis/internal/modifiers"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
@@ -167,10 +166,10 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description:         "Optional list of variables for the run in the target workspace.",
 				Optional:            true,
 				//// FIXME: Remove this for final commit:
-				Computed: true, // Terraform requires it to be computed if it's optional.
-				PlanModifiers: []planmodifier.List{
-					modifiers.ListDefault([]attr.Value{}),
-				},
+				// Computed: true, // Terraform requires it to be computed if it's optional.
+				// PlanModifiers: []planmodifier.List{
+				// 	modifiers.ListDefault([]attr.Value{}),
+				// },
 				//// FIXME: Remove the above for final commit.
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -204,9 +203,9 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Computed:            true, // When not passed it, it needs to be set by Create.
 			},
 			"run_variables": schema.ListNestedAttribute{
-				MarkdownDescription: "The variables used by the run.",
-				Description:         "The variables used by the run.",
-				Computed:            true, // computed if not supplied
+				MarkdownDescription: "The variables that were used by the run.",
+				Description:         "The variables that were used by the run.",
+				Computed:            true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"value": schema.StringAttribute{
