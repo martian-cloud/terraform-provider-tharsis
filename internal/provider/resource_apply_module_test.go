@@ -24,7 +24,7 @@ func TestApplyModule(t *testing.T) {
 	varKey := "trigger_name"
 	varCategory := "terraform"
 	varHCL := false
-	varNamespacePath := "testGroupPath/workspace-1/" + varKey
+	varNamespacePath := testGroupPath + "/workspace-1/" + varKey
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -222,8 +222,6 @@ resource "tharsis_apply_module" "tam" {
 		ws1Path, moduleSource, varValueBase, val, varKey, varCategory, varHCL,
 	)
 }
-
-// testGroupPath/workspace-1
 
 func testDoApplyCreateSpeculative(val int) string {
 	ws1Name := "workspace-1"
