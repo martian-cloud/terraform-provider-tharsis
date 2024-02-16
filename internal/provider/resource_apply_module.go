@@ -643,13 +643,16 @@ func (t *applyModuleResource) addNamespacePaths(ctx context.Context,
 		return nil, diags
 	}
 
-	// Add namespace paths to the variables.
+	// Add namespace paths to a copy of the variables.
 	copies := make([]sdktypes.RunVariable, len(sdkVariables))
 	for _, sdkVariable := range sdkVariables {
-		localCopy := sdkVariable
-		newPath := namespacePath + "/" + localCopy.Key
-		localCopy.NamespacePath = &newPath
-		copies = append(copies, localCopy)
+		copies = append(copies, sdktypes.RunVariable{
+			Value:         sdkVariable.Value,
+			NamespacePath: ptr.String(namespacePath + "/" + sdkVariable.Key),
+			Key:           sdkVariable.Key,
+			Category:      sdkVariable.Category,
+			HCL:           sdkVariable.HCL,
+		})
 	}
 
 	// Convert back to TF-Provider typed variables.
