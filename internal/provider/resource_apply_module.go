@@ -326,7 +326,7 @@ func (t *applyModuleResource) Read(ctx context.Context,
 	}
 
 	// not available from currentApplied; default it to false.
-	if state.Speculative.IsNull() {
+	if state.Speculative.IsUnknown() {
 		state.Speculative = types.BoolValue(false)
 	}
 
