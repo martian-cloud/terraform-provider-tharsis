@@ -24,6 +24,7 @@ func TestApplyModule(t *testing.T) {
 	varKey := "trigger_name"
 	varCategory := "terraform"
 	varHCL := false
+	varNamespacePath := "testGroupPath/workspace-1/" + varKey
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -59,6 +60,12 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "speculative", "false"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.value", varValueBase+"1"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.namespace_path", varNamespacePath),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.key", varKey),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.category", varCategory),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.hcl", strconv.FormatBool(varHCL)),
 				),
 			},
 
@@ -74,6 +81,12 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "speculative", "false"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.value", varValueBase+"1"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.namespace_path", varNamespacePath),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.key", varKey),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.category", varCategory),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.hcl", strconv.FormatBool(varHCL)),
 				),
 			},
 
@@ -89,6 +102,12 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "speculative", "false"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.value", varValueBase+"2"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.namespace_path", varNamespacePath),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.key", varKey),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.category", varCategory),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.hcl", strconv.FormatBool(varHCL)),
 				),
 			},
 
@@ -98,6 +117,27 @@ func TestApplyModule(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify the removal/absence of the resource that should have been destroyed/deleted.
 					testAccCheckTharsisApplyModuleExists("tharsis_apply_module.tam", false),
+				),
+			},
+
+			// Do a speculative run (with another variable value change).
+			{
+				Config: testApplyModuleConfigurationCreate() + testDoApplyCreateSpeculative(3),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify values that should be known.
+					testAccCheckTharsisApplyModuleExists("tharsis_apply_module.tam", true),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "workspace_path", ws1Path),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "module_source", moduleSource),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"3"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "speculative", "true"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.value", varValueBase+"3"),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.namespace_path", varNamespacePath),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.key", varKey),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.category", varCategory),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.hcl", strconv.FormatBool(varHCL)),
 				),
 			},
 
@@ -180,6 +220,37 @@ resource "tharsis_apply_module" "tam" {
       hcl = %v
     }
   ]
+}
+
+	`,
+		ws1Path, moduleSource, varValueBase, val, varKey, varCategory, varHCL,
+	)
+}
+
+// testGroupPath/workspace-1
+
+func testDoApplyCreateSpeculative(val int) string {
+	ws1Name := "workspace-1"
+	ws1Path := testGroupPath + "/" + ws1Name
+	varValueBase := "some variable value "
+	varKey := "trigger_name"
+	varCategory := "terraform"
+	varHCL := false
+
+	return fmt.Sprintf(`
+
+resource "tharsis_apply_module" "tam" {
+  workspace_path = "%s"
+  module_source  = "%s"
+  variables      = [
+    {
+      value = "%s%d"
+      key = "%s"
+      category = "%s"
+      hcl = %v
+    }
+  ]
+  speculative    = true
 }
 
 	`,
