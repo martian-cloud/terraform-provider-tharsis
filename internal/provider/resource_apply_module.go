@@ -636,6 +636,12 @@ func (t *applyModuleResource) addNamespacePaths(ctx context.Context,
 	// Add namespace paths to a copy of the variables.
 	copies := make([]sdktypes.RunVariable, len(sdkVariables))
 	for _, sdkVariable := range sdkVariables {
+
+		// FIXME: Remove this:
+		if sdkVariable.Category == "" {
+			panic("*** in addNamespacePaths, sdkVariable.Category is empty")
+		}
+
 		copies = append(copies, sdktypes.RunVariable{
 			Value:         sdkVariable.Value,
 			NamespacePath: ptr.String(namespacePath + "/" + sdkVariable.Key),
@@ -699,6 +705,11 @@ func (t *applyModuleResource) toProviderOutputVariables(
 			val = *variable.Value
 		}
 
+		// FIXME: Remove this:
+		if variable.Category == "" {
+			panic("*** in toProviderOutputVariables, variable.Category is empty")
+		}
+
 		model := &RunVariableModel{
 			Value:    val,
 			Key:      variable.Key,
@@ -710,9 +721,23 @@ func (t *applyModuleResource) toProviderOutputVariables(
 			model.NamespacePath = *variable.NamespacePath
 		}
 
+		// FIXME: Remove this:
+		if model.Category == "" {
+			panic("*** in toProviderOutputVariables, model.Category is empty")
+		}
+
 		value, objectDiags := basetypes.NewObjectValueFrom(ctx, t.outputVariableAttributes(), model)
 		if objectDiags.HasError() {
 			return basetypes.ListValue{}, objectDiags
+		}
+
+		// FIXME: Remove this:
+		var x RunVariableModel
+		if err := value.As(ctx, &x, basetypes.ObjectAsOptions{}); err != nil {
+			panic("*** in toProviderOutputVariables, value.As(&x) failed")
+		}
+		if x.Category == "" {
+			panic("*** in toProviderOutputVariables, value.Category is empty")
 		}
 
 		variables = append(variables, value)
