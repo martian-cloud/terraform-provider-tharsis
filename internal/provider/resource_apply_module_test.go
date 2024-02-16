@@ -108,15 +108,6 @@ func TestApplyModule(t *testing.T) {
 				),
 			},
 
-			// Do a destroy/delete run.
-			{
-				Config: testApplyModuleConfigurationCreate(), // Remove the tharsis_apply_module resource.
-				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify the removal/absence of the resource that should have been destroyed/deleted.
-					testAccCheckTharsisApplyModuleExists("tharsis_apply_module.tam", false),
-				),
-			},
-
 			// Do a speculative run (with another variable value change).
 			{
 				Config: testApplyModuleConfigurationCreate() + testDoApplyCreateSpeculative(3),
@@ -134,6 +125,15 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "run_variables.0.hcl", strconv.FormatBool(varHCL)),
+				),
+			},
+
+			// Do a destroy/delete run.
+			{
+				Config: testApplyModuleConfigurationCreate(), // Remove the tharsis_apply_module resource.
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify the removal/absence of the resource that should have been destroyed/deleted.
+					testAccCheckTharsisApplyModuleExists("tharsis_apply_module.tam", false),
 				),
 			},
 
