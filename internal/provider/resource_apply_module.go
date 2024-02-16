@@ -653,8 +653,8 @@ func (t *applyModuleResource) addNamespacePaths(ctx context.Context,
 
 	// Add namespace paths to the variables.
 	copies := make([]sdktypes.RunVariable, len(sdkVariables))
-	for _, input := range sdkVariables {
-		localCopy := input
+	for _, sdkVariable := range sdkVariables {
+		localCopy := sdkVariable
 		newPath := namespacePath + "/" + localCopy.Key
 		localCopy.NamespacePath = &newPath
 		copies = append(copies, localCopy)
@@ -709,8 +709,13 @@ func (t *applyModuleResource) toProviderOutputVariables(
 	variables := []types.Object{}
 
 	for _, variable := range arg {
+		val := ""
+		if variable.Value != nil {
+			val = *variable.Value
+		}
+
 		model := &RunVariableModel{
-			Value:    *variable.Value,
+			Value:    val,
 			Key:      variable.Key,
 			Category: string(variable.Category),
 			HCL:      variable.HCL,
