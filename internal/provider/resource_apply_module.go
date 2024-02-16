@@ -634,7 +634,7 @@ func (t *applyModuleResource) addNamespacePaths(ctx context.Context,
 	}
 
 	// Add namespace paths to a copy of the variables.
-	copies := make([]sdktypes.RunVariable, len(sdkVariables))
+	var copies []sdktypes.RunVariable
 	for _, sdkVariable := range sdkVariables {
 
 		// FIXME: Remove this:
