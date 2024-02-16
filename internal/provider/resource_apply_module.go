@@ -195,7 +195,6 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "Whether the run will be speculative, default is false.",
 				Description:         "Whether the run will be speculative, default is false.",
 				Optional:            true,
-				Computed:            true, // When not passed it, it needs to be set by Create.
 			},
 			"run_variables": schema.ListNestedAttribute{
 				MarkdownDescription: "The variables that were used by the run.",
@@ -277,7 +276,6 @@ func (t *applyModuleResource) Create(ctx context.Context,
 	// Update the plan with the computed ID.
 	applyModule.ID = types.StringValue(uuid.New().String())
 	applyModule.ModuleVersion = types.StringValue(didRun.moduleVersion)
-	applyModule.Speculative = types.BoolValue(speculative) // has to be consistent with inputs
 
 	// Add namespace paths to the variables.
 	outVars, diags := t.addNamespacePaths(ctx, &applyModule.Variables, applyModule.WorkspacePath.ValueString())
@@ -319,11 +317,6 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		state.ModuleVersion = types.StringNull()
 	}
 
-	// not available from currentApplied; default it to false.
-	if state.Speculative.IsUnknown() {
-		state.Speculative = types.BoolValue(false)
-	}
-
 	// Add namespace paths to the variables.
 	outVars, diags := t.addNamespacePaths(ctx, &state.Variables, state.WorkspacePath.ValueString())
 	if diags.HasError() {
@@ -358,9 +351,6 @@ func (t *applyModuleResource) Update(ctx context.Context,
 
 	// Capture the module version in case it changed.
 	plan.ModuleVersion = types.StringValue(didRun.moduleVersion)
-
-	// not available from didRun; convert null or unknown to false.
-	plan.Speculative = types.BoolValue(plan.Speculative.ValueBool())
 
 	// Add namespace paths to the variables.
 	outVars, diags := t.addNamespacePaths(ctx, &plan.Variables, plan.WorkspacePath.ValueString())
