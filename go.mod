@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.30.0
 	github.com/hashicorp/terraform-svchost v0.1.1
 	github.com/zclconf/go-cty v1.14.1
-	gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.35.0
+	gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go v0.35.1-0.20240219220107-e39900b58c4f
 )
 
 require (

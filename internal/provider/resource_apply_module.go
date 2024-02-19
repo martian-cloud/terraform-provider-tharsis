@@ -468,6 +468,9 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		return diags
 	}
 
+	// Bring in any error message(s) from the finished inner run.
+	diags.Append(t.extractRunError(ctx, plannedRun)...)
+
 	// If the plan fails, both plannedRun.Status and plannedRun.Plan.Status are "errored".
 	// If the plan succeeds, plannedRun.Status is "planned",
 	// while plannedRun.Plan.Status is "finished".
@@ -521,6 +524,9 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		return diags
 	}
 
+	// Bring in any error message(s) from the finished inner run.
+	diags.Append(t.extractRunError(ctx, finishedRun)...)
+
 	// If an apply job succeeds, finishedRun.Status is "applied" and
 	// finishedRun.Apply.Status is "finished".
 	if finishedRun.Status != "applied" {
@@ -547,7 +553,9 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 			moduleVersion: *finishedRun.ModuleVersion,
 		}
 	}
-	return nil
+
+	// Don't throw away the diags from the inner run.
+	return diags
 }
 
 func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
@@ -619,6 +627,53 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 	}
 
 	return nil
+}
+
+// extractRunError extracts the error from a run's logs (if the run errored out).
+func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes.Run) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if run.Status == sdktypes.RunErrored {
+		var jobID string
+
+		switch {
+		case run.Apply != nil:
+			jobID = *run.Apply.CurrentJobID
+		case run.Plan != nil:
+			jobID = *run.Plan.CurrentJobID
+		default:
+			diags.AddError("Run status is errored, but no job ID found", "")
+			return diags
+		}
+
+		logs, err := t.client.Job.GetJobLogs(ctx, &sdktypes.GetJobLogsInput{ // unlimited
+			JobID: jobID,
+		})
+		if err != nil {
+			diags.AddError("Failed to get job logs", err.Error())
+		}
+
+		// Find the first mention of "error" in the logs.
+		splitLogs := strings.Split(logs.Logs, "\n")
+		foundIx := -1
+		for i, log := range splitLogs {
+			if strings.HasPrefix(strings.ToLower(log), "error") {
+				foundIx = i
+				break
+			}
+		}
+
+		// Must format the message as a single string.  Otherwise, an upper layer inserts
+		// the first/outer run's error's root cause into the logs between what we print here.
+		if foundIx >= 0 {
+			diags.AddError("Error from provider-launched run:\n|\t"+
+				strings.Join(splitLogs[foundIx:], "\n|\t")+
+				"\nEnd of error from provider-launched run.",
+				"")
+		}
+	}
+
+	return diags
 }
 
 // addNamespacePaths converts from TF-Provider typed variables, adds namespace paths, and converts back.
