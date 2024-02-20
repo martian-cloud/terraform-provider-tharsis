@@ -660,11 +660,17 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 
 		switch {
 		case run.Apply != nil:
-			jobID = *run.Apply.CurrentJobID
+			if run.Apply.CurrentJobID != nil {
+				jobID = *run.Apply.CurrentJobID
+			}
 		case run.Plan != nil:
-			jobID = *run.Plan.CurrentJobID
-		default:
-			diags.AddError("Run status is errored, but no job ID found", "")
+			if run.Plan.CurrentJobID != nil {
+				jobID = *run.Plan.CurrentJobID
+			}
+		}
+
+		if jobID == "" {
+			diags.AddWarning("Run status is errored, but no job ID found", "")
 			return diags
 		}
 
