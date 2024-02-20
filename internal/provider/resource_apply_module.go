@@ -556,7 +556,7 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 
 	if output != nil {
 		*output = doRunOutput{
-			resolvedVariables: resolvedVars,
+			resolvedVariables: t.fixResolvedVariableNamespacePaths(resolvedVars, finishedRun.WorkspacePath),
 		}
 
 		if finishedRun.ModuleVersion != nil {
@@ -637,7 +637,7 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 				diags.AddError("Failed to get resolved variables", err.Error())
 				return diags
 			}
-			moduleInfoOutput.resolvedVariables = resolvedVars
+			moduleInfoOutput.resolvedVariables = t.fixResolvedVariableNamespacePaths(resolvedVars, latestRun.WorkspacePath)
 		} else {
 			// Current state has no run ID, so it must have been manually updated.
 			moduleInfoOutput.wasManualUpdate = true
@@ -782,4 +782,17 @@ func (t *applyModuleResource) outputVariableAttributes() map[string]attr.Type {
 		"category":       types.StringType,
 		"hcl":            types.BoolType,
 	}
+}
+
+func (t *applyModuleResource) fixResolvedVariableNamespacePaths(input []sdktypes.RunVariable, path string) []sdktypes.RunVariable {
+	result := []sdktypes.RunVariable{}
+
+	for _, v := range input {
+		if (v.NamespacePath == nil) || (*v.NamespacePath == "") {
+			v.NamespacePath = &path
+		}
+		result = append(result, v)
+	}
+
+	return result
 }

@@ -24,7 +24,7 @@ func TestApplyModule(t *testing.T) {
 	varKey := "trigger_name"
 	varCategory := "terraform"
 	varHCL := false
-	varNamespacePath := testGroupPath + "/workspace-1/" + varKey
+	varNamespacePath := testGroupPath + "/workspace-1/"
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
