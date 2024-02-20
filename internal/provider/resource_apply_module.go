@@ -29,7 +29,8 @@ type doRunInput struct {
 }
 
 type doRunOutput struct {
-	moduleVersion string
+	moduleVersion     string
+	resolvedVariables []sdktypes.RunVariable
 }
 
 // appliedModuleInfo contains what information was available about the latest applied run.
@@ -39,6 +40,7 @@ type appliedModuleInfo struct {
 	moduleVersion        *string
 	wasSuccessfulDestroy bool
 	wasManualUpdate      bool
+	resolvedVariables    []sdktypes.RunVariable
 }
 
 const (
@@ -273,17 +275,17 @@ func (t *applyModuleResource) Create(ctx context.Context,
 		return
 	}
 
-	// Update the plan with the computed ID.
-	applyModule.ID = types.StringValue(uuid.New().String())
-	applyModule.ModuleVersion = types.StringValue(didRun.moduleVersion)
-
-	// Add namespace paths to the variables.
-	outVars, diags := t.addNamespacePaths(ctx, &applyModule.Variables, applyModule.WorkspacePath.ValueString())
+	// Get the resolved variables from the run.
+	resolvedVars, diags := t.toProviderOutputVariables(ctx, didRun.resolvedVariables)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-	applyModule.RunVariables = *outVars
+
+	// Update the plan with the computed ID.
+	applyModule.ID = types.StringValue(uuid.New().String())
+	applyModule.ModuleVersion = types.StringValue(didRun.moduleVersion)
+	applyModule.RunVariables = resolvedVars
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, applyModule)...)
@@ -317,13 +319,14 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		state.ModuleVersion = types.StringNull()
 	}
 
-	// Add namespace paths to the variables.
-	outVars, diags := t.addNamespacePaths(ctx, &state.Variables, state.WorkspacePath.ValueString())
+	// Get the resolved variables from the run that produced the state.
+	resolvedVars, diags := t.toProviderOutputVariables(ctx, currentApplied.resolvedVariables)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-	state.RunVariables = *outVars
+
+	state.RunVariables = resolvedVars
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -352,13 +355,13 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	// Capture the module version in case it changed.
 	plan.ModuleVersion = types.StringValue(didRun.moduleVersion)
 
-	// Add namespace paths to the variables.
-	outVars, diags := t.addNamespacePaths(ctx, &plan.Variables, plan.WorkspacePath.ValueString())
+	// Get the resolved variables from the run.
+	resolvedVars, diags := t.toProviderOutputVariables(ctx, didRun.resolvedVariables)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-	plan.RunVariables = *outVars
+	plan.RunVariables = resolvedVars
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -548,13 +551,24 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		return diags
 	}
 
-	if (output != nil) && (finishedRun.ModuleVersion != nil) {
+	// Get the resolved variables from the run.
+	resolvedVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunInput{ID: finishedRun.Metadata.ID})
+	if err != nil {
+		diags.AddError("Failed to get resolved variables", err.Error())
+		return diags
+	}
+
+	if output != nil {
 		*output = doRunOutput{
-			moduleVersion: *finishedRun.ModuleVersion,
+			resolvedVariables: resolvedVars,
+		}
+
+		if finishedRun.ModuleVersion != nil {
+			output.moduleVersion = *finishedRun.ModuleVersion
 		}
 	}
 
-	// Don't throw away the diags from the inner run.
+	// These diags may include those from the inner run if it errored out.
 	return diags
 }
 
@@ -620,6 +634,14 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 			if latestRun.IsDestroy && (latestRun.Status == sdktypes.RunApplied) && (latestRun.Apply != nil) {
 				moduleInfoOutput.wasSuccessfulDestroy = true
 			}
+
+			// Get the resolved variables from the run that produced the state.
+			resolvedVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunInput{ID: latestRun.Metadata.ID})
+			if err != nil {
+				diags.AddError("Failed to get resolved variables", err.Error())
+				return diags
+			}
+			moduleInfoOutput.resolvedVariables = resolvedVars
 		} else {
 			// Current state has no run ID, so it must have been manually updated.
 			moduleInfoOutput.wasManualUpdate = true
@@ -674,39 +696,6 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 	}
 
 	return diags
-}
-
-// addNamespacePaths converts from TF-Provider typed variables, adds namespace paths, and converts back.
-func (t *applyModuleResource) addNamespacePaths(ctx context.Context,
-	inputs *basetypes.ListValue, namespacePath string) (*basetypes.ListValue, diag.Diagnostics) {
-	diags := diag.Diagnostics{}
-
-	// Convert variables to SDK types to prepare to add namespace paths.
-	sdkVariables, err := t.copyRunVariablesToInput(ctx, inputs)
-	if err != nil {
-		diags.AddError("Failed to convert variables to SDK types", err.Error())
-		return nil, diags
-	}
-
-	// Add namespace paths to a copy of the variables.
-	var copies []sdktypes.RunVariable
-	for _, sdkVariable := range sdkVariables {
-		copies = append(copies, sdktypes.RunVariable{
-			Value:         sdkVariable.Value,
-			NamespacePath: ptr.String(namespacePath + "/" + sdkVariable.Key),
-			Key:           sdkVariable.Key,
-			Category:      sdkVariable.Category,
-			HCL:           sdkVariable.HCL,
-		})
-	}
-
-	// Convert back to TF-Provider typed variables.
-	result, diags := t.toProviderOutputVariables(ctx, copies)
-	if diags.HasError() {
-		return nil, diags
-	}
-
-	return &result, diags
 }
 
 // copyRunVariablesToInput converts from RunVariableModel to SDK equivalent.
