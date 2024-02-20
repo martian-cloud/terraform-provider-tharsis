@@ -568,9 +568,13 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 
 	if output != nil {
 		*output = doRunOutput{
-			// FIXME: Put the fix back:
-			resolvedVariables: resolvedVars,
-			// resolvedVariables: t.fixResolvedVariableNamespacePaths(resolvedVars, finishedRun.WorkspacePath),
+			resolvedVariables: t.fixResolvedVariableNamespacePaths(resolvedVars, finishedRun.WorkspacePath),
+		}
+
+		// FIXME: Remove this:
+		if (len(resolvedVars) > 0) && (len(output.resolvedVariables) < 1) {
+			diags.AddError(fmt.Sprintf("***** in doRun, the fix made the list become empty: %d, %d",
+				len(resolvedVars), len(output.resolvedVariables)), "")
 		}
 
 		// FIXME: Remove this:
@@ -658,9 +662,13 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 			// FIXME: Remove this:
 			diags.AddWarning(fmt.Sprintf("*** from getCurrentApplied, before fix: len: %d", len(resolvedVars)), "")
 
-			// FIXME: Put the fix back:
-			moduleInfoOutput.resolvedVariables = resolvedVars
-			// moduleInfoOutput.resolvedVariables = t.fixResolvedVariableNamespacePaths(resolvedVars, latestRun.WorkspacePath)
+			moduleInfoOutput.resolvedVariables = t.fixResolvedVariableNamespacePaths(resolvedVars, latestRun.WorkspacePath)
+
+			// FIXME: Remove this:
+			if (len(resolvedVars) > 0) && (len(moduleInfoOutput.resolvedVariables) < 1) {
+				diags.AddError(fmt.Sprintf("***** in getCurrentApplied, the fix made the list become empty: %d, %d",
+					len(resolvedVars), len(moduleInfoOutput.resolvedVariables)), "")
+			}
 
 			// FIXME: Remove this:
 			diags.AddWarning(fmt.Sprintf("*** from getCurrentApplied, after fix: len: %d", len(moduleInfoOutput.resolvedVariables)), "")
