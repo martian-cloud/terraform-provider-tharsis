@@ -95,13 +95,13 @@ func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
 // Please note: Unlike many/most other resources, this model does not exist in the Tharsis API.
 // The workspace path, module source, and module version uniquely identify this apply_module.
 type ApplyModuleModel struct {
-	ID            types.String        `tfsdk:"id"`
-	WorkspacePath types.String        `tfsdk:"workspace_path"`
-	ModuleSource  types.String        `tfsdk:"module_source"`
-	ModuleVersion types.String        `tfsdk:"module_version"`
-	Variables     basetypes.ListValue `tfsdk:"variables"`
-	RunVariables  basetypes.ListValue `tfsdk:"run_variables"`
-	Speculative   types.Bool          `tfsdk:"speculative"`
+	ID                types.String        `tfsdk:"id"`
+	WorkspacePath     types.String        `tfsdk:"workspace_path"`
+	ModuleSource      types.String        `tfsdk:"module_source"`
+	ModuleVersion     types.String        `tfsdk:"module_version"`
+	Variables         basetypes.ListValue `tfsdk:"variables"`
+	ResolvedVariables basetypes.ListValue `tfsdk:"resolved_variables"`
+	Speculative       types.Bool          `tfsdk:"speculative"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -198,7 +198,7 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description:         "Whether the run will be speculative, default is false.",
 				Optional:            true,
 			},
-			"run_variables": schema.ListNestedAttribute{
+			"resolved_variables": schema.ListNestedAttribute{
 				MarkdownDescription: "The variables that were used by the run.",
 				Description:         "The variables that were used by the run.",
 				Computed:            true,
@@ -285,7 +285,7 @@ func (t *applyModuleResource) Create(ctx context.Context,
 	// Update the plan with the computed ID.
 	applyModule.ID = types.StringValue(uuid.New().String())
 	applyModule.ModuleVersion = types.StringValue(didRun.moduleVersion)
-	applyModule.RunVariables = resolvedVars
+	applyModule.ResolvedVariables = resolvedVars
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, applyModule)...)
@@ -326,7 +326,7 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		return
 	}
 
-	state.RunVariables = resolvedVars
+	state.ResolvedVariables = resolvedVars
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -361,7 +361,7 @@ func (t *applyModuleResource) Update(ctx context.Context,
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-	plan.RunVariables = resolvedVars
+	plan.ResolvedVariables = resolvedVars
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -389,12 +389,8 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 		return
 	}
 
-	// Refuse to destroy if a configuration version was deployed by the latest run
-	// (as measured by lack of a module source).
-	if currentApplied.moduleSource == nil {
-		resp.Diagnostics.AddError("Workspace's latest run had deployed a configuration version, will not delete", "")
-		return
-	}
+	// Lack of a module source is not a reliable indication that a configuration version had been deployed,
+	// so we can't use it to determine whether to refuse to delete.  For now, don't check for that.
 
 	// Refuse to destroy if the current state was manually modified
 	// (as measured by the current state having no run ID).

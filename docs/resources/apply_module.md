@@ -29,7 +29,7 @@ Defines and manages tharsis_apply_module resources, which launch runs in other w
 ### Read-Only
 
 - `id` (String) An ID for this tharsis_apply_module resource.
-- `run_variables` (Attributes List) The variables that were used by the run. (see [below for nested schema](#nestedatt--run_variables))
+- `resolved_variables` (Attributes List) The variables that were used by the run. (see [below for nested schema](#nestedatt--resolved_variables))
 
 <a id="nestedatt--variables"></a>
 ### Nested Schema for `variables`
@@ -42,8 +42,8 @@ Required:
 - `value` (String) Value of the variable.
 
 
-<a id="nestedatt--run_variables"></a>
-### Nested Schema for `run_variables`
+<a id="nestedatt--resolved_variables"></a>
+### Nested Schema for `resolved_variables`
 
 Read-Only:
 
