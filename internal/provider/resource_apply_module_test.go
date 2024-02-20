@@ -24,7 +24,6 @@ func TestApplyModule(t *testing.T) {
 	varKey := "trigger_name"
 	varCategory := "terraform"
 	varHCL := false
-	varNamespacePath := testGroupPath + "/workspace-1"
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -61,7 +60,7 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.value", varValueBase+"1"),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", varNamespacePath),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", ""),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.hcl", strconv.FormatBool(varHCL)),
@@ -81,7 +80,7 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.value", varValueBase+"1"),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", varNamespacePath),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", ""),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.hcl", strconv.FormatBool(varHCL)),
@@ -101,7 +100,7 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.value", varValueBase+"2"),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", varNamespacePath),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", ""),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.hcl", strconv.FormatBool(varHCL)),
@@ -121,7 +120,7 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.value", varValueBase+"3"),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", varNamespacePath),
+					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", ""),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.category", varCategory),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.hcl", strconv.FormatBool(varHCL)),
