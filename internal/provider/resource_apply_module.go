@@ -275,6 +275,9 @@ func (t *applyModuleResource) Create(ctx context.Context,
 		return
 	}
 
+	// FIXME: Remove this:
+	resp.Diagnostics.AddWarning(fmt.Sprintf("*** from Create, after doRun: len: %d", len(didRun.resolvedVariables)), "")
+
 	// Get the resolved variables from the run.
 	resolvedVars, diags := t.toProviderOutputVariables(ctx, didRun.resolvedVariables)
 	if diags.HasError() {
@@ -319,6 +322,9 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		state.ModuleVersion = types.StringNull()
 	}
 
+	// FIXME: Remove this:
+	resp.Diagnostics.AddWarning(fmt.Sprintf("*** from Read: len: %d", len(currentApplied.resolvedVariables)), "")
+
 	// Get the resolved variables from the run that produced the state.
 	resolvedVars, diags := t.toProviderOutputVariables(ctx, currentApplied.resolvedVariables)
 	if diags.HasError() {
@@ -354,6 +360,9 @@ func (t *applyModuleResource) Update(ctx context.Context,
 
 	// Capture the module version in case it changed.
 	plan.ModuleVersion = types.StringValue(didRun.moduleVersion)
+
+	// FIXME: Remove this:
+	resp.Diagnostics.AddWarning(fmt.Sprintf("*** from Update, after doRun: len: %d", len(didRun.resolvedVariables)), "")
 
 	// Get the resolved variables from the run.
 	resolvedVars, diags := t.toProviderOutputVariables(ctx, didRun.resolvedVariables)
@@ -554,10 +563,18 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		return diags
 	}
 
+	// FIXME: Remove this:
+	diags.AddWarning(fmt.Sprintf("*** from doRun, before fix: len: %d", len(resolvedVars)), "")
+
 	if output != nil {
 		*output = doRunOutput{
-			resolvedVariables: t.fixResolvedVariableNamespacePaths(resolvedVars, finishedRun.WorkspacePath),
+			// FIXME: Put the fix back:
+			resolvedVariables: resolvedVars,
+			// resolvedVariables: t.fixResolvedVariableNamespacePaths(resolvedVars, finishedRun.WorkspacePath),
 		}
+
+		// FIXME: Remove this:
+		diags.AddWarning(fmt.Sprintf("*** from doRun, after fix: len: %d", len(output.resolvedVariables)), "")
 
 		if finishedRun.ModuleVersion != nil {
 			output.moduleVersion = *finishedRun.ModuleVersion
@@ -637,7 +654,17 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 				diags.AddError("Failed to get resolved variables", err.Error())
 				return diags
 			}
-			moduleInfoOutput.resolvedVariables = t.fixResolvedVariableNamespacePaths(resolvedVars, latestRun.WorkspacePath)
+
+			// FIXME: Remove this:
+			diags.AddWarning(fmt.Sprintf("*** from getCurrentApplied, before fix: len: %d", len(resolvedVars)), "")
+
+			// FIXME: Put the fix back:
+			moduleInfoOutput.resolvedVariables = resolvedVars
+			// moduleInfoOutput.resolvedVariables = t.fixResolvedVariableNamespacePaths(resolvedVars, latestRun.WorkspacePath)
+
+			// FIXME: Remove this:
+			diags.AddWarning(fmt.Sprintf("*** from getCurrentApplied, after fix: len: %d", len(moduleInfoOutput.resolvedVariables)), "")
+
 		} else {
 			// Current state has no run ID, so it must have been manually updated.
 			moduleInfoOutput.wasManualUpdate = true
@@ -788,10 +815,11 @@ func (t *applyModuleResource) fixResolvedVariableNamespacePaths(input []sdktypes
 	result := []sdktypes.RunVariable{}
 
 	for _, v := range input {
-		if (v.NamespacePath == nil) || (*v.NamespacePath == "") {
-			v.NamespacePath = &path
+		v2 := v // make a copy to avoid modifying the original
+		if (v2.NamespacePath == nil) || (*v2.NamespacePath == "") {
+			v2.NamespacePath = &path
 		}
-		result = append(result, v)
+		result = append(result, v2)
 	}
 
 	return result
