@@ -467,18 +467,31 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		return diags
 	}
 
-	// Bring in any error message(s) from the finished inner run.
-	diags.Append(t.extractRunError(ctx, plannedRun)...)
-
 	// If the plan fails, both plannedRun.Status and plannedRun.Plan.Status are "errored".
 	// If the plan succeeds, plannedRun.Status is "planned",
 	// while plannedRun.Plan.Status is "finished".
 	//
 	if !strings.HasPrefix(string(plannedRun.Status), "planned") {
+
+		// Bring in any error message(s) from the finished inner plan run.
+		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
+		diags.Append(innerPlanRunDiags...)
+		if innerPlanRunDiags.HasError() {
+			return diags
+		}
+
 		diags.AddError("Plan failed", string(plannedRun.Status))
 		return diags
 	}
 	if plannedRun.Plan.Status != "finished" {
+
+		// Bring in any error message(s) from the finished inner plan run.
+		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
+		diags.Append(innerPlanRunDiags...)
+		if innerPlanRunDiags.HasError() {
+			return diags
+		}
+
 		diags.AddError("Plan failed", string(plannedRun.Plan.Status))
 		return diags
 	}
@@ -534,16 +547,29 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 		return diags
 	}
 
-	// Bring in any error message(s) from the finished inner run.
-	diags.Append(t.extractRunError(ctx, finishedRun)...)
-
 	// If an apply job succeeds, finishedRun.Status is "applied" and
 	// finishedRun.Apply.Status is "finished".
 	if finishedRun.Status != "applied" {
+
+		// Bring in any error message(s) from the finished inner apply run.
+		innerApplyRunDiags := t.extractRunError(ctx, finishedRun)
+		diags.Append(innerApplyRunDiags...)
+		if innerApplyRunDiags.HasError() {
+			return diags
+		}
+
 		diags.AddError("Apply failed", string(finishedRun.Status))
 		return diags
 	}
 	if finishedRun.Apply.Status != "finished" {
+
+		// Bring in any error message(s) from the finished inner apply run.
+		innerApplyRunDiags := t.extractRunError(ctx, finishedRun)
+		diags.Append(innerApplyRunDiags...)
+		if innerApplyRunDiags.HasError() {
+			return diags
+		}
+
 		diags.AddError("Apply status", string(finishedRun.Apply.Status))
 		return diags
 	}
@@ -687,6 +713,7 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 		})
 		if err != nil {
 			diags.AddError("Failed to get job logs", err.Error())
+			return diags
 		}
 
 		// Find the first mention of "error" in the logs.
