@@ -12,12 +12,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-	"github.com/martian-cloud/terraform-provider-tharsis/internal/modifiers"
 	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
@@ -197,14 +197,13 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "Whether the run will be speculative, default is false.",
 				Description:         "Whether the run will be speculative, default is false.",
 				Optional:            true,
+				Default:             booldefault.StaticBool(false),
+				Computed:            true, // Must be computed if setting a default in the schema.
 			},
 			"resolved_variables": schema.ListNestedAttribute{
 				MarkdownDescription: "The variables that were used by the run.",
 				Description:         "The variables that were used by the run.",
 				Computed:            true,
-				PlanModifiers: []planmodifier.List{
-					modifiers.ListDefault([]attr.Value{}),
-				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"value": schema.StringAttribute{
@@ -259,17 +258,11 @@ func (t *applyModuleResource) Create(ctx context.Context,
 		return
 	}
 
-	// Pass in Speculative if supplied.
-	speculative := false
-	if !applyModule.Speculative.IsNull() {
-		speculative = applyModule.Speculative.ValueBool()
-	}
-
 	// Do plan and apply, no destroy.
 	var didRun doRunOutput
 	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
 		model:       &applyModule,
-		speculative: speculative,
+		speculative: applyModule.Speculative.ValueBool(),
 	}, &didRun)...)
 	if resp.Diagnostics.HasError() {
 		return
