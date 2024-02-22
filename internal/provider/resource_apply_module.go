@@ -22,13 +22,13 @@ import (
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
-type doRunInput struct {
+type createRunInput struct {
 	model       *ApplyModuleModel
 	doDestroy   bool
 	speculative bool
 }
 
-type doRunOutput struct {
+type createRunOutput struct {
 	moduleVersion     string
 	resolvedVariables []sdktypes.RunVariable
 }
@@ -259,8 +259,8 @@ func (t *applyModuleResource) Create(ctx context.Context,
 	}
 
 	// Do plan and apply, no destroy.
-	var didRun doRunOutput
-	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
+	var didRun createRunOutput
+	resp.Diagnostics.Append(t.createRun(ctx, &createRunInput{
 		model:       &applyModule,
 		speculative: applyModule.Speculative.ValueBool(),
 	}, &didRun)...)
@@ -336,8 +336,8 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	}
 
 	// Do the run.
-	var didRun doRunOutput
-	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
+	var didRun createRunOutput
+	resp.Diagnostics.Append(t.createRun(ctx, &createRunInput{
 		model:       &plan,
 		speculative: plan.Speculative.ValueBool(),
 	}, &didRun)...)
@@ -409,7 +409,7 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 	}
 
 	// The apply module is being deleted, so don't use the module version output.
-	resp.Diagnostics.Append(t.doRun(ctx, &doRunInput{
+	resp.Diagnostics.Append(t.createRun(ctx, &createRunInput{
 		model:     &state,
 		doDestroy: true,
 	}, nil)...) // nil means no module version output is wanted
@@ -418,9 +418,9 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 	}
 }
 
-// doRun launches a remote run and waits for it to complete.
-func (t *applyModuleResource) doRun(ctx context.Context,
-	input *doRunInput, output *doRunOutput,
+// createRun launches a remote run and waits for it to complete.
+func (t *applyModuleResource) createRun(ctx context.Context,
+	input *createRunInput, output *createRunOutput,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -501,7 +501,7 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 
 	if plannedRun.Status == "planned_and_finished" {
 		if output != nil {
-			*output = doRunOutput{
+			*output = createRunOutput{
 				resolvedVariables: resolvedPlanVars,
 			}
 
@@ -585,7 +585,7 @@ func (t *applyModuleResource) doRun(ctx context.Context,
 	}
 
 	if output != nil {
-		*output = doRunOutput{
+		*output = createRunOutput{
 			resolvedVariables: resolvedApplyVars,
 		}
 
