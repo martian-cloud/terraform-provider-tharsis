@@ -22,6 +22,11 @@ import (
 	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
 )
 
+const (
+	// getLogsChunkSize is the maximum number of bytes to request in a single log request.
+	getLogsChunkSize = 5000
+)
+
 type createRunInput struct {
 	model       *ApplyModuleModel
 	doDestroy   bool
@@ -701,16 +706,63 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 			return diags
 		}
 
-		logs, err := t.client.Job.GetJobLogs(ctx, &sdktypes.GetJobLogsInput{ // unlimited
-			JobID: jobID,
+		// Must get the job to know the size of the logs to paginate in reverse.
+		job, err := t.client.Job.GetJob(ctx, &sdktypes.GetJobInput{
+			ID: jobID,
 		})
 		if err != nil {
-			diags.AddError("Failed to get job logs", err.Error())
+			diags.AddError("Failed to get job", err.Error())
 			return diags
 		}
 
+		// Get the logs from the end.  There will most likely be a smaller chunk at the beginning.
+		allLogs := ""
+		currentStart := int32(job.LogSize) - getLogsChunkSize
+		nextChunkSize := int32(getLogsChunkSize)
+		if currentStart < 0 {
+			// Only one chunk to read.
+			currentStart = 0
+			nextChunkSize = int32(job.LogSize)
+		}
+		for {
+			logs, err := t.client.Job.GetJobLogs(ctx, &sdktypes.GetJobLogsInput{
+				JobID: jobID,
+				Start: currentStart,
+				Limit: &nextChunkSize,
+			})
+			if err != nil {
+				diags.AddError("Failed to get job logs", err.Error())
+				return diags
+			}
+
+			// Workaround: The API returns one more character than asked for.
+			newLogs := logs.Logs
+			if len(newLogs) > int(nextChunkSize) {
+				newLogs = newLogs[:nextChunkSize]
+			}
+
+			allLogs = newLogs + allLogs
+			if strings.HasPrefix(allLogs, "Error: ") {
+				// Found the error, so break out of the loop.
+				break
+			}
+
+			if currentStart == 0 {
+				// No error found, and we've read the whole log.
+				break
+			}
+
+			if currentStart >= getLogsChunkSize {
+				currentStart -= getLogsChunkSize
+			} else {
+				// A smaller chunk at the beginning.
+				nextChunkSize = currentStart
+				currentStart = 0
+			}
+		}
+
 		// Find the first mention of "error" in the logs.
-		splitLogs := strings.Split(logs.Logs, "\n")
+		splitLogs := strings.Split(allLogs, "\n")
 		foundIx := -1
 		for i, log := range splitLogs {
 			if strings.HasPrefix(strings.ToLower(log), "error") {
@@ -719,13 +771,28 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 			}
 		}
 
-		// Must format the message as a single string.  Otherwise, an upper layer inserts
-		// the first/outer run's error's root cause into the logs between what we print here.
+		if foundIx < 0 {
+			// No error found, so return empty diags.
+			return diags
+		}
+
+		// Must truncate before the state creation line.
+		splitLogs = splitLogs[foundIx:] // Only keep the error and what follows.
+		for i, log := range splitLogs {
+			if strings.Contains(log, "Created new state version") {
+				if i == 0 {
+					diags.AddWarning("Failed to find logs between 'error' and 'Created new state version'", "")
+					return diags
+				}
+				splitLogs = splitLogs[:i-1]
+				break
+			}
+		}
+
+		// Must format the message as a single string.
+		// Prefix each line with vertical bar and tab so it's clear this comes from the inner run's logs.
 		if foundIx >= 0 {
-			diags.AddError("Error from provider-launched run:\n|\t"+
-				strings.Join(splitLogs[foundIx:], "\n|\t")+
-				"\nEnd of error from provider-launched run.",
-				"")
+			diags.AddError("|\t"+strings.Join(splitLogs, "\n|\t"), "")
 		}
 	}
 
