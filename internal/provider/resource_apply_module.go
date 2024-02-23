@@ -792,7 +792,10 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 		// Must format the message as a single string.
 		// Prefix each line with vertical bar and tab so it's clear this comes from the inner run's logs.
 		if foundIx >= 0 {
-			diags.AddError(strings.TrimPrefix(strings.Join(splitLogs, "\n"), "Error: "), "")
+			diags.AddError(fmt.Sprintf(
+				"Failed to %s module %s in workspace %s\n",
+				strings.ToLower(string(job.Type)), ptr.ToString(run.ModuleSource), run.WorkspacePath,
+			)+strings.TrimPrefix(strings.Join(splitLogs, "\n"), "Error: "), "")
 		}
 	}
 
