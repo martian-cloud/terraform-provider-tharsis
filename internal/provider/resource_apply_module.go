@@ -792,7 +792,7 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 		// Must format the message as a single string.
 		// Prefix each line with vertical bar and tab so it's clear this comes from the inner run's logs.
 		if foundIx >= 0 {
-			diags.AddError("|\t"+strings.Join(splitLogs, "\n|\t"), "")
+			diags.AddError(strings.TrimPrefix(strings.Join(splitLogs, "\n"), "Error: "), "")
 		}
 	}
 
