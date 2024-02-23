@@ -25,6 +25,13 @@ import (
 const (
 	// getLogsChunkSize is the maximum number of bytes to request in a single log request.
 	getLogsChunkSize = 5000
+
+	// lookForError is the string to look for in the logs to find the error message.
+	// Need to look at the start of a line to avoid false positives.
+	lookForError = "\nError: "
+
+	// lookForStateCreation is the string to look for in the logs to find the state creation message.
+	lookForStateCreation = "Created new state version"
 )
 
 type createRunInput struct {
@@ -742,7 +749,7 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 			}
 
 			allLogs = newLogs + allLogs
-			if strings.HasPrefix(allLogs, "Error: ") {
+			if strings.HasPrefix(allLogs, lookForError) {
 				// Found the error, so break out of the loop.
 				break
 			}
@@ -761,42 +768,25 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 			}
 		}
 
-		// Find the first mention of "error" in the logs.
-		splitLogs := strings.Split(allLogs, "\n")
-		foundIx := -1
-		for i, log := range splitLogs {
-			if strings.HasPrefix(strings.ToLower(log), "error") {
-				foundIx = i
-				break
-			}
-		}
-
-		if foundIx < 0 {
+		// Find the beginning of the error message to return.
+		startIx := strings.Index(allLogs, lookForError)
+		if startIx < 0 {
 			// No error found, so return empty diags.
 			return diags
 		}
 
-		// Must truncate before the state creation line.
-		splitLogs = splitLogs[foundIx:] // Only keep the error and what follows.
-		for i, log := range splitLogs {
-			if strings.Contains(log, "Created new state version") {
-				if i == 0 {
-					diags.AddWarning("Failed to find logs between 'error' and 'Created new state version'", "")
-					return diags
-				}
-				splitLogs = splitLogs[:i-1]
-				break
-			}
+		// Find the end of the error message to return.
+		foundMessage := allLogs[(startIx + 1):]
+		endIx := strings.Index(foundMessage, lookForStateCreation)
+		if endIx > 0 {
+			foundMessage = foundMessage[:endIx]
 		}
 
-		// Must format the message as a single string.
-		// Prefix each line with vertical bar and tab so it's clear this comes from the inner run's logs.
-		if foundIx >= 0 {
-			diags.AddError(fmt.Sprintf(
-				"Failed to %s module %s in workspace %s\n",
-				strings.ToLower(string(job.Type)), ptr.ToString(run.ModuleSource), run.WorkspacePath,
-			)+strings.TrimPrefix(strings.Join(splitLogs, "\n"), "Error: "), "")
-		}
+		// Add a prefix line so the user knows what module source and workspace the error came from.
+		diags.AddError(fmt.Sprintf(
+			"Failed to %s module %s in workspace %s\n",
+			strings.ToLower(string(job.Type)), ptr.ToString(run.ModuleSource), run.WorkspacePath,
+		)+strings.TrimPrefix(foundMessage, "Error: "), "")
 	}
 
 	return diags
