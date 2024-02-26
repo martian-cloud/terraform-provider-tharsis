@@ -462,20 +462,16 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 	// If the plan succeeds, plannedRun.Status is "planned",
 	// while plannedRun.Plan.Status is "finished".
 	//
-	if (plannedRun.Status != sdktypes.RunPlanned) && (plannedRun.Status != sdktypes.RunPlannedAndFinished) {
-
-		// Bring in any error message(s) from the finished inner plan run.
-		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
-		diags.Append(innerPlanRunDiags...)
-		if innerPlanRunDiags.HasError() {
-			return nil, diags
-		}
-
-		diags.AddError("Plan failed with unknown error", string(plannedRun.Status))
-		return nil, diags
+	var planSummary, planDetail string
+	switch {
+	case (plannedRun.Status != sdktypes.RunPlanned) && (plannedRun.Status != sdktypes.RunPlannedAndFinished):
+		planSummary = "Plan failed with unknown error"
+		planDetail = string(plannedRun.Status)
+	case plannedRun.Plan.Status != sdktypes.PlanFinished:
+		planSummary = "Plan failed"
+		planDetail = string(plannedRun.Plan.Status)
 	}
-	if plannedRun.Plan.Status != sdktypes.PlanFinished {
-
+	if planSummary != "" {
 		// Bring in any error message(s) from the finished inner plan run.
 		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
 		diags.Append(innerPlanRunDiags...)
@@ -483,7 +479,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 			return nil, diags
 		}
 
-		diags.AddError("Plan failed", string(plannedRun.Plan.Status))
+		diags.AddError(planSummary, planDetail)
 		return nil, diags
 	}
 
@@ -497,7 +493,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		return nil, diags
 	}
 
-	if plannedRun.Status == "planned_and_finished" {
+	if plannedRun.Status == sdktypes.RunPlannedAndFinished {
 		result := &createRunOutput{
 			resolvedVariables: resolvedPlanVars,
 		}
@@ -538,20 +534,16 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 
 	// If an apply job succeeds, finishedRun.Status is "applied" and
 	// finishedRun.Apply.Status is "finished".
-	if finishedRun.Status != "applied" {
-
-		// Bring in any error message(s) from the finished inner apply run.
-		innerApplyRunDiags := t.extractRunError(ctx, finishedRun)
-		diags.Append(innerApplyRunDiags...)
-		if innerApplyRunDiags.HasError() {
-			return nil, diags
-		}
-
-		diags.AddError("Apply failed", string(finishedRun.Status))
-		return nil, diags
+	var applySummary, applyDetail string
+	switch {
+	case finishedRun.Status != sdktypes.RunApplied:
+		applySummary = "Apply failed with unknown error"
+		applyDetail = string(finishedRun.Status)
+	case finishedRun.Apply.Status != sdktypes.ApplyFinished:
+		applySummary = "Apply status"
+		applyDetail = string(finishedRun.Apply.Status)
 	}
-	if finishedRun.Apply.Status != "finished" {
-
+	if applySummary != "" {
 		// Bring in any error message(s) from the finished inner apply run.
 		innerApplyRunDiags := t.extractRunError(ctx, finishedRun)
 		diags.Append(innerApplyRunDiags...)
@@ -559,7 +551,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 			return nil, diags
 		}
 
-		diags.AddError("Apply status", string(finishedRun.Apply.Status))
+		diags.AddError(applySummary, applyDetail)
 		return nil, diags
 	}
 
@@ -580,16 +572,12 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		return nil, diags
 	}
 
-	result := &createRunOutput{
-		resolvedVariables: resolvedApplyVars,
-	}
-
-	if finishedRun.ModuleVersion != nil {
-		result.moduleVersion = *finishedRun.ModuleVersion
-	}
-
+	// The module version was checked above, so it's safe to dereference.
 	// These diags may include those from the inner run if it errored out.
-	return result, diags
+	return &createRunOutput{
+		resolvedVariables: resolvedApplyVars,
+		moduleVersion:     *finishedRun.ModuleVersion,
+	}, diags
 }
 
 func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
@@ -678,101 +666,98 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 // extractRunError extracts the error from a run's logs (if the run errored out).
 func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes.Run) diag.Diagnostics {
 	var diags diag.Diagnostics
+	var jobID string
 
-	if run.Status == sdktypes.RunErrored {
-		var jobID string
-
-		switch {
-		case run.Apply != nil:
-			if run.Apply.CurrentJobID != nil {
-				jobID = *run.Apply.CurrentJobID
-			}
-		case run.Plan != nil:
-			if run.Plan.CurrentJobID != nil {
-				jobID = *run.Plan.CurrentJobID
-			}
+	switch {
+	case run.Apply != nil:
+		if run.Apply.CurrentJobID != nil {
+			jobID = *run.Apply.CurrentJobID
 		}
-
-		if jobID == "" {
-			diags.AddWarning("Run status is errored, but no job ID found", "")
-			return diags
+	case run.Plan != nil:
+		if run.Plan.CurrentJobID != nil {
+			jobID = *run.Plan.CurrentJobID
 		}
+	}
 
-		// Must get the job to know the size of the logs to paginate in reverse.
-		job, err := t.client.Job.GetJob(ctx, &sdktypes.GetJobInput{
-			ID: jobID,
+	if jobID == "" {
+		diags.AddWarning("Run status is errored, but no job ID found", "")
+		return diags
+	}
+
+	// Must get the job to know the size of the logs to paginate in reverse.
+	job, err := t.client.Job.GetJob(ctx, &sdktypes.GetJobInput{
+		ID: jobID,
+	})
+	if err != nil {
+		diags.AddError("Failed to get job", err.Error())
+		return diags
+	}
+
+	// Get the logs from the end.  There will most likely be a smaller chunk at the beginning.
+	allLogs := ""
+	currentStart := int32(job.LogSize) - logChunkSize
+	nextChunkSize := int32(logChunkSize)
+	if currentStart < 0 {
+		// Only one chunk to read.
+		currentStart = 0
+		nextChunkSize = int32(job.LogSize)
+	}
+	for {
+		logs, err := t.client.Job.GetJobLogs(ctx, &sdktypes.GetJobLogsInput{
+			JobID: jobID,
+			Start: currentStart,
+			Limit: &nextChunkSize,
 		})
 		if err != nil {
-			diags.AddError("Failed to get job", err.Error())
+			diags.AddError("Failed to get job logs", err.Error())
 			return diags
 		}
 
-		// Get the logs from the end.  There will most likely be a smaller chunk at the beginning.
-		allLogs := ""
-		currentStart := int32(job.LogSize) - logChunkSize
-		nextChunkSize := int32(logChunkSize)
-		if currentStart < 0 {
-			// Only one chunk to read.
+		// Workaround: The API returns one more character than asked for.
+		newLogs := logs.Logs
+		if len(newLogs) > int(nextChunkSize) {
+			newLogs = newLogs[:nextChunkSize]
+		}
+
+		allLogs = newLogs + allLogs
+		if strings.Contains(allLogs, lookForError) {
+			// Found the error, so break out of the loop.
+			break
+		}
+
+		if currentStart == 0 {
+			// No error found, and we've read the whole log.
+			break
+		}
+
+		if currentStart >= logChunkSize {
+			currentStart -= logChunkSize
+		} else {
+			// A smaller chunk at the beginning.
+			nextChunkSize = currentStart
 			currentStart = 0
-			nextChunkSize = int32(job.LogSize)
 		}
-		for {
-			logs, err := t.client.Job.GetJobLogs(ctx, &sdktypes.GetJobLogsInput{
-				JobID: jobID,
-				Start: currentStart,
-				Limit: &nextChunkSize,
-			})
-			if err != nil {
-				diags.AddError("Failed to get job logs", err.Error())
-				return diags
-			}
-
-			// Workaround: The API returns one more character than asked for.
-			newLogs := logs.Logs
-			if len(newLogs) > int(nextChunkSize) {
-				newLogs = newLogs[:nextChunkSize]
-			}
-
-			allLogs = newLogs + allLogs
-			if strings.Contains(allLogs, lookForError) {
-				// Found the error, so break out of the loop.
-				break
-			}
-
-			if currentStart == 0 {
-				// No error found, and we've read the whole log.
-				break
-			}
-
-			if currentStart >= logChunkSize {
-				currentStart -= logChunkSize
-			} else {
-				// A smaller chunk at the beginning.
-				nextChunkSize = currentStart
-				currentStart = 0
-			}
-		}
-
-		// Find the beginning of the error message to return.
-		startIx := strings.Index(allLogs, lookForError)
-		if startIx < 0 {
-			// No error found, so return empty diags.
-			return diags
-		}
-
-		// Find the end of the error message to return.
-		foundMessage := allLogs[(startIx + 1):]
-		endIx := strings.Index(foundMessage, lookForStateCreation)
-		if endIx > 0 {
-			foundMessage = foundMessage[:endIx]
-		}
-
-		// Add a prefix line so the user knows what module source and workspace the error came from.
-		diags.AddError(fmt.Sprintf(
-			"Failed to %s module %s in workspace %s\n",
-			strings.ToLower(string(job.Type)), ptr.ToString(run.ModuleSource), run.WorkspacePath,
-		)+strings.TrimPrefix(foundMessage, "Error: "), "")
 	}
+
+	// Find the beginning of the error message to return.
+	startIx := strings.Index(allLogs, lookForError)
+	if startIx < 0 {
+		// No error found, so return empty diags.
+		return diags
+	}
+
+	// Find the end of the error message to return.
+	foundMessage := allLogs[(startIx + 1):]
+	endIx := strings.Index(foundMessage, lookForStateCreation)
+	if endIx > 0 {
+		foundMessage = foundMessage[:endIx]
+	}
+
+	// Add a prefix line so the user knows what module source and workspace the error came from.
+	diags.AddError(fmt.Sprintf(
+		"Failed to %s module %s in workspace %s\n",
+		strings.ToLower(string(job.Type)), ptr.ToString(run.ModuleSource), run.WorkspacePath,
+	)+strings.TrimPrefix(foundMessage, "Error: "), "")
 
 	return diags
 }
