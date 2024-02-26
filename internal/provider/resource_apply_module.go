@@ -48,7 +48,6 @@ type createRunOutput struct {
 type appliedModuleInfo struct {
 	moduleSource         *string
 	moduleVersion        *string
-	resolvedVariables    []sdktypes.RunVariable
 	wasSuccessfulDestroy bool
 	wasManualUpdate      bool
 }
@@ -269,7 +268,7 @@ func (t *applyModuleResource) Create(ctx context.Context,
 		return
 	}
 
-	// Get the resolved variables from the run.
+	// Transform the resolved variables from the run.
 	resolvedVars, diags := t.toProviderOutputVariables(ctx, didRun.resolvedVariables)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
@@ -313,14 +312,7 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		state.ModuleVersion = types.StringNull()
 	}
 
-	// Get the resolved variables from the run that produced the state.
-	resolvedVars, diags := t.toProviderOutputVariables(ctx, currentApplied.resolvedVariables)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	state.ResolvedVariables = resolvedVars
+	// Don't try to set the resolved variables in the Read method, because the run has not yet been done.
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -348,7 +340,7 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	// Capture the module version in case it changed.
 	plan.ModuleVersion = types.StringValue(didRun.moduleVersion)
 
-	// Get the resolved variables from the run.
+	// Transform the resolved variables from the run.
 	resolvedVars, diags := t.toProviderOutputVariables(ctx, didRun.resolvedVariables)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
@@ -409,7 +401,7 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 	}
 
 	// The apply module is being deleted, so don't use the module version output.
-	_, newDiags2 := t.createRun(ctx, &createRunInput{
+	didRun, newDiags2 := t.createRun(ctx, &createRunInput{
 		model:     &state,
 		doDestroy: true,
 	})
@@ -417,6 +409,17 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Transform the resolved variables from the destroy run.
+	resolvedVars, diags := t.toProviderOutputVariables(ctx, didRun.resolvedVariables)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+	state.ResolvedVariables = resolvedVars
+
+	// Set the response state to be fully-populated, with or without error.
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // createRun launches a remote run and waits for it to complete.
@@ -462,16 +465,14 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 	// If the plan succeeds, plannedRun.Status is "planned",
 	// while plannedRun.Plan.Status is "finished".
 	//
-	var planSummary, planDetail string
+	var planDetail string
 	switch {
 	case (plannedRun.Status != sdktypes.RunPlanned) && (plannedRun.Status != sdktypes.RunPlannedAndFinished):
-		planSummary = "Plan failed with unknown error"
 		planDetail = string(plannedRun.Status)
 	case plannedRun.Plan.Status != sdktypes.PlanFinished:
-		planSummary = "Plan failed"
 		planDetail = string(plannedRun.Plan.Status)
 	}
-	if planSummary != "" {
+	if planDetail != "" {
 		// Bring in any error message(s) from the finished inner plan run.
 		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
 		diags.Append(innerPlanRunDiags...)
@@ -479,7 +480,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 			return nil, diags
 		}
 
-		diags.AddError(planSummary, planDetail)
+		diags.AddError("Plan failed with unknown error", planDetail)
 		return nil, diags
 	}
 
@@ -534,16 +535,14 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 
 	// If an apply job succeeds, finishedRun.Status is "applied" and
 	// finishedRun.Apply.Status is "finished".
-	var applySummary, applyDetail string
+	var applyDetail string
 	switch {
 	case finishedRun.Status != sdktypes.RunApplied:
-		applySummary = "Apply failed with unknown error"
 		applyDetail = string(finishedRun.Status)
 	case finishedRun.Apply.Status != sdktypes.ApplyFinished:
-		applySummary = "Apply status"
 		applyDetail = string(finishedRun.Apply.Status)
 	}
-	if applySummary != "" {
+	if applyDetail != "" {
 		// Bring in any error message(s) from the finished inner apply run.
 		innerApplyRunDiags := t.extractRunError(ctx, finishedRun)
 		diags.Append(innerApplyRunDiags...)
@@ -551,7 +550,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 			return nil, diags
 		}
 
-		diags.AddError(applySummary, applyDetail)
+		diags.AddError("Apply failed with unknown error", applyDetail)
 		return nil, diags
 	}
 
@@ -644,15 +643,6 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 			if latestRun.IsDestroy && (latestRun.Status == sdktypes.RunApplied) && (latestRun.Apply != nil) {
 				moduleInfoOutput.wasSuccessfulDestroy = true
 			}
-
-			// Get the resolved variables from the run that produced the state.
-			resolvedVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunInput{ID: latestRun.Metadata.ID})
-			if err != nil {
-				diags.AddError("Failed to get resolved variables", err.Error())
-				return nil, diags
-			}
-
-			moduleInfoOutput.resolvedVariables = resolvedVars
 		} else {
 			// Current state has no run ID, so it must have been manually updated.
 			moduleInfoOutput.wasManualUpdate = true
