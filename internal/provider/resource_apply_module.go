@@ -658,17 +658,25 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 	var diags diag.Diagnostics
 	var jobID string
 
-	switch {
-	case run.Apply != nil:
-		if run.Apply.CurrentJobID != nil {
-			jobID = *run.Apply.CurrentJobID
-		}
-	case run.Plan != nil:
-		if run.Plan.CurrentJobID != nil {
-			jobID = *run.Plan.CurrentJobID
+	// Check whether the plan errored.
+	if run.Plan != nil {
+		if run.Plan.Status == sdktypes.PlanErrored {
+			// The plan errored.
+			if run.Plan.CurrentJobID != nil {
+				jobID = *run.Plan.CurrentJobID
+			} else {
+				diags.AddWarning("Plan status is errored, but no job ID found", "")
+				return diags
+			}
 		}
 	}
 
+	// If no job ID yet, check the apply.
+	if (jobID == "") && (run.Apply != nil) {
+		if run.Apply.CurrentJobID != nil {
+			jobID = *run.Apply.CurrentJobID
+		}
+	}
 	if jobID == "" {
 		diags.AddWarning("Run status is errored, but no job ID found", "")
 		return diags
