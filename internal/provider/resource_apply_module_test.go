@@ -107,26 +107,6 @@ func TestApplyModule(t *testing.T) {
 				),
 			},
 
-			// Do a speculative run (with another variable value change).
-			{
-				Config: testApplyModuleConfigurationCreate() + testDoApplyCreateSpeculative(3),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify values that should be known.
-					testAccCheckTharsisApplyModuleExists("tharsis_apply_module.tam", true),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "workspace_path", ws1Path),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "module_source", moduleSource),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"3"),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.value", varValueBase+"3"),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", ""),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.key", varKey),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.category", varCategory),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.hcl", strconv.FormatBool(varHCL)),
-				),
-			},
-
 			// Do a destroy/delete run.
 			{
 				Config: testApplyModuleConfigurationCreate(), // Remove the tharsis_apply_module resource.
@@ -215,35 +195,6 @@ resource "tharsis_apply_module" "tam" {
       hcl = %v
     }
   ]
-}
-
-	`,
-		ws1Path, moduleSource, varValueBase, val, varKey, varCategory, varHCL,
-	)
-}
-
-func testDoApplyCreateSpeculative(val int) string {
-	ws1Name := "workspace-1"
-	ws1Path := testGroupPath + "/" + ws1Name
-	varValueBase := "some variable value "
-	varKey := "trigger_name"
-	varCategory := "terraform"
-	varHCL := false
-
-	return fmt.Sprintf(`
-
-resource "tharsis_apply_module" "tam" {
-  workspace_path = "%s"
-  module_source  = "%s"
-  variables      = [
-    {
-      value = "%s%d"
-      key = "%s"
-      category = "%s"
-      hcl = %v
-    }
-  ]
-  speculative    = true
 }
 
 	`,

@@ -23,7 +23,6 @@ Defines and manages tharsis_apply_module resources, which launch runs in other w
 ### Optional
 
 - `module_version` (String) The version identifier of the module.
-- `speculative` (Boolean) Whether the run will be speculative, default is false.
 - `variables` (Attributes List) Optional list of variables for the run in the target workspace. (see [below for nested schema](#nestedatt--variables))
 
 ### Read-Only

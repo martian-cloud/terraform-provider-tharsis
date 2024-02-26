@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -35,9 +34,8 @@ const (
 )
 
 type createRunInput struct {
-	model       *ApplyModuleModel
-	doDestroy   bool
-	speculative bool
+	model     *ApplyModuleModel
+	doDestroy bool
 }
 
 type createRunOutput struct {
@@ -50,9 +48,9 @@ type createRunOutput struct {
 type appliedModuleInfo struct {
 	moduleSource         *string
 	moduleVersion        *string
+	resolvedVariables    []sdktypes.RunVariable
 	wasSuccessfulDestroy bool
 	wasManualUpdate      bool
-	resolvedVariables    []sdktypes.RunVariable
 }
 
 const (
@@ -113,7 +111,6 @@ type ApplyModuleModel struct {
 	ModuleVersion     types.String        `tfsdk:"module_version"`
 	Variables         basetypes.ListValue `tfsdk:"variables"`
 	ResolvedVariables basetypes.ListValue `tfsdk:"resolved_variables"`
-	Speculative       types.Bool          `tfsdk:"speculative"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -205,13 +202,6 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 					},
 				},
 			},
-			"speculative": schema.BoolAttribute{
-				MarkdownDescription: "Whether the run will be speculative, default is false.",
-				Description:         "Whether the run will be speculative, default is false.",
-				Optional:            true,
-				Default:             booldefault.StaticBool(false),
-				Computed:            true, // Must be computed if setting a default in the schema.
-			},
 			"resolved_variables": schema.ListNestedAttribute{
 				MarkdownDescription: "The variables that were used by the run.",
 				Description:         "The variables that were used by the run.",
@@ -273,8 +263,7 @@ func (t *applyModuleResource) Create(ctx context.Context,
 	// Do plan and apply, no destroy.
 	var didRun createRunOutput
 	resp.Diagnostics.Append(t.createRun(ctx, &createRunInput{
-		model:       &applyModule,
-		speculative: applyModule.Speculative.ValueBool(),
+		model: &applyModule,
 	}, &didRun)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -350,8 +339,7 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	// Do the run.
 	var didRun createRunOutput
 	resp.Diagnostics.Append(t.createRun(ctx, &createRunInput{
-		model:       &plan,
-		speculative: plan.Speculative.ValueBool(),
+		model: &plan,
 	}, &didRun)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -453,7 +441,6 @@ func (t *applyModuleResource) createRun(ctx context.Context,
 		IsDestroy:     input.doDestroy,
 		ModuleSource:  ptr.String(input.model.ModuleSource.ValueString()),
 		ModuleVersion: moduleVersion,
-		Speculative:   &input.speculative,
 		Variables:     vars,
 	})
 	if err != nil {
@@ -476,7 +463,7 @@ func (t *applyModuleResource) createRun(ctx context.Context,
 	// If the plan succeeds, plannedRun.Status is "planned",
 	// while plannedRun.Plan.Status is "finished".
 	//
-	if !strings.HasPrefix(string(plannedRun.Status), "planned") {
+	if (plannedRun.Status != sdktypes.RunPlanned) && (plannedRun.Status != sdktypes.RunPlannedAndFinished) {
 
 		// Bring in any error message(s) from the finished inner plan run.
 		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
@@ -485,10 +472,10 @@ func (t *applyModuleResource) createRun(ctx context.Context,
 			return diags
 		}
 
-		diags.AddError("Plan failed", string(plannedRun.Status))
+		diags.AddError("Plan failed with unknown error", string(plannedRun.Status))
 		return diags
 	}
-	if plannedRun.Plan.Status != "finished" {
+	if plannedRun.Plan.Status != sdktypes.PlanFinished {
 
 		// Bring in any error message(s) from the finished inner plan run.
 		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
