@@ -261,10 +261,10 @@ func (t *applyModuleResource) Create(ctx context.Context,
 	}
 
 	// Do plan and apply, no destroy.
-	var didRun createRunOutput
-	resp.Diagnostics.Append(t.createRun(ctx, &createRunInput{
+	didRun, newDiags := t.createRun(ctx, &createRunInput{
 		model: &applyModule,
-	}, &didRun)...)
+	})
+	resp.Diagnostics.Append(newDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -295,8 +295,8 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		return
 	}
 
-	var currentApplied appliedModuleInfo
-	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &currentApplied)...)
+	currentApplied, newDiags := t.getCurrentApplied(ctx, state)
+	resp.Diagnostics.Append(newDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -337,10 +337,10 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	}
 
 	// Do the run.
-	var didRun createRunOutput
-	resp.Diagnostics.Append(t.createRun(ctx, &createRunInput{
+	didRun, newDiags := t.createRun(ctx, &createRunInput{
 		model: &plan,
-	}, &didRun)...)
+	})
+	resp.Diagnostics.Append(newDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -370,8 +370,8 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 		return
 	}
 
-	var currentApplied appliedModuleInfo
-	resp.Diagnostics.Append(t.getCurrentApplied(ctx, state, &currentApplied)...)
+	currentApplied, newDiags := t.getCurrentApplied(ctx, state)
+	resp.Diagnostics.Append(newDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -409,26 +409,25 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 	}
 
 	// The apply module is being deleted, so don't use the module version output.
-	resp.Diagnostics.Append(t.createRun(ctx, &createRunInput{
+	_, newDiags2 := t.createRun(ctx, &createRunInput{
 		model:     &state,
 		doDestroy: true,
-	}, nil)...) // nil means no module version output is wanted
+	})
+	resp.Diagnostics.Append(newDiags2...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 }
 
 // createRun launches a remote run and waits for it to complete.
-func (t *applyModuleResource) createRun(ctx context.Context,
-	input *createRunInput, output *createRunOutput,
-) diag.Diagnostics {
+func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInput) (*createRunOutput, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	// Convert the input variables.
 	vars, err := t.copyRunVariablesToInput(ctx, &input.model.Variables)
 	if err != nil {
 		diags.AddError("Failed to convert variables to SDK types", err.Error())
-		return diags
+		return nil, diags
 	}
 
 	// Call CreateRun
@@ -445,18 +444,18 @@ func (t *applyModuleResource) createRun(ctx context.Context,
 	})
 	if err != nil {
 		diags.AddError("Failed to create run", err.Error())
-		return diags
+		return nil, diags
 	}
 
 	if err = t.waitForJobCompletion(ctx, createdRun.Plan.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for plan job completion", err.Error())
-		return diags
+		return nil, diags
 	}
 
 	plannedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
 	if err != nil {
 		diags.AddError("Failed to get planned run", err.Error())
-		return diags
+		return nil, diags
 	}
 
 	// If the plan fails, both plannedRun.Status and plannedRun.Plan.Status are "errored".
@@ -469,11 +468,11 @@ func (t *applyModuleResource) createRun(ctx context.Context,
 		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
 		diags.Append(innerPlanRunDiags...)
 		if innerPlanRunDiags.HasError() {
-			return diags
+			return nil, diags
 		}
 
 		diags.AddError("Plan failed with unknown error", string(plannedRun.Status))
-		return diags
+		return nil, diags
 	}
 	if plannedRun.Plan.Status != sdktypes.PlanFinished {
 
@@ -481,11 +480,11 @@ func (t *applyModuleResource) createRun(ctx context.Context,
 		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
 		diags.Append(innerPlanRunDiags...)
 		if innerPlanRunDiags.HasError() {
-			return diags
+			return nil, diags
 		}
 
 		diags.AddError("Plan failed", string(plannedRun.Plan.Status))
-		return diags
+		return nil, diags
 	}
 
 	// Capture the run ID.
@@ -495,20 +494,18 @@ func (t *applyModuleResource) createRun(ctx context.Context,
 	resolvedPlanVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunInput{ID: runID})
 	if err != nil {
 		diags.AddError("Failed to get resolved variables", err.Error())
-		return diags
+		return nil, diags
 	}
 
 	if plannedRun.Status == "planned_and_finished" {
-		if output != nil {
-			*output = createRunOutput{
-				resolvedVariables: resolvedPlanVars,
-			}
-
-			if plannedRun.ModuleVersion != nil {
-				output.moduleVersion = *plannedRun.ModuleVersion
-			}
+		result := &createRunOutput{
+			resolvedVariables: resolvedPlanVars,
 		}
-		return nil
+
+		if plannedRun.ModuleVersion != nil {
+			result.moduleVersion = *plannedRun.ModuleVersion
+		}
+		return result, diags
 	}
 
 	// Do the apply run.
@@ -518,25 +515,25 @@ func (t *applyModuleResource) createRun(ctx context.Context,
 	})
 	if err != nil {
 		diags.AddError("Failed to apply a run", err.Error())
-		return diags
+		return nil, diags
 	}
 
 	// Make sure the run has an apply.
 	if appliedRun.Apply == nil {
 		msg := fmt.Sprintf("Created run does not have an apply: %s", appliedRun.Metadata.ID)
 		diags.AddError(msg, "")
-		return diags
+		return nil, diags
 	}
 
 	if err = t.waitForJobCompletion(ctx, appliedRun.Apply.CurrentJobID); err != nil {
 		diags.AddError("Failed to wait for apply job completion", err.Error())
-		return diags
+		return nil, diags
 	}
 
 	finishedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: appliedRun.Metadata.ID})
 	if err != nil {
 		diags.AddError("Failed to get finished run", err.Error())
-		return diags
+		return nil, diags
 	}
 
 	// If an apply job succeeds, finishedRun.Status is "applied" and
@@ -547,11 +544,11 @@ func (t *applyModuleResource) createRun(ctx context.Context,
 		innerApplyRunDiags := t.extractRunError(ctx, finishedRun)
 		diags.Append(innerApplyRunDiags...)
 		if innerApplyRunDiags.HasError() {
-			return diags
+			return nil, diags
 		}
 
 		diags.AddError("Apply failed", string(finishedRun.Status))
-		return diags
+		return nil, diags
 	}
 	if finishedRun.Apply.Status != "finished" {
 
@@ -559,42 +556,40 @@ func (t *applyModuleResource) createRun(ctx context.Context,
 		innerApplyRunDiags := t.extractRunError(ctx, finishedRun)
 		diags.Append(innerApplyRunDiags...)
 		if innerApplyRunDiags.HasError() {
-			return diags
+			return nil, diags
 		}
 
 		diags.AddError("Apply status", string(finishedRun.Apply.Status))
-		return diags
+		return nil, diags
 	}
 
 	// In case of a rainy day, make sure the ModuleSource and ModuleVersion *string aren't nil.
 	if finishedRun.ModuleSource == nil {
 		diags.AddError("Finished run's module source is nil.", "")
-		return diags
+		return nil, diags
 	}
 	if finishedRun.ModuleVersion == nil {
 		diags.AddError("Finished run's module version is nil.", "")
-		return diags
+		return nil, diags
 	}
 
 	// Get the resolved variables from the run.
 	resolvedApplyVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunInput{ID: finishedRun.Metadata.ID})
 	if err != nil {
 		diags.AddError("Failed to get resolved variables", err.Error())
-		return diags
+		return nil, diags
 	}
 
-	if output != nil {
-		*output = createRunOutput{
-			resolvedVariables: resolvedApplyVars,
-		}
+	result := &createRunOutput{
+		resolvedVariables: resolvedApplyVars,
+	}
 
-		if finishedRun.ModuleVersion != nil {
-			output.moduleVersion = *finishedRun.ModuleVersion
-		}
+	if finishedRun.ModuleVersion != nil {
+		result.moduleVersion = *finishedRun.ModuleVersion
 	}
 
 	// These diags may include those from the inner run if it errored out.
-	return diags
+	return result, diags
 }
 
 func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
@@ -624,8 +619,8 @@ func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *s
 
 // getCurrentApplied returns an ApplyModuleModel reflecting what is currently applied.
 func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
-	tfState ApplyModuleModel, moduleInfoOutput *appliedModuleInfo,
-) diag.Diagnostics {
+	tfState ApplyModuleModel,
+) (*appliedModuleInfo, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	// Get latest run on the target workspace.
@@ -635,18 +630,20 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 	})
 	if err != nil {
 		diags.AddError(fmt.Sprintf("Failed to get specified workspace by path: %s", wsPath), err.Error())
-		return diags
+		return nil, diags
 	}
 
 	// Get whatever information may be available about the latest applied module.
 	if ws.CurrentStateVersion != nil {
+		moduleInfoOutput := &appliedModuleInfo{}
+
 		if ws.CurrentStateVersion.RunID != "" {
 			latestRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{
 				ID: ws.CurrentStateVersion.RunID,
 			})
 			if err != nil {
 				diags.AddError("Failed to get latest run", err.Error())
-				return diags
+				return nil, diags
 			}
 
 			// Copy out the information that might have been available.
@@ -664,7 +661,7 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 			resolvedVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunInput{ID: latestRun.Metadata.ID})
 			if err != nil {
 				diags.AddError("Failed to get resolved variables", err.Error())
-				return diags
+				return nil, diags
 			}
 
 			moduleInfoOutput.resolvedVariables = resolvedVars
@@ -672,9 +669,10 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 			// Current state has no run ID, so it must have been manually updated.
 			moduleInfoOutput.wasManualUpdate = true
 		}
+		return moduleInfoOutput, diags
 	}
 
-	return nil
+	return nil, diags
 }
 
 // extractRunError extracts the error from a run's logs (if the run errored out).
