@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	// getLogsChunkSize is the maximum number of bytes to request in a single log request.
-	getLogsChunkSize = 5000
+	// logChunkSize is the maximum number of bytes to request in a single log request.
+	logChunkSize = 1024 * 10
 
 	// lookForError is the string to look for in the logs to find the error message.
 	// Need to look at the start of a line to avoid false positives.
@@ -711,8 +711,8 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 
 		// Get the logs from the end.  There will most likely be a smaller chunk at the beginning.
 		allLogs := ""
-		currentStart := int32(job.LogSize) - getLogsChunkSize
-		nextChunkSize := int32(getLogsChunkSize)
+		currentStart := int32(job.LogSize) - logChunkSize
+		nextChunkSize := int32(logChunkSize)
 		if currentStart < 0 {
 			// Only one chunk to read.
 			currentStart = 0
@@ -736,7 +736,7 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 			}
 
 			allLogs = newLogs + allLogs
-			if strings.HasPrefix(allLogs, lookForError) {
+			if strings.Contains(allLogs, lookForError) {
 				// Found the error, so break out of the loop.
 				break
 			}
@@ -746,8 +746,8 @@ func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes
 				break
 			}
 
-			if currentStart >= getLogsChunkSize {
-				currentStart -= getLogsChunkSize
+			if currentStart >= logChunkSize {
+				currentStart -= logChunkSize
 			} else {
 				// A smaller chunk at the beginning.
 				nextChunkSize = currentStart
