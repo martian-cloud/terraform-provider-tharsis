@@ -465,22 +465,18 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 	// If the plan succeeds, plannedRun.Status is "planned",
 	// while plannedRun.Plan.Status is "finished".
 	//
-	var planDetail string
-	switch {
-	case (plannedRun.Status != sdktypes.RunPlanned) && (plannedRun.Status != sdktypes.RunPlannedAndFinished):
-		planDetail = string(plannedRun.Status)
-	case plannedRun.Plan.Status != sdktypes.PlanFinished:
-		planDetail = string(plannedRun.Plan.Status)
-	}
-	if planDetail != "" {
+	switch plannedRun.Plan.Status {
+	case sdktypes.PlanCanceled:
+		diags.AddError("Plan was canceled", string(plannedRun.Plan.Status))
+		return nil, diags
+	case sdktypes.PlanErrored:
 		// Bring in any error message(s) from the finished inner plan run.
 		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
-		diags.Append(innerPlanRunDiags...)
 		if innerPlanRunDiags.HasError() {
-			return nil, diags
+			diags.Append(innerPlanRunDiags...)
+		} else {
+			diags.AddError("Plan failed with unknown error", string(plannedRun.Plan.Status))
 		}
-
-		diags.AddError("Plan failed with unknown error", planDetail)
 		return nil, diags
 	}
 
@@ -535,22 +531,18 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 
 	// If an apply job succeeds, finishedRun.Status is "applied" and
 	// finishedRun.Apply.Status is "finished".
-	var applyDetail string
-	switch {
-	case finishedRun.Status != sdktypes.RunApplied:
-		applyDetail = string(finishedRun.Status)
-	case finishedRun.Apply.Status != sdktypes.ApplyFinished:
-		applyDetail = string(finishedRun.Apply.Status)
-	}
-	if applyDetail != "" {
+	switch finishedRun.Apply.Status {
+	case sdktypes.ApplyCanceled:
+		diags.AddError("Apply was canceled", string(finishedRun.Apply.Status))
+		return nil, diags
+	case sdktypes.ApplyErrored:
 		// Bring in any error message(s) from the finished inner apply run.
 		innerApplyRunDiags := t.extractRunError(ctx, finishedRun)
-		diags.Append(innerApplyRunDiags...)
 		if innerApplyRunDiags.HasError() {
-			return nil, diags
+			diags.Append(innerApplyRunDiags...)
+		} else {
+			diags.AddError("Apply failed with unknown error", string(finishedRun.Apply.Status))
 		}
-
-		diags.AddError("Apply failed with unknown error", applyDetail)
 		return nil, diags
 	}
 
