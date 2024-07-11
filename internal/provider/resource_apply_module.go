@@ -300,16 +300,19 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		return
 	}
 
-	// Update the state with the computed module source and version.
-	if currentApplied.moduleSource != nil {
-		state.ModuleSource = types.StringValue(*currentApplied.moduleSource)
-	} else {
-		state.ModuleSource = types.StringNull()
-	}
-	if currentApplied.moduleVersion != nil {
-		state.ModuleVersion = types.StringValue(*currentApplied.moduleVersion)
-	} else {
-		state.ModuleVersion = types.StringNull()
+	// If there is no current state version, currentApplied can be nil.
+	if currentApplied != nil {
+		// Update the state with the computed module source and version.
+		if currentApplied.moduleSource != nil {
+			state.ModuleSource = types.StringValue(*currentApplied.moduleSource)
+		} else {
+			state.ModuleSource = types.StringNull()
+		}
+		if currentApplied.moduleVersion != nil {
+			state.ModuleVersion = types.StringValue(*currentApplied.moduleVersion)
+		} else {
+			state.ModuleVersion = types.StringNull()
+		}
 	}
 
 	// Don't try to set the resolved variables in the Read method, because the run has not yet been done.
@@ -642,6 +645,7 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 		return moduleInfoOutput, diags
 	}
 
+	// There was no current state version.
 	return nil, diags
 }
 
