@@ -373,7 +373,6 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 
 	// If there is no current state version, currentApplied can be nil.
 	if currentApplied == nil {
-		resp.Diagnostics.AddError("Current state not found, will not delete.", "")
 		return
 	}
 
