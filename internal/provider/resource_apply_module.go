@@ -371,6 +371,12 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 		return
 	}
 
+	// If there is no current state version, currentApplied can be nil.
+	if currentApplied == nil {
+		resp.Diagnostics.AddError("Current state not found, will not delete.", "")
+		return
+	}
+
 	// If the latest run was a successful destroy, all resources have already
 	// been destroyed, so there's nothing that needs to be done here.
 	if currentApplied.wasSuccessfulDestroy {
