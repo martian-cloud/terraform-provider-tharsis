@@ -1,6 +1,6 @@
 module github.com/martian-cloud/terraform-provider-tharsis
 
-go 1.21
+go 1.21.12
 
 require (
 	github.com/aws/smithy-go v1.18.1

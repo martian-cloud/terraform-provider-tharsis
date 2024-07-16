@@ -300,13 +300,14 @@ func (t *applyModuleResource) Read(ctx context.Context,
 		return
 	}
 
-	// Update the state with the computed module source and version.
-	if currentApplied.moduleSource != nil {
+	// If there is no current state version, currentApplied can be nil.
+	// If available/possible, update the state with the computed module source and version.
+	if currentApplied != nil && currentApplied.moduleSource != nil {
 		state.ModuleSource = types.StringValue(*currentApplied.moduleSource)
 	} else {
 		state.ModuleSource = types.StringNull()
 	}
-	if currentApplied.moduleVersion != nil {
+	if currentApplied != nil && currentApplied.moduleVersion != nil {
 		state.ModuleVersion = types.StringValue(*currentApplied.moduleVersion)
 	} else {
 		state.ModuleVersion = types.StringNull()
@@ -365,6 +366,11 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 	currentApplied, newDiags := t.getCurrentApplied(ctx, state)
 	resp.Diagnostics.Append(newDiags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// If there is no current state version, currentApplied can be nil.
+	if currentApplied == nil {
 		return
 	}
 
@@ -642,6 +648,7 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 		return moduleInfoOutput, diags
 	}
 
+	// There was no current state version.
 	return nil, diags
 }
 
