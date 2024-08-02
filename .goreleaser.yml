@@ -30,6 +30,12 @@ builds:
 archives:
 - format: zip
   name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+sboms:
+- documents:
+  - bom.json
+  artifacts: any
+  cmd: cyclonedx-gomod
+  args: [ "mod", "-assert-licenses", "-std", "-json", "-verbose", "-output", "$document", "../" ]
 checksum:
   extra_files:
     - glob: 'terraform-registry-manifest.json'
