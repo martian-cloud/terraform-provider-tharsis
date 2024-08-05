@@ -43,7 +43,7 @@ jobs:
         uses: CycloneDX/gh-gomod-generate-sbom@v2
         with:
           version: v1
-          args: mod -assert-licenses -std -json -verbose -output gl-sbom-all.cdx.json
+          args: mod -assert-licenses -licenses -std -json -verbose -output gl-sbom-all.cdx.json
       -
         name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v3.1.0
