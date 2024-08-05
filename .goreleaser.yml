@@ -30,6 +30,17 @@ builds:
 archives:
 - format: zip
   name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+sboms:
+- documents:
+  - "gl-sbom-go-go.{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.bom.json"
+  artifacts: binary
+  cmd: cyclonedx-gomod
+  args: [ "mod", "-assert-licenses", "-std", "-json", "-verbose", "-output", "$document", "../" ]
+  env:
+  - GOARCH={{ .Arch }}
+  - GOOS={{ .Os }}
+  - GOFLAGS=-mod=vendor
+  - CGO_ENABLED=0
 checksum:
   extra_files:
     - glob: 'terraform-registry-manifest.json'
