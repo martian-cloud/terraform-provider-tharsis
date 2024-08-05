@@ -32,7 +32,7 @@ sboms:
   - "gl-sbom-go-go.{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.cdx.json"
   artifacts: binary
   cmd: cyclonedx-gomod
-  args: [ "bin",  "-assert-licenses", "-licenses", "-std", "-json", "-verbose", "-output", "$document", "../" ]
+  args: [ "bin",  "-assert-licenses", "-licenses", "-std", "-json", "-verbose", "-output", "$document", "$artifact" ]
 archives:
 - format: zip
   name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
