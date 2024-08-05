@@ -39,17 +39,17 @@ jobs:
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
-      -
-        name: Install cyclonedx-gomod
+      - name: Generate SBOM
         uses: CycloneDX/gh-gomod-generate-sbom@v2
         with:
           version: v1
+          args: mod -assert-licenses -std -json -verbose -output gl-sbom-all.cdx.json
       -
         name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v3.1.0
         with:
           version: v1.26.2
-          args: release --rm-dist
+          args: release --clean
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           # GitHub sets this automatically
