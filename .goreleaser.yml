@@ -27,6 +27,12 @@ builds:
     - goos: darwin
       goarch: '386'
   binary: '{{ .ProjectName }}_v{{ .Version }}'
+sboms:
+- documents:
+  - "gl-sbom-go-go.{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.cdx.json"
+  artifacts: binary
+  cmd: cyclonedx-gomod
+  args: [ "bin",  "-assert-licenses", "-licenses", "-std", "-json", "-verbose", "-output", "$document", "$artifact" ]
 archives:
 - format: zip
   name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
@@ -53,4 +59,4 @@ release:
     - glob: 'terraform-registry-manifest.json'
       name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
 changelog:
-  skip: true
+  disable: true
