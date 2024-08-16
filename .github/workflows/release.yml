@@ -44,7 +44,7 @@ jobs:
           GOOS: ${{ matrix.os }}
           GO_ARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
-        run: "bash scripts/create_sboms.sh"
+        run: "bash ./scripts/create_sboms.sh"
         shell: bash
       - uses: actions/upload-artifact@master
         with:
@@ -56,7 +56,7 @@ jobs:
     steps:
       - name: Download all SBOMs
         uses: actions/download-artifact@v4
-      - run: "bash scripts/merge_sboms.sh"
+      - run: "bash ./scripts/merge_sboms.sh"
         env:
           CGO_ENABLED: 0
           VERSION: ${{ github.ref }}
