@@ -35,11 +35,11 @@ jobs:
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
-      - name: Generate SBOMs cyclonedx-gomod
+      - name: Install cyclonedx-gomod
         uses: CycloneDX/gh-gomod-generate-sbom@v2
         with:
           version: v1
-      - name: Create SBOMs
+      - name: Generate SBOMs
         run: "chmod +x ./scripts/create_sboms.sh && ./create_sboms.sh"
       - name: Merge SBOMs
         run: "chmod +x ./scripts/merge_sboms.sh && ./merge_sboms.sh"
