@@ -43,7 +43,7 @@ jobs:
       - uses: actions/upload-artifact@master
         with:
           name: "gl-sbom-go-${{ matrix.os }}-${{ matrix.arch }}-0.cdx.json"
-          path: gl-sbom-go-*.cdx.json
+          path: "**/gl-sbom-go-*.cdx.json"
   merge_sboms:
     name: Merge SBOMs
     runs-on: ubuntu-latest
@@ -58,6 +58,9 @@ jobs:
           CGO_ENABLED: 0
           VERSION: ${{ github.ref }}
         shell: bash
+      - uses: actions/upload-artifact@master
+        with:
+          path: gl-sbom-all.cdx.json
   goreleaser:
     runs-on: ubuntu-latest
     needs: merge_sboms
