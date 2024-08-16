@@ -40,9 +40,9 @@ jobs:
         with:
           version: v1
       - name: Generate SBOMs
-        run: "chmod +x ./scripts/create_sboms.sh && ./create_sboms.sh"
+        run: "chmod +x ./scripts/create_sboms.sh && ./scripts/create_sboms.sh"
       - name: Merge SBOMs
-        run: "chmod +x ./scripts/merge_sboms.sh && ./merge_sboms.sh"
+        run: "chmod +x ./scripts/merge_sboms.sh && ./scripts/merge_sboms.sh"
         shell: bash
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v3.1.0
