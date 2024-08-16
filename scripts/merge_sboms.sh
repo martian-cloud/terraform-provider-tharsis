@@ -1,14 +1,7 @@
 #!/usr/bin/env bash
 
-# Install some dependencies.
-apt update >/dev/null 2>&1 && apt install -y jq curl >/dev/null 2>&1
-
 # Install the CLI
 curl -sSL https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.25.0/cyclonedx-linux-x64 -o /usr/local/bin/cyclonedx
-
-curl -sSL https://github.com/mdomke/git-semver/releases/download/v6.9.0/git-semver_6.9.0_linux_amd64.tar.gz | tar -zxC /usr/local/bin
-
-VERSION=$(git-semver)
 
 # Set args for the CycloneDX cli
 ARGS="--input-format autodetect --output-format autodetect --version $VERSION --hierarchical --name terraform-provider-tharsis"

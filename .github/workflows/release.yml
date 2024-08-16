@@ -17,8 +17,53 @@ on:
 permissions:
   contents: write
 jobs:
+  create_sboms:
+    name: Generate SBOMs
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The platforms we'll be generating SBOMs for.
+        os:
+          - "freebsd"
+          - "linux"
+          - "windows"
+          - "linux"
+        arch:
+          - "386"
+          - "arm"
+          - "amd64"
+          - "arm64"
+    steps:
+      - name: "Install CycloneDX"
+        uses: CycloneDX/gh-gomod-generate-sbom@v2
+        with:
+          version: v1
+      - name: Generate SBOM
+        env:
+          GOOS: ${{ matrix.os }}
+          GO_ARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        run: "bash scripts/create_sboms.sh"
+        shell: bash
+      - uses: actions/upload-artifact@master
+        with:
+          path: gl-sbom-go-go.*cdx.json
+  merge_sboms:
+    name: Merge SBOMs
+    runs-on: ubuntu-latest
+    needs: create_sboms
+    steps:
+      - name: Download all SBOMs
+        uses: actions/download-artifact@v4
+      - run: "bash scripts/merge_sboms.sh"
+        env:
+          CGO_ENABLED: 0
+          VERSION: ${{ github.ref }}
+        shell: bash
   goreleaser:
     runs-on: ubuntu-latest
+    needs: merge_sboms
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -35,15 +80,8 @@ jobs:
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
-      - name: Install cyclonedx-gomod
-        uses: CycloneDX/gh-gomod-generate-sbom@v2
-        with:
-          version: v1
-      - name: Generate SBOMs
-        run: "chmod +x ./scripts/create_sboms.sh && ./scripts/create_sboms.sh"
-      - name: Merge SBOMs
-        run: "chmod +x ./scripts/merge_sboms.sh && ./scripts/merge_sboms.sh"
-        shell: bash
+      - name: Download SBOMs
+        uses: actions/download-artifact@v4
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v3.1.0
         with:
