@@ -9,7 +9,7 @@ MAPPING_FILE="sbom-component-mapping.json"
 # Set the args for CycloneDX.
 ARGS="-assert-licenses -licenses -std -json -output-version 1.5"
 
-OUTPUT_FILE="gl-sbom-go-go.$(echo $GO_OS:$GO_ARCH:$CGO_ENABLED | tr '/ ' '_').cdx.json"
+OUTPUT_FILE="gl-sbom-go-$GOOS-$GO_ARCH-$CGO_ENABLED.cdx.json"
 
 echo -e "\e[1;32m$ cyclonedx-gomod app $ARGS -output $OUTPUT_FILE .\e[0m"
 
