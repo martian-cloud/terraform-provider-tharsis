@@ -13,38 +13,38 @@ name: release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 permissions:
   contents: write
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v3
-      -
-        name: Unshallow
+      - name: Unshallow
         run: git fetch --prune --unshallow
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
           cache: true
-      -
-        name: Import GPG key
+      - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v5
         id: import_gpg
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
-      - name: Download cyclonedx-gomod
+      - name: Generate SBOMs cyclonedx-gomod
         uses: CycloneDX/gh-gomod-generate-sbom@v2
         with:
           version: v1
-      -
-        name: Run GoReleaser
+      - name: Create SBOMs
+        run: "chmod +x ./scripts/create_sboms.sh && ./create_sboms.sh"
+      - name: Merge SBOMs
+        run: "chmod +x ./scripts/merge_sboms.sh && ./merge_sboms.sh"
+        shell: bash
+      - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v3.1.0
         with:
           version: v1.26.2
