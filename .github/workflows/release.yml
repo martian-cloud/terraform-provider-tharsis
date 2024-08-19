@@ -91,7 +91,6 @@ jobs:
           path: sboms
           pattern: sbom-artifact-*
           merge-multiple: true
-      - run: ls -R sboms
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v3.1.0
         with:
