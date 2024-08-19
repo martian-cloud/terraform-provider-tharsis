@@ -328,4 +328,4 @@ Temporary Items
 .apdisk
 
 dist/
-**gl-sbom-go-go.*cdx.json*
+**gl-sbom-*.cdx.json*
