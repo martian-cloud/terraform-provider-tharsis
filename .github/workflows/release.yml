@@ -26,6 +26,10 @@ jobs:
         # The platforms we'll be generating SBOMs for.
         os: [freebsd, windows, linux, darwin]
         arch: ["386", arm64, amd64, arm]
+        exclude:
+          # Don't support this platform.
+          - os: darwin
+            arch: "386"
     steps:
       - name: Checkout
         uses: actions/checkout@v3
