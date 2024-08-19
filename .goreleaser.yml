@@ -52,6 +52,6 @@ release:
   extra_files:
     - glob: "terraform-registry-manifest.json"
       name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
-    - glob: "gl-sbom-*.cdx.json"
+    - glob: "sboms/gl-sbom-*.cdx.json"
 changelog:
   disable: true
