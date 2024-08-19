@@ -40,6 +40,8 @@ jobs:
           CGO_ENABLED: 0
         run: "bash ./scripts/create_sboms.sh"
         shell: bash
+      - name: Display structure of SBOMs
+        run: ls -R
       - uses: actions/upload-artifact@master
         with:
           name: "gl-sbom-go-${{ matrix.os }}-${{ matrix.arch }}-0.cdx.json"
@@ -53,6 +55,8 @@ jobs:
         uses: actions/checkout@v3
       - name: Download all SBOMs
         uses: actions/download-artifact@v4
+      - name: Display structure of downloaded files
+        run: ls -R
       - run: "bash ./scripts/merge_sboms.sh"
         env:
           CGO_ENABLED: 0
