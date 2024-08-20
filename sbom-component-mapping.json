@@ -1,0 +1,232 @@
+{
+  "github.com/apparentlymart/go-textseg/v15": {
+    "supplier": {
+      "name": "Martin Atkins"
+    }
+  },
+  "github.com/asaskevich/govalidator": {
+    "supplier": {
+      "name": "Alex Saskevich"
+    }
+  },
+  "github.com/aws/smithy-go": {
+    "supplier": {
+      "name": "Amazon Web Services"
+    }
+  },
+  "github.com/davecgh/go-spew": {
+    "supplier": {
+      "name": "Dave Collins"
+    }
+  },
+  "github.com/fatih/color": {
+    "supplier": {
+      "name": "Fatih Arslan"
+    }
+  },
+  "github.com/go-ozzo/ozzo-validation/v4": {
+    "supplier": {
+      "name": "Ozzo Framework"
+    }
+  },
+  "github.com/golang/protobuf": {
+    "supplier": {
+      "name": "Google"
+    }
+  },
+  "github.com/google/uuid": {
+    "supplier": {
+      "name": "Google"
+    }
+  },
+  "github.com/hashicorp/errwrap": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/go-cleanhttp": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/go-hclog": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/go-multierror": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/go-plugin": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/go-retryablehttp": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/go-slug": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/go-uuid": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/go-version": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/terraform-plugin-framework": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/terraform-plugin-go": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/terraform-plugin-log": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/terraform-registry-address": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/terraform-svchost": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hashicorp/yamux": {
+    "supplier": {
+      "name": "HashiCorp"
+    }
+  },
+  "github.com/hasura/go-graphql-client": {
+    "supplier": {
+      "name": "Hasura"
+    }
+  },
+  "github.com/klauspost/compress": {
+    "supplier": {
+      "name": "Klaus Post"
+    }
+  },
+  "github.com/mattn/go-colorable": {
+    "supplier": {
+      "name": "mattn"
+    }
+  },
+  "github.com/mattn/go-isatty": {
+    "supplier": {
+      "name": "mattn"
+    }
+  },
+  "github.com/mitchellh/go-testing-interface": {
+    "supplier": {
+      "name": "Mitchell Hashimoto"
+    }
+  },
+  "github.com/oklog/run": {
+    "supplier": {
+      "name": "OK Log"
+    }
+  },
+  "github.com/pmezard/go-difflib": {
+    "supplier": {
+      "name": "Patrick Mézard"
+    }
+  },
+  "github.com/qiangxue/go-env": {
+    "supplier": {
+      "name": "Qiang Xue"
+    }
+  },
+  "github.com/stretchr/testify": {
+    "supplier": {
+      "name": "Stretchr, Inc."
+    }
+  },
+  "github.com/vmihailenco/msgpack/v5": {
+    "supplier": {
+      "name": "Vladimir Mihailenco"
+    }
+  },
+  "github.com/vmihailenco/tagparser/v2": {
+    "supplier": {
+      "name": "Vladimir Mihailenco"
+    }
+  },
+  "github.com/zclconf/go-cty": {
+    "supplier": {
+      "name": "zclconf"
+    }
+  },
+  "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go": {
+    "supplier": {
+      "name": "Infor"
+    }
+  },
+  "golang.org/x/net": {
+    "supplier": {
+      "name": "Google"
+    }
+  },
+  "golang.org/x/oauth2": {
+    "supplier": {
+      "name": "Google"
+    }
+  },
+  "golang.org/x/sys": {
+    "supplier": {
+      "name": "Google"
+    }
+  },
+  "golang.org/x/text": {
+    "supplier": {
+      "name": "Google"
+    }
+  },
+  "google.golang.org/genproto/googleapis/rpc": {
+    "supplier": {
+      "name": "Google"
+    }
+  },
+  "google.golang.org/grpc": {
+    "supplier": {
+      "name": "Google"
+    }
+  },
+  "google.golang.org/protobuf": {
+    "supplier": {
+      "name": "Google"
+    }
+  },
+  "gopkg.in/yaml.v3": {
+    "supplier": {
+      "name": "go-yaml"
+    }
+  },
+  "nhooyr.io/websocket": {
+    "supplier": {
+      "name": "Coder"
+    }
+  },
+  "std": {
+    "supplier": {
+      "name": "Google"
+    }
+  }
+}

@@ -13,38 +13,89 @@ name: release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 permissions:
   contents: write
 jobs:
+  create_sboms:
+    name: Generate SBOMs
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The platforms we'll be generating SBOMs for.
+        os: [freebsd, windows, linux, darwin]
+        arch: ["386", arm64, amd64, arm]
+        exclude:
+          # Don't support this platform.
+          - os: darwin
+            arch: "386"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: "Install CycloneDX"
+        uses: CycloneDX/gh-gomod-generate-sbom@v2
+        with:
+          version: v1
+      - name: Generate SBOM
+        env:
+          GOOS: ${{ matrix.os }}
+          GO_ARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        run: "bash ./scripts/create_sboms.sh"
+        shell: bash
+      - uses: actions/upload-artifact@master
+        with:
+          name: "sbom-artifact-${{ matrix.os }}-${{ matrix.arch }}"
+          path: "gl-sbom-go-${{ matrix.os }}-${{ matrix.arch }}-0.cdx.json"
+  merge_sboms:
+    name: Merge SBOMs
+    runs-on: ubuntu-latest
+    needs: create_sboms
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Download all SBOMs
+        uses: actions/download-artifact@v4
+        with:
+          path: sboms
+          pattern: sbom-artifact-*
+          merge-multiple: true
+      - run: "bash ./scripts/merge_sboms.sh"
+        env:
+          CGO_ENABLED: 0
+          VERSION: ${{ github.ref }}
+        shell: bash
+      - uses: actions/upload-artifact@master
+        with:
+          name: "sbom-artifact-all"
+          path: gl-sbom-all.cdx.json
   goreleaser:
     runs-on: ubuntu-latest
+    needs: merge_sboms
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v3
-      -
-        name: Unshallow
+      - name: Unshallow
         run: git fetch --prune --unshallow
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
           cache: true
-      -
-        name: Import GPG key
+      - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v5
         id: import_gpg
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
-      - name: Download cyclonedx-gomod
-        uses: CycloneDX/gh-gomod-generate-sbom@v2
+      - name: Download SBOMs
+        uses: actions/download-artifact@v4
         with:
-          version: v1
-      -
-        name: Run GoReleaser
+          path: sboms
+          pattern: sbom-artifact-all
+          merge-multiple: true
+      - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v3.1.0
         with:
           version: v1.26.2
