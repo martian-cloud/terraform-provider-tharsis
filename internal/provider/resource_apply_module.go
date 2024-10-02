@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -108,6 +109,7 @@ type ApplyModuleModel struct {
 	WorkspacePath     types.String        `tfsdk:"workspace_path"`
 	ModuleSource      types.String        `tfsdk:"module_source"`
 	ModuleVersion     types.String        `tfsdk:"module_version"`
+	Refresh           types.Bool          `tfsdk:"refresh"`
 	Variables         basetypes.ListValue `tfsdk:"variables"`
 	ResolvedVariables basetypes.ListValue `tfsdk:"resolved_variables"`
 }
@@ -171,6 +173,13 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+			},
+			"refresh": schema.BoolAttribute{
+				MarkdownDescription: "Whether to do a Terraform refresh",
+				Description:         "Whether to do a Terraform refresh",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(true),
 			},
 			"variables": schema.ListNestedAttribute{
 				MarkdownDescription: "Optional list of variables for the run in the target workspace.",
@@ -449,6 +458,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		IsDestroy:     input.doDestroy,
 		ModuleSource:  ptr.String(input.model.ModuleSource.ValueString()),
 		ModuleVersion: moduleVersion,
+		Refresh:       input.model.Refresh.ValueBool(),
 		Variables:     vars,
 	})
 	if err != nil {
