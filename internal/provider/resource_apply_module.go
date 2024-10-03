@@ -175,9 +175,10 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				},
 			},
 			"refresh": schema.BoolAttribute{
-				MarkdownDescription: "Whether to do a Terraform refresh",
-				Description:         "Whether to do a Terraform refresh",
+				MarkdownDescription: "Whether to do a Terraform refresh to update the state based on all managed remote objects.",
+				Description:         "Whether to do a Terraform refresh to update the state based on all managed remote objects.",
 				Optional:            true,
+				Computed:            true,
 				Default:             booldefault.StaticBool(true),
 			},
 			"variables": schema.ListNestedAttribute{
