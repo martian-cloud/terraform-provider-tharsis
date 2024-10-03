@@ -178,7 +178,6 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "Whether to do a Terraform refresh",
 				Description:         "Whether to do a Terraform refresh",
 				Optional:            true,
-				Computed:            true,
 				Default:             booldefault.StaticBool(true),
 			},
 			"variables": schema.ListNestedAttribute{
