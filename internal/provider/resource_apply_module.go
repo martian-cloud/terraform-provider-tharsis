@@ -65,7 +65,6 @@ type RunVariableModel struct {
 	NamespacePath string `tfsdk:"namespace_path"`
 	Key           string `tfsdk:"key"`
 	Category      string `tfsdk:"category"`
-	HCL           bool   `tfsdk:"hcl"`
 }
 
 // FromTerraform5Value converts a RunVariable from Terraform values to Go equivalent.
@@ -89,11 +88,6 @@ func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
 	}
 
 	err = v["category"].As(&e.Category)
-	if err != nil {
-		return err
-	}
-
-	err = v["hcl"].As(&e.HCL)
 	if err != nil {
 		return err
 	}
@@ -202,11 +196,6 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 							Description:         "Category of this variable, 'terraform' or 'environment'.",
 							Required:            true,
 						},
-						"hcl": schema.BoolAttribute{
-							MarkdownDescription: "Whether this variable is HCL (vs. string).",
-							Description:         "Whether this variable is HCL (vs. string).",
-							Required:            true,
-						},
 					},
 				},
 			},
@@ -234,11 +223,6 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 						"category": schema.StringAttribute{
 							MarkdownDescription: "Category of this variable, 'terraform' or 'environment'.",
 							Description:         "Category of this variable, 'terraform' or 'environment'.",
-							Computed:            true,
-						},
-						"hcl": schema.BoolAttribute{
-							MarkdownDescription: "Whether this variable is HCL (vs. string).",
-							Description:         "Whether this variable is HCL (vs. string).",
 							Computed:            true,
 						},
 					},
@@ -789,7 +773,6 @@ func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list 
 			Value:    &model.Value,
 			Key:      model.Key,
 			Category: sdktypes.VariableCategory(model.Category),
-			HCL:      model.HCL,
 		})
 	}
 
@@ -818,7 +801,6 @@ func (t *applyModuleResource) toProviderOutputVariables(
 			Value:    val,
 			Key:      variable.Key,
 			Category: string(variable.Category),
-			HCL:      variable.HCL,
 		}
 
 		if variable.NamespacePath != nil {
@@ -849,6 +831,5 @@ func (t *applyModuleResource) outputVariableAttributes() map[string]attr.Type {
 		"namespace_path": types.StringType,
 		"key":            types.StringType,
 		"category":       types.StringType,
-		"hcl":            types.BoolType,
 	}
 }

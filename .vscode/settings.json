@@ -4,9 +4,11 @@
         "Tharsis",
         "tharsis"
     ],
-    "cSpell.enableFiletypes": [
-        "terraform"
-    ],
+    "cSpell.enabledFileTypes": {
+        "terraform": true,
+        "go.mod": false,
+        "go.sum": false
+    },
     "editor.formatOnSave": true,
     "files.eol": "\n",
     "files.insertFinalNewline": true,
@@ -27,7 +29,6 @@
             "gc_details": true
         },
         "ui.diagnostic.analyses": {
-            "fieldalignment": true,
             "nilness": true,
             "shadow": true,
             "unusedparams": true,

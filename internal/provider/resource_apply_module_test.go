@@ -23,7 +23,6 @@ func TestApplyModule(t *testing.T) {
 	varValueBase := "some variable value "
 	varKey := "trigger_name"
 	varCategory := "terraform"
-	varHCL := false
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -59,12 +58,10 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"1"),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.value", varValueBase+"1"),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", ""),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.category", varCategory),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.hcl", strconv.FormatBool(varHCL)),
 				),
 			},
 
@@ -80,12 +77,10 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"1"),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.value", varValueBase+"1"),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", ""),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.category", varCategory),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.hcl", strconv.FormatBool(varHCL)),
 				),
 			},
 
@@ -101,12 +96,10 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.value", varValueBase+"2"),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.category", varCategory),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "variables.0.hcl", strconv.FormatBool(varHCL)),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.value", varValueBase+"2"),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.namespace_path", ""),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.key", varKey),
 					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.category", varCategory),
-					resource.TestCheckResourceAttr("tharsis_apply_module.tam", "resolved_variables.0.hcl", strconv.FormatBool(varHCL)),
 				),
 			},
 
@@ -183,7 +176,6 @@ func testDoApplyCreateRun(val int) string {
 	varValueBase := "some variable value "
 	varKey := "trigger_name"
 	varCategory := "terraform"
-	varHCL := false
 
 	return fmt.Sprintf(`
 
@@ -195,12 +187,11 @@ resource "tharsis_apply_module" "tam" {
       value = "%s%d"
       key = "%s"
       category = "%s"
-      hcl = %v
     }
   ]
 }
 
 	`,
-		ws1Path, moduleSource, varValueBase, val, varKey, varCategory, varHCL,
+		ws1Path, moduleSource, varValueBase, val, varKey, varCategory,
 	)
 }

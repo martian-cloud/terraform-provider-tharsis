@@ -1,4 +1,3 @@
-
 PACKAGES := $(shell go list ./... | grep -v /vendor/)
 TEST?=$$(go list ./... | grep -v 'vendor')
 HOSTNAME=registry.terraform.io
@@ -35,3 +34,7 @@ test:
 
 testacc:
 	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m
+
+.PHONY: generate
+generate: ## run go generate
+	go generate $(PACKAGES)
