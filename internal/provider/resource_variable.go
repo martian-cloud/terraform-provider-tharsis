@@ -22,7 +22,6 @@ type VariableModel struct {
 	Category      types.String `tfsdk:"category"`
 	Key           types.String `tfsdk:"key"`
 	Value         types.String `tfsdk:"value"`
-	Hcl           types.Bool   `tfsdk:"hcl"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -80,12 +79,6 @@ func (t *variableResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"hcl": schema.BoolAttribute{
-				MarkdownDescription: "Whether this variable has an HCL value.",
-				Description:         "Whether this variable has an HCL value.",
-				Required:            true,
-				// Can be updated in place, so no RequiresReplace plan modifier.
-			},
 			"key": schema.StringAttribute{
 				MarkdownDescription: "This variable's key (within its namespace).",
 				Description:         "This variable's key (within its namespace).",
@@ -127,7 +120,6 @@ func (t *variableResource) Create(ctx context.Context,
 		&ttypes.CreateNamespaceVariableInput{
 			NamespacePath: variable.NamespacePath.ValueString(),
 			Category:      ttypes.VariableCategory(variable.Category.ValueString()),
-			HCL:           variable.Hcl.ValueBool(),
 			Key:           variable.Key.ValueString(),
 			Value:         variable.Value.ValueString(),
 		})
@@ -209,7 +201,6 @@ func (t *variableResource) Update(ctx context.Context,
 	updated, err := t.client.Variable.UpdateVariable(ctx,
 		&ttypes.UpdateNamespaceVariableInput{
 			ID:    plan.ID.ValueString(),
-			HCL:   plan.Hcl.ValueBool(),
 			Key:   plan.Key.ValueString(),
 			Value: plan.Value.ValueString(),
 		})
@@ -282,7 +273,6 @@ func (t *variableResource) copyVariable(src ttypes.NamespaceVariable, dest *Vari
 	dest.ID = types.StringValue(src.Metadata.ID)
 	dest.NamespacePath = types.StringValue(src.NamespacePath)
 	dest.Category = types.StringValue(string(src.Category))
-	dest.Hcl = types.BoolValue(src.HCL)
 	dest.Key = types.StringValue(src.Key)
 	dest.Value = types.StringValue(*src.Value)
 

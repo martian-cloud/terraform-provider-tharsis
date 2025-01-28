@@ -37,7 +37,6 @@ Defines and manages tharsis_apply_module resources, which launch runs in other w
 Required:
 
 - `category` (String) Category of this variable, 'terraform' or 'environment'.
-- `hcl` (Boolean) Whether this variable is HCL (vs. string).
 - `key` (String) Key or name of this variable.
 - `value` (String) Value of the variable.
 
@@ -48,7 +47,6 @@ Required:
 Read-Only:
 
 - `category` (String) Category of this variable, 'terraform' or 'environment'.
-- `hcl` (Boolean) Whether this variable is HCL (vs. string).
 - `key` (String) Key or name of this variable.
 - `namespace_path` (String) Namespace path of the variable.
 - `value` (String) Value of the variable.

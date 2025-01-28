@@ -2,7 +2,6 @@ package provider
 
 import (
 	"fmt"
-	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -11,10 +10,8 @@ import (
 func TestVariable(t *testing.T) {
 	createNamespacePath := testGroupPath
 	createCategory := "terraform"
-	createHCL := true
 	createKey := "first-key"
 	createValue := "first-value"
-	updateHCL := false
 	updateKey := "updated-key"
 	updateValue := "updated-value"
 
@@ -28,7 +25,6 @@ func TestVariable(t *testing.T) {
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_variable.tnv", "namespace_path", createNamespacePath),
 					resource.TestCheckResourceAttr("tharsis_variable.tnv", "category", createCategory),
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "hcl", strconv.FormatBool(createHCL)),
 					resource.TestCheckResourceAttr("tharsis_variable.tnv", "key", createKey),
 					resource.TestCheckResourceAttr("tharsis_variable.tnv", "value", createValue),
 
@@ -51,7 +47,6 @@ func TestVariable(t *testing.T) {
 					// Verify values that should be known.
 					resource.TestCheckResourceAttr("tharsis_variable.tnv", "namespace_path", createNamespacePath),
 					resource.TestCheckResourceAttr("tharsis_variable.tnv", "category", createCategory),
-					resource.TestCheckResourceAttr("tharsis_variable.tnv", "hcl", strconv.FormatBool(updateHCL)),
 					resource.TestCheckResourceAttr("tharsis_variable.tnv", "key", updateKey),
 					resource.TestCheckResourceAttr("tharsis_variable.tnv", "value", updateValue),
 
@@ -68,7 +63,6 @@ func TestVariable(t *testing.T) {
 
 func testVariableConfigurationCreate() string {
 	createCategory := "terraform"
-	createHCL := true
 	createKey := "first-key"
 	createValue := "first-value"
 
@@ -79,16 +73,14 @@ func testVariableConfigurationCreate() string {
 resource "tharsis_variable" "tnv" {
 	namespace_path = tharsis_group.root-group.full_path
 	category = "%s"
-	hcl = "%v"
 	key = "%s"
 	value = "%s"
 }
-	`, createRootGroup(testGroupPath, "this is a test root group"), createCategory, createHCL, createKey, createValue)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createCategory, createKey, createValue)
 }
 
 func testVariableConfigurationUpdate() string {
 	createCategory := "terraform"
-	updateHCL := false
 	updateKey := "updated-key"
 	updateValue := "updated-value"
 
@@ -99,9 +91,8 @@ func testVariableConfigurationUpdate() string {
 resource "tharsis_variable" "tnv" {
 	namespace_path = tharsis_group.root-group.full_path
 	category = "%s"
-	hcl = "%v"
 	key = "%s"
 	value = "%s"
 }
-	`, createRootGroup(testGroupPath, "this is a test root group"), createCategory, updateHCL, updateKey, updateValue)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createCategory, updateKey, updateValue)
 }
