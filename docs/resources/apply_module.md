@@ -3,7 +3,7 @@
 page_title: "tharsis_apply_module Resource - terraform-provider-tharsis"
 subcategory: ""
 description: |-
-  Defines and manages tharsisapplymodule resources, which launch runs in other workspaces.
+  Defines and manages tharsis_apply_module resources, which launch runs in other workspaces.
 ---
 
 # tharsis_apply_module (Resource)
