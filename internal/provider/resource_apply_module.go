@@ -484,7 +484,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 	runID := plannedRun.Metadata.ID
 
 	// Get the resolved variables from the run.
-	resolvedPlanVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunInput{ID: runID})
+	resolvedPlanVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunVariablesInput{RunID: runID})
 	if err != nil {
 		diags.AddError("Failed to get resolved variables", err.Error())
 		return nil, diags
@@ -557,7 +557,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 	}
 
 	// Get the resolved variables from the run.
-	resolvedApplyVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunInput{ID: finishedRun.Metadata.ID})
+	resolvedApplyVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunVariablesInput{RunID: finishedRun.Metadata.ID})
 	if err != nil {
 		diags.AddError("Failed to get resolved variables", err.Error())
 		return nil, diags
