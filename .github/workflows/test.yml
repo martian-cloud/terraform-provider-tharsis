@@ -55,8 +55,6 @@ jobs:
     services:
       tharsis:
         image: registry.gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-all-in-one-docker
-        env:
-          THARSIS_UI_URL: http://localhost:8000
         ports:
           - 8000:8000 # API
         options: >-
