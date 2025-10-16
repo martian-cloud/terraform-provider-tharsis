@@ -57,7 +57,6 @@ jobs:
         image: registry.gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-all-in-one-docker
         ports:
           - 8000:8000 # API
-          - 8080:8080 # Keycloak
         options: >-
           --health-cmd "curl -f http://localhost:8000/health"
           --health-interval 30s
@@ -89,9 +88,17 @@ jobs:
           TF_ACC: "1"
           THARSIS_ENDPOINT: http://localhost:8000
         run: |
-          THARSIS_STATIC_TOKEN=$(curl -L -X POST 'http://localhost:8080/realms/tharsis/protocol/openid-connect/token' \
-          -H 'Content-Type: application/x-www-form-urlencoded' --data-urlencode 'client_id=tharsis' \
-          --data-urlencode 'grant_type=password' --data-urlencode 'scope=openid profile email' \
-          --data-urlencode 'username=martian' --data-urlencode 'password=martian' | jq -r '.access_token')
+          THARSIS_STATIC_TOKEN=$(curl -s -X POST 'http://localhost:8000/oauth/login' \
+          -H 'Content-Type: application/x-www-form-urlencoded' \
+          --data-urlencode 'username=martian' \
+          --data-urlencode 'password=martian' \
+          --data-urlencode 'client_id=tharsis' \
+          --data-urlencode 'redirect_uri=http://localhost:3000/callback' \
+          --data-urlencode 'response_type=code' \
+          --data-urlencode 'state=test' \
+          --data-urlencode 'scope=openid tharsis' \
+          --data-urlencode 'code_challenge=test_challenge' \
+          --data-urlencode 'code_challenge_method=S256' \
+          -D - | grep 'tharsis_access_token=' | sed 's/.*tharsis_access_token=\([^;]*\).*/\1/')
           export THARSIS_STATIC_TOKEN
           go test -v -cover ./internal/provider/
