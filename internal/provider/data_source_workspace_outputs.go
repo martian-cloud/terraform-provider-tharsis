@@ -24,6 +24,7 @@ const (
 // WorkspacesOutputsDataSourceData represents the outputs for a workspace in Tharsis.
 type WorkspacesOutputsDataSourceData struct {
 	Outputs        map[string]string `tfsdk:"outputs"`
+	ID             types.String      `tfsdk:"id"`
 	Path           types.String      `tfsdk:"path"`
 	FullPath       types.String      `tfsdk:"full_path"`
 	WorkspaceID    types.String      `tfsdk:"workspace_id"`
@@ -54,10 +55,15 @@ func (t workspaceOutputsDataSource) Schema(_ context.Context, _ datasource.Schem
 		MarkdownDescription: description,
 		Description:         description,
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				MarkdownDescription: "The ID (UUID or TRN) of the workspace to retrieve outputs.",
+				Description:         "The ID (UUID or TRN) of the workspace to retrieve outputs.",
+				Optional:            true,
+			},
 			"path": schema.StringAttribute{
 				MarkdownDescription: "The path of the workspace to retrieve outputs.",
 				Description:         "The path of the workspace to retrieve outputs.",
-				Required:            true,
+				Optional:            true,
 			},
 			"full_path": schema.StringAttribute{
 				MarkdownDescription: "The full path of the workspace.",
