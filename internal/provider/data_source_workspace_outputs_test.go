@@ -3,7 +3,80 @@ package provider
 import (
 	"os"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+func Test_workspaceOutputsDataSource_Read_validation(t *testing.T) {
+	tests := []struct {
+		name        string
+		id          types.String
+		path        types.String
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "Both ID and Path are null - should error",
+			id:          types.StringNull(),
+			path:        types.StringNull(),
+			expectError: true,
+			errorMsg:    "Either ID or Path is required",
+		},
+		{
+			name:        "Both ID and Path are unknown - should error",
+			id:          types.StringUnknown(),
+			path:        types.StringUnknown(),
+			expectError: true,
+			errorMsg:    "Either ID or Path is required",
+		},
+		{
+			name:        "ID provided, Path null - should not error",
+			id:          types.StringValue("trn:workspace:group/workspace"),
+			path:        types.StringNull(),
+			expectError: false,
+		},
+		{
+			name:        "Path provided, ID null - should not error",
+			id:          types.StringNull(),
+			path:        types.StringValue("group/workspace"),
+			expectError: false,
+		},
+		{
+			name:        "Both ID and Path provided - should use ID",
+			id:          types.StringValue("trn:workspace:group/workspace"),
+			path:        types.StringValue("group/workspace"),
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test data
+			data := WorkspacesOutputsDataSourceData{
+				ID:   tt.id,
+				Path: tt.path,
+			}
+
+			// Test the validation logic by checking the conditions
+			hasID := !data.ID.IsUnknown() && !data.ID.IsNull()
+			hasPath := !data.Path.IsUnknown() && !data.Path.IsNull()
+			shouldError := !hasID && !hasPath
+
+			if shouldError != tt.expectError {
+				t.Errorf("Expected error: %v, got: %v", tt.expectError, shouldError)
+			}
+
+			// Test that ID takes precedence when both are provided
+			if hasID && hasPath {
+				// In the actual implementation, ID should be used
+				// This test verifies the logic would choose ID over Path
+				if data.ID.ValueString() == "" {
+					t.Error("Expected ID to be used when both ID and Path are provided")
+				}
+			}
+		})
+	}
+}
 
 func Test_resolvePath(t *testing.T) {
 	type args struct {

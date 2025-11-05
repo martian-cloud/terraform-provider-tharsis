@@ -111,26 +111,39 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 		return
 	}
 
-	if data.Path.IsUnknown() || data.Path.IsNull() {
+	// Validate that at least one identifier is provided
+	hasID := !data.ID.IsUnknown() && !data.ID.IsNull()
+	hasPath := !data.Path.IsUnknown() && !data.Path.IsNull()
+	
+	if !hasID && !hasPath {
 		resp.Diagnostics.AddError(
-			"Path is required",
-			"Path cannot be null or unknown",
+			"Either ID or Path is required",
+			"Either 'id' (UUID or TRN) or 'path' must be provided",
 		)
 		return
 	}
 
-	path, err := resolvePath(data.Path.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error resolving full path of workspace",
-			err.Error(),
-		)
-		return
-	}
-
-	// For later dereference, input.Path is known to not be nil.
-	input := &ttypes.GetWorkspaceInput{
-		Path: &path,
+	var input *ttypes.GetWorkspaceInput
+	
+	if hasID {
+		// Use ID field (supports both UUID and TRN)
+		id := data.ID.ValueString()
+		input = &ttypes.GetWorkspaceInput{
+			ID: &id,
+		}
+	} else {
+		// Use Path field
+		path, err := resolvePath(data.Path.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error resolving full path of workspace",
+				err.Error(),
+			)
+			return
+		}
+		input = &ttypes.GetWorkspaceInput{
+			Path: &path,
+		}
 	}
 
 	workspace, err := t.provider.client.Workspaces.GetWorkspace(ctx, input)
@@ -143,17 +156,29 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}
 
 	if workspace == nil {
+		identifier := "unknown"
+		if input.ID != nil {
+			identifier = *input.ID
+		} else if input.Path != nil {
+			identifier = *input.Path
+		}
 		resp.Diagnostics.AddError(
 			"Couldn't find workspace",
-			fmt.Sprintf("Workspace '%s' could not be found. Either the workspace doesn't exist or you don't have access.", *input.Path),
+			fmt.Sprintf("Workspace '%s' could not be found. Either the workspace doesn't exist or you don't have access.", identifier),
 		)
 		return
 	}
 
 	if workspace.CurrentStateVersion == nil {
+		identifier := "unknown"
+		if input.ID != nil {
+			identifier = *input.ID
+		} else if input.Path != nil {
+			identifier = *input.Path
+		}
 		resp.Diagnostics.AddError(
 			"Workspace doesn't have a current state version",
-			fmt.Sprintf("Workspace '%s' does not have a current state version.", *input.Path),
+			fmt.Sprintf("Workspace '%s' does not have a current state version.", identifier),
 		)
 		return
 	}
@@ -194,7 +219,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}
 
 	// Add additional attributes
-	data.FullPath = types.StringValue(path)
+	data.FullPath = types.StringValue(workspace.FullPath)
 	data.WorkspaceID = types.StringValue(workspace.Metadata.ID)
 	data.StateVersionID = types.StringValue(workspace.CurrentStateVersion.Metadata.ID)
 
