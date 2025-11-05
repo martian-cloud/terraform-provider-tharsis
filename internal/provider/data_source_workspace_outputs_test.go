@@ -42,10 +42,11 @@ func Test_workspaceOutputsDataSource_Read_validation(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "Both ID and Path provided - should use ID",
+			name:        "Both ID and Path provided - should error",
 			id:          types.StringValue("trn:workspace:group/workspace"),
 			path:        types.StringValue("group/workspace"),
-			expectError: false,
+			expectError: true,
+			errorMsg:    "Cannot specify both ID and Path",
 		},
 	}
 
@@ -60,19 +61,10 @@ func Test_workspaceOutputsDataSource_Read_validation(t *testing.T) {
 			// Test the validation logic by checking the conditions
 			hasID := !data.ID.IsUnknown() && !data.ID.IsNull()
 			hasPath := !data.Path.IsUnknown() && !data.Path.IsNull()
-			shouldError := !hasID && !hasPath
+			shouldError := (hasID && hasPath) || (!hasID && !hasPath)
 
 			if shouldError != tt.expectError {
 				t.Errorf("Expected error: %v, got: %v", tt.expectError, shouldError)
-			}
-
-			// Test that ID takes precedence when both are provided
-			if hasID && hasPath {
-				// In the actual implementation, ID should be used
-				// This test verifies the logic would choose ID over Path
-				if data.ID.ValueString() == "" {
-					t.Error("Expected ID to be used when both ID and Path are provided")
-				}
 			}
 		})
 	}

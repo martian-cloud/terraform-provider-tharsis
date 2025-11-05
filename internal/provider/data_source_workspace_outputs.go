@@ -115,6 +115,14 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	hasID := !data.ID.IsUnknown() && !data.ID.IsNull()
 	hasPath := !data.Path.IsUnknown() && !data.Path.IsNull()
 	
+	if hasID && hasPath {
+		resp.Diagnostics.AddError(
+			"Cannot specify both ID and Path",
+			"Please provide either 'id' or 'path', but not both",
+		)
+		return
+	}
+	
 	if !hasID && !hasPath {
 		resp.Diagnostics.AddError(
 			"Either ID or Path is required",
@@ -156,10 +164,10 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}
 
 	if workspace == nil {
-		identifier := "unknown"
+		var identifier string
 		if input.ID != nil {
 			identifier = *input.ID
-		} else if input.Path != nil {
+		} else {
 			identifier = *input.Path
 		}
 		resp.Diagnostics.AddError(
@@ -170,10 +178,10 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}
 
 	if workspace.CurrentStateVersion == nil {
-		identifier := "unknown"
+		var identifier string
 		if input.ID != nil {
 			identifier = *input.ID
-		} else if input.Path != nil {
+		} else {
 			identifier = *input.Path
 		}
 		resp.Diagnostics.AddError(
