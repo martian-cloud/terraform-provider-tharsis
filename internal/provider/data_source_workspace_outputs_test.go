@@ -7,6 +7,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// Test_workspaceOutputsDataSource_Read_validation tests the mutual exclusion validation logic for ID and Path fields,
+// ensuring that exactly one identifier is provided and appropriate error messages are returned for invalid combinations.
 func Test_workspaceOutputsDataSource_Read_validation(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -49,22 +51,33 @@ func Test_workspaceOutputsDataSource_Read_validation(t *testing.T) {
 			errorMsg:    "Cannot specify both ID and Path",
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create test data
 			data := WorkspacesOutputsDataSourceData{
 				ID:   tt.id,
 				Path: tt.path,
 			}
 
-			// Test the validation logic by checking the conditions
 			hasID := !data.ID.IsUnknown() && !data.ID.IsNull()
 			hasPath := !data.Path.IsUnknown() && !data.Path.IsNull()
-			shouldError := (hasID && hasPath) || (!hasID && !hasPath)
 
-			if shouldError != tt.expectError {
-				t.Errorf("Expected error: %v, got: %v", tt.expectError, shouldError)
+			var actualError bool
+			var actualErrorMsg string
+
+			if hasID && hasPath {
+				actualError = true
+				actualErrorMsg = "Cannot specify both ID and Path"
+			} else if !hasID && !hasPath {
+				actualError = true
+				actualErrorMsg = "Either ID or Path is required"
+			}
+
+			if actualError != tt.expectError {
+				t.Errorf("Expected error: %v, got: %v", tt.expectError, actualError)
+			}
+
+			if tt.expectError && actualError && actualErrorMsg != tt.errorMsg {
+				t.Errorf("Expected error message '%s', but got: '%s'", tt.errorMsg, actualErrorMsg)
 			}
 		})
 	}
