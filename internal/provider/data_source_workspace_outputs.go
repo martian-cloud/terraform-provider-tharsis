@@ -59,6 +59,7 @@ func (t workspaceOutputsDataSource) Schema(_ context.Context, _ datasource.Schem
 				MarkdownDescription: "The ID (UUID or TRN) of the workspace to retrieve outputs.",
 				Description:         "The ID (UUID or TRN) of the workspace to retrieve outputs.",
 				Optional:            true,
+				Computed:            true,
 			},
 			"path": schema.StringAttribute{
 				MarkdownDescription: "The path of the workspace to retrieve outputs.",
@@ -114,7 +115,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	// Validate that at least one identifier is provided
 	hasID := !data.ID.IsUnknown() && !data.ID.IsNull()
 	hasPath := !data.Path.IsUnknown() && !data.Path.IsNull()
-	
+
 	if hasID && hasPath {
 		resp.Diagnostics.AddError(
 			"Cannot specify both ID and Path",
@@ -122,7 +123,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 		)
 		return
 	}
-	
+
 	if !hasID && !hasPath {
 		resp.Diagnostics.AddError(
 			"Either ID or Path is required",
@@ -132,13 +133,21 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}
 
 	var input *ttypes.GetWorkspaceInput
-	
+
 	if hasID {
+		// TEMPORARILY BROKEN: Comment out TRN/UUID support to test acceptance tests
 		// Use ID field (supports both UUID and TRN)
-		id := data.ID.ValueString()
-		input = &ttypes.GetWorkspaceInput{
-			ID: &id,
-		}
+		// id := data.ID.ValueString()
+		// input = &ttypes.GetWorkspaceInput{
+		// 	ID: &id,
+		// }
+		
+		// Force failure for TRN/UUID inputs
+		resp.Diagnostics.AddError(
+			"TRN/UUID support temporarily disabled for testing",
+			"This should cause the TRN acceptance test to fail",
+		)
+		return
 	} else {
 		// Use Path field
 		path, err := resolvePath(data.Path.ValueString())
@@ -230,6 +239,11 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	data.FullPath = types.StringValue(workspace.FullPath)
 	data.WorkspaceID = types.StringValue(workspace.Metadata.ID)
 	data.StateVersionID = types.StringValue(workspace.CurrentStateVersion.Metadata.ID)
+
+	// Set the computed ID field to the workspace ID
+	if data.ID.IsNull() || data.ID.IsUnknown() {
+		data.ID = types.StringValue(workspace.Metadata.ID)
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

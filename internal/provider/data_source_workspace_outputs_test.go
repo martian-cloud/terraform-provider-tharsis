@@ -1,86 +1,129 @@
 package provider
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-// Test_workspaceOutputsDataSource_Read_validation tests the mutual exclusion validation logic for ID and Path fields,
-// ensuring that exactly one identifier is provided and appropriate error messages are returned for invalid combinations.
-func Test_workspaceOutputsDataSource_Read_validation(t *testing.T) {
-	tests := []struct {
-		name        string
-		id          types.String
-		path        types.String
-		expectError bool
-		errorMsg    string
-	}{
-		{
-			name:        "Both ID and Path are null - should error",
-			id:          types.StringNull(),
-			path:        types.StringNull(),
-			expectError: true,
-			errorMsg:    "Either ID or Path is required",
-		},
-		{
-			name:        "Both ID and Path are unknown - should error",
-			id:          types.StringUnknown(),
-			path:        types.StringUnknown(),
-			expectError: true,
-			errorMsg:    "Either ID or Path is required",
-		},
-		{
-			name:        "ID provided, Path null - should not error",
-			id:          types.StringValue("trn:workspace:group/workspace"),
-			path:        types.StringNull(),
-			expectError: false,
-		},
-		{
-			name:        "Path provided, ID null - should not error",
-			id:          types.StringNull(),
-			path:        types.StringValue("group/workspace"),
-			expectError: false,
-		},
-		{
-			name:        "Both ID and Path provided - should error",
-			id:          types.StringValue("trn:workspace:group/workspace"),
-			path:        types.StringValue("group/workspace"),
-			expectError: true,
-			errorMsg:    "Cannot specify both ID and Path",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			data := WorkspacesOutputsDataSourceData{
-				ID:   tt.id,
-				Path: tt.path,
-			}
+func TestAccWorkspaceOutputsDataSource_byPath(t *testing.T) {
+	groupName := "test-workspace-outputs-path"
+	workspaceName := "test-workspace"
 
-			hasID := !data.ID.IsUnknown() && !data.ID.IsNull()
-			hasPath := !data.Path.IsUnknown() && !data.Path.IsNull()
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWorkspaceOutputsDataSourceConfigByPath(groupName, workspaceName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.test", "path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.test", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.test", "id"),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.test", "workspace_id"),
+				),
+			},
+		},
+	})
+}
 
-			var actualError bool
-			var actualErrorMsg string
+func TestAccWorkspaceOutputsDataSource_byTRN(t *testing.T) {
+	groupName := "test-workspace-outputs-trn"
+	workspaceName := "test-workspace"
 
-			if hasID && hasPath {
-				actualError = true
-				actualErrorMsg = "Cannot specify both ID and Path"
-			} else if !hasID && !hasPath {
-				actualError = true
-				actualErrorMsg = "Either ID or Path is required"
-			}
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWorkspaceOutputsDataSourceConfigByTRN(groupName, workspaceName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.test", "id", fmt.Sprintf("trn:workspace:%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.test", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.test", "workspace_id"),
+				),
+			},
+		},
+	})
+}
 
-			if actualError != tt.expectError {
-				t.Errorf("Expected error: %v, got: %v", tt.expectError, actualError)
-			}
+func TestAccWorkspaceOutputsDataSource_byUUID(t *testing.T) {
+	groupName := "test-workspace-outputs-uuid"
+	workspaceName := "test-workspace"
 
-			if tt.expectError && actualError && actualErrorMsg != tt.errorMsg {
-				t.Errorf("Expected error message '%s', but got: '%s'", tt.errorMsg, actualErrorMsg)
-			}
-		})
-	}
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWorkspaceOutputsDataSourceConfigByUUID(groupName, workspaceName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.test", "id"),
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.test", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.test", "workspace_id"),
+				),
+			},
+		},
+	})
+}
+
+func testAccWorkspaceOutputsDataSourceConfigByPath(groupName, workspaceName string) string {
+	return fmt.Sprintf(`
+%s
+
+resource "tharsis_group" "test" {
+  name = "%s"
+}
+
+resource "tharsis_workspace" "test" {
+  name        = "%s"
+  group_path  = tharsis_group.test.full_path
+  description = "Test workspace for outputs datasource"
+}
+
+data "tharsis_workspace_outputs" "test" {
+  path = tharsis_workspace.test.full_path
+}
+`, testSharedProviderConfiguration(), groupName, workspaceName)
+}
+
+func testAccWorkspaceOutputsDataSourceConfigByTRN(groupName, workspaceName string) string {
+	return fmt.Sprintf(`
+%s
+
+resource "tharsis_group" "test" {
+  name = "%s"
+}
+
+resource "tharsis_workspace" "test" {
+  name        = "%s"
+  group_path  = tharsis_group.test.full_path
+  description = "Test workspace for outputs datasource"
+}
+
+data "tharsis_workspace_outputs" "test" {
+  id = "trn:workspace:${tharsis_workspace.test.full_path}"
+}
+`, testSharedProviderConfiguration(), groupName, workspaceName)
+}
+
+func testAccWorkspaceOutputsDataSourceConfigByUUID(groupName, workspaceName string) string {
+	return fmt.Sprintf(`
+%s
+
+resource "tharsis_group" "test" {
+  name = "%s"
+}
+
+resource "tharsis_workspace" "test" {
+  name        = "%s"
+  group_path  = tharsis_group.test.full_path
+  description = "Test workspace for outputs datasource"
+}
+
+data "tharsis_workspace_outputs" "test" {
+  id = tharsis_workspace.test.id
+}
+`, testSharedProviderConfiguration(), groupName, workspaceName)
 }
 
 func Test_resolvePath(t *testing.T) {
