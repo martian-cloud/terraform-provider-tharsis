@@ -178,22 +178,16 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 		return
 	}
 
-	if workspace.CurrentStateVersion == nil {
-		var identifier string
-		if input.ID != nil {
-			identifier = *input.ID
-		} else {
-			identifier = *input.Path
-		}
-		resp.Diagnostics.AddError(
-			"Workspace doesn't have a current state version",
-			fmt.Sprintf("Workspace '%s' does not have a current state version.", identifier),
-		)
-		return
-	}
-
 	data.Outputs = map[string]string{}
-	for _, output := range workspace.CurrentStateVersion.Outputs {
+	
+	if workspace.CurrentStateVersion == nil {
+		// Workspace has no state version - return empty outputs
+		data.StateVersionID = types.StringNull()
+	} else {
+		// Workspace has state version - process outputs
+		data.StateVersionID = types.StringValue(workspace.CurrentStateVersion.Metadata.ID)
+		
+		for _, output := range workspace.CurrentStateVersion.Outputs {
 		if !t.isJSONEncoded {
 			switch output.Type {
 			// Currently Strings are only supported
@@ -226,11 +220,11 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 			data.Outputs[output.Name] = string(b)
 		}
 	}
+	}
 
 	// Add additional attributes
 	data.FullPath = types.StringValue(workspace.FullPath)
 	data.WorkspaceID = types.StringValue(workspace.Metadata.ID)
-	data.StateVersionID = types.StringValue(workspace.CurrentStateVersion.Metadata.ID)
 
 	// Set the computed ID field to the workspace ID
 	if data.ID.IsNull() || data.ID.IsUnknown() {
