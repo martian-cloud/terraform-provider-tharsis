@@ -135,19 +135,11 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	var input *ttypes.GetWorkspaceInput
 
 	if hasID {
-		// TEMPORARILY BROKEN: Comment out TRN/UUID support to test acceptance tests
 		// Use ID field (supports both UUID and TRN)
-		// id := data.ID.ValueString()
-		// input = &ttypes.GetWorkspaceInput{
-		// 	ID: &id,
-		// }
-		
-		// Force failure for TRN/UUID inputs
-		resp.Diagnostics.AddError(
-			"TRN/UUID support temporarily disabled for testing",
-			"This should cause the TRN acceptance test to fail",
-		)
-		return
+		id := data.ID.ValueString()
+		input = &ttypes.GetWorkspaceInput{
+			ID: &id,
+		}
 	} else {
 		// Use Path field
 		path, err := resolvePath(data.Path.ValueString())
