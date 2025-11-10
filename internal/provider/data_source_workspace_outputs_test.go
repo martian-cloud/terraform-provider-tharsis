@@ -8,65 +8,36 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-func TestAccWorkspaceOutputsDataSource_byPath(t *testing.T) {
-	groupName := "test-workspace-outputs-path"
+func TestAccWorkspaceOutputsDataSource(t *testing.T) {
+	groupName := "test-workspace-outputs"
 	workspaceName := "test-workspace"
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccWorkspaceOutputsDataSourceConfigByPath(groupName, workspaceName),
+				Config: testAccWorkspaceOutputsDataSourceConfig(groupName, workspaceName),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.test", "path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
-					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.test", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
-					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.test", "id"),
-					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.test", "workspace_id"),
+					// Test by path
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.by_path", "path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.by_path", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.by_path", "id"),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.by_path", "workspace_id"),
+					// Test by TRN
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.by_trn", "id", fmt.Sprintf("trn:workspace:%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.by_trn", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.by_trn", "workspace_id"),
+					// Test by UUID
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.by_uuid", "id"),
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.by_uuid", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.by_uuid", "workspace_id"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccWorkspaceOutputsDataSource_byTRN(t *testing.T) {
-	groupName := "test-workspace-outputs-trn"
-	workspaceName := "test-workspace"
-
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccWorkspaceOutputsDataSourceConfigByTRN(groupName, workspaceName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.test", "id", fmt.Sprintf("trn:workspace:%s/%s", groupName, workspaceName)),
-					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.test", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
-					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.test", "workspace_id"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccWorkspaceOutputsDataSource_byUUID(t *testing.T) {
-	groupName := "test-workspace-outputs-uuid"
-	workspaceName := "test-workspace"
-
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccWorkspaceOutputsDataSourceConfigByUUID(groupName, workspaceName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.test", "id"),
-					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.test", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
-					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.test", "workspace_id"),
-				),
-			},
-		},
-	})
-}
-
-func testAccWorkspaceOutputsDataSourceConfigByPath(groupName, workspaceName string) string {
+func testAccWorkspaceOutputsDataSourceConfig(groupName, workspaceName string) string {
 	return fmt.Sprintf(`
 %s
 
@@ -80,47 +51,15 @@ resource "tharsis_workspace" "test" {
   description = "Test workspace for outputs datasource"
 }
 
-data "tharsis_workspace_outputs" "test" {
+data "tharsis_workspace_outputs" "by_path" {
   path = tharsis_workspace.test.full_path
 }
-`, testSharedProviderConfiguration(), groupName, workspaceName)
-}
 
-func testAccWorkspaceOutputsDataSourceConfigByTRN(groupName, workspaceName string) string {
-	return fmt.Sprintf(`
-%s
-
-resource "tharsis_group" "test" {
-  name = "%s"
-}
-
-resource "tharsis_workspace" "test" {
-  name        = "%s"
-  group_path  = tharsis_group.test.full_path
-  description = "Test workspace for outputs datasource"
-}
-
-data "tharsis_workspace_outputs" "test" {
+data "tharsis_workspace_outputs" "by_trn" {
   id = "trn:workspace:${tharsis_workspace.test.full_path}"
 }
-`, testSharedProviderConfiguration(), groupName, workspaceName)
-}
 
-func testAccWorkspaceOutputsDataSourceConfigByUUID(groupName, workspaceName string) string {
-	return fmt.Sprintf(`
-%s
-
-resource "tharsis_group" "test" {
-  name = "%s"
-}
-
-resource "tharsis_workspace" "test" {
-  name        = "%s"
-  group_path  = tharsis_group.test.full_path
-  description = "Test workspace for outputs datasource"
-}
-
-data "tharsis_workspace_outputs" "test" {
+data "tharsis_workspace_outputs" "by_uuid" {
   id = tharsis_workspace.test.id
 }
 `, testSharedProviderConfiguration(), groupName, workspaceName)
