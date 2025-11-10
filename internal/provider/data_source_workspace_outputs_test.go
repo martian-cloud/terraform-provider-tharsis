@@ -1,9 +1,69 @@
 package provider
 
 import (
+	"fmt"
 	"os"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
+
+func TestAccWorkspaceOutputsDataSource(t *testing.T) {
+	groupName := "test-workspace-outputs"
+	workspaceName := "test-workspace"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWorkspaceOutputsDataSourceConfig(groupName, workspaceName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Test by path
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.by_path", "path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.by_path", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.by_path", "id"),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.by_path", "workspace_id"),
+					// Test by TRN
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.by_trn", "id", fmt.Sprintf("trn:workspace:%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.by_trn", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.by_trn", "workspace_id"),
+					// Test by UUID
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.by_uuid", "id"),
+					resource.TestCheckResourceAttr("data.tharsis_workspace_outputs.by_uuid", "full_path", fmt.Sprintf("%s/%s", groupName, workspaceName)),
+					resource.TestCheckResourceAttrSet("data.tharsis_workspace_outputs.by_uuid", "workspace_id"),
+				),
+			},
+		},
+	})
+}
+
+func testAccWorkspaceOutputsDataSourceConfig(groupName, workspaceName string) string {
+	return fmt.Sprintf(`
+%s
+
+resource "tharsis_group" "test" {
+  name = "%s"
+}
+
+resource "tharsis_workspace" "test" {
+  name        = "%s"
+  group_path  = tharsis_group.test.full_path
+  description = "Test workspace for outputs datasource"
+}
+
+data "tharsis_workspace_outputs" "by_path" {
+  path = tharsis_workspace.test.full_path
+}
+
+data "tharsis_workspace_outputs" "by_trn" {
+  id = "trn:workspace:${tharsis_workspace.test.full_path}"
+}
+
+data "tharsis_workspace_outputs" "by_uuid" {
+  id = tharsis_workspace.test.id
+}
+`, testSharedProviderConfiguration(), groupName, workspaceName)
+}
 
 func Test_resolvePath(t *testing.T) {
 	type args struct {

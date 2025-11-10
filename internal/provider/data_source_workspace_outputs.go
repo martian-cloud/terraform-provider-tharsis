@@ -24,6 +24,7 @@ const (
 // WorkspacesOutputsDataSourceData represents the outputs for a workspace in Tharsis.
 type WorkspacesOutputsDataSourceData struct {
 	Outputs        map[string]string `tfsdk:"outputs"`
+	ID             types.String      `tfsdk:"id"`
 	Path           types.String      `tfsdk:"path"`
 	FullPath       types.String      `tfsdk:"full_path"`
 	WorkspaceID    types.String      `tfsdk:"workspace_id"`
@@ -54,10 +55,16 @@ func (t workspaceOutputsDataSource) Schema(_ context.Context, _ datasource.Schem
 		MarkdownDescription: description,
 		Description:         description,
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				MarkdownDescription: "The ID (UUID or TRN) of the workspace to retrieve outputs.",
+				Description:         "The ID (UUID or TRN) of the workspace to retrieve outputs.",
+				Optional:            true,
+				Computed:            true,
+			},
 			"path": schema.StringAttribute{
 				MarkdownDescription: "The path of the workspace to retrieve outputs.",
 				Description:         "The path of the workspace to retrieve outputs.",
-				Required:            true,
+				Optional:            true,
 			},
 			"full_path": schema.StringAttribute{
 				MarkdownDescription: "The full path of the workspace.",
@@ -105,26 +112,47 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 		return
 	}
 
-	if data.Path.IsUnknown() || data.Path.IsNull() {
+	// Validate that at least one identifier is provided
+	hasID := !data.ID.IsUnknown() && !data.ID.IsNull()
+	hasPath := !data.Path.IsUnknown() && !data.Path.IsNull()
+
+	if hasID && hasPath {
 		resp.Diagnostics.AddError(
-			"Path is required",
-			"Path cannot be null or unknown",
+			"Cannot specify both ID and Path",
+			"Please provide either 'id' or 'path', but not both",
 		)
 		return
 	}
 
-	path, err := resolvePath(data.Path.ValueString())
-	if err != nil {
+	if !hasID && !hasPath {
 		resp.Diagnostics.AddError(
-			"Error resolving full path of workspace",
-			err.Error(),
+			"Either ID or Path is required",
+			"Either 'id' (UUID or TRN) or 'path' must be provided",
 		)
 		return
 	}
 
-	// For later dereference, input.Path is known to not be nil.
-	input := &ttypes.GetWorkspaceInput{
-		Path: &path,
+	var input *ttypes.GetWorkspaceInput
+
+	if hasID {
+		// Use ID field (supports both UUID and TRN)
+		id := data.ID.ValueString()
+		input = &ttypes.GetWorkspaceInput{
+			ID: &id,
+		}
+	} else {
+		// Use Path field
+		path, err := resolvePath(data.Path.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error resolving full path of workspace",
+				err.Error(),
+			)
+			return
+		}
+		input = &ttypes.GetWorkspaceInput{
+			Path: &path,
+		}
 	}
 
 	workspace, err := t.provider.client.Workspaces.GetWorkspace(ctx, input)
@@ -137,23 +165,29 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}
 
 	if workspace == nil {
+		var identifier string
+		if input.ID != nil {
+			identifier = *input.ID
+		} else {
+			identifier = *input.Path
+		}
 		resp.Diagnostics.AddError(
 			"Couldn't find workspace",
-			fmt.Sprintf("Workspace '%s' could not be found. Either the workspace doesn't exist or you don't have access.", *input.Path),
-		)
-		return
-	}
-
-	if workspace.CurrentStateVersion == nil {
-		resp.Diagnostics.AddError(
-			"Workspace doesn't have a current state version",
-			fmt.Sprintf("Workspace '%s' does not have a current state version.", *input.Path),
+			fmt.Sprintf("Workspace '%s' could not be found. Either the workspace doesn't exist or you don't have access.", identifier),
 		)
 		return
 	}
 
 	data.Outputs = map[string]string{}
-	for _, output := range workspace.CurrentStateVersion.Outputs {
+	
+	if workspace.CurrentStateVersion == nil {
+		// Workspace has no state version - return empty outputs
+		data.StateVersionID = types.StringNull()
+	} else {
+		// Workspace has state version - process outputs
+		data.StateVersionID = types.StringValue(workspace.CurrentStateVersion.Metadata.ID)
+		
+		for _, output := range workspace.CurrentStateVersion.Outputs {
 		if !t.isJSONEncoded {
 			switch output.Type {
 			// Currently Strings are only supported
@@ -186,11 +220,16 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 			data.Outputs[output.Name] = string(b)
 		}
 	}
+	}
 
 	// Add additional attributes
-	data.FullPath = types.StringValue(path)
+	data.FullPath = types.StringValue(workspace.FullPath)
 	data.WorkspaceID = types.StringValue(workspace.Metadata.ID)
-	data.StateVersionID = types.StringValue(workspace.CurrentStateVersion.Metadata.ID)
+
+	// Set the computed ID field to the workspace ID
+	if data.ID.IsNull() || data.ID.IsUnknown() {
+		data.ID = types.StringValue(workspace.Metadata.ID)
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
