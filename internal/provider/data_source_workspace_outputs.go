@@ -179,47 +179,47 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}
 
 	data.Outputs = map[string]string{}
-	
+
 	if workspace.CurrentStateVersion == nil {
 		// Workspace has no state version - return empty outputs
 		data.StateVersionID = types.StringNull()
 	} else {
 		// Workspace has state version - process outputs
 		data.StateVersionID = types.StringValue(workspace.CurrentStateVersion.Metadata.ID)
-		
+
 		for _, output := range workspace.CurrentStateVersion.Outputs {
-		if !t.isJSONEncoded {
-			switch output.Type {
-			// Currently Strings are only supported
-			case cty.String:
-			default:
-				// Unsupported types for non-json encoded provider need to be skipped
-				continue
+			if !t.isJSONEncoded {
+				switch output.Type {
+				// Currently Strings are only supported
+				case cty.String:
+				default:
+					// Unsupported types for non-json encoded provider need to be skipped
+					continue
+				}
 			}
-		}
 
-		b, err := ctyjson.Marshal(output.Value, output.Type)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				fmt.Sprintf("Fail to parse value from output \"%s\"", output.Name),
-				err.Error(),
-			)
-		}
-
-		if !t.isJSONEncoded {
-			var s string
-			if err := json.Unmarshal(b, &s); err != nil {
+			b, err := ctyjson.Marshal(output.Value, output.Type)
+			if err != nil {
 				resp.Diagnostics.AddError(
-					fmt.Sprintf("Failed to parse value from output \"%s\"", output.Name),
+					fmt.Sprintf("Fail to parse value from output \"%s\"", output.Name),
 					err.Error(),
 				)
-				return
 			}
-			data.Outputs[output.Name] = s
-		} else {
-			data.Outputs[output.Name] = string(b)
+
+			if !t.isJSONEncoded {
+				var s string
+				if err := json.Unmarshal(b, &s); err != nil {
+					resp.Diagnostics.AddError(
+						fmt.Sprintf("Failed to parse value from output \"%s\"", output.Name),
+						err.Error(),
+					)
+					return
+				}
+				data.Outputs[output.Name] = s
+			} else {
+				data.Outputs[output.Name] = string(b)
+			}
 		}
-	}
 	}
 
 	// Add additional attributes

@@ -96,9 +96,9 @@ jobs:
           pattern: sbom-artifact-all
           merge-multiple: true
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v3.1.0
+        uses: goreleaser/goreleaser-action@v6
         with:
-          version: v1.26.2
+          version: '~> v2'
           args: release --clean
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
