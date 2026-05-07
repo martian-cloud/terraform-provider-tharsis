@@ -37,7 +37,7 @@ func New() provider.Provider {
 // tharsisProvider satisfies the provider.Provider interface and usually is included
 // with all Resource and DataSource implementations.
 type tharsisProvider struct {
-	// client is the combined Tharsis client for gRPC and REST API calls.
+	// client is the Tharsis client for gRPC.
 	client *client.GRPCClient
 	// version is set to the provider version on release, "dev" when the
 	// provider is built and ran locally, and "test" when running acceptance
