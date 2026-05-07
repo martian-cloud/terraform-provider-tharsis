@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
 )
 
 func TestManagedIdentityAliasWithSourceID(t *testing.T) {
@@ -118,12 +118,12 @@ func TestManagedIdentityAliasWithSourcePath(t *testing.T) {
 }
 
 func testManagedIdentityAliasConfiguration(sourceName string, withPath bool) string {
-	sourceIdentityAWSType := string(ttypes.ManagedIdentityAWSFederated)
+	sourceIdentityAWSType := pb.ManagedIdentityType_aws_federated.String()
 	sourceIdentityAWSName := "tmi_aws_name"
 	sourceIdentityAWSDescription := "this is tmi_aws, a Tharsis managed identity of AWS type"
 	sourceIdentityAWSRole := "some-iam-role"
 
-	sourceIdentityAzureType := string(ttypes.ManagedIdentityAzureFederated)
+	sourceIdentityAzureType := pb.ManagedIdentityType_azure_federated.String()
 	sourceIdentityAzureName := "tmi_azure_name"
 	sourceIdentityAzureDescription := "this is tmi_azure, a Tharsis managed identity of Azure type"
 	sourceIdentityAzureClient := "some-azure-client"

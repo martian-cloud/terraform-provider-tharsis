@@ -2,10 +2,8 @@ package provider
 
 import (
 	"context"
-	"strings"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -13,8 +11,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // GroupModel is the model for a group.
@@ -23,6 +24,7 @@ type GroupModel struct {
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
 	ParentPath  types.String `tfsdk:"parent_path"`
+	ParentID    types.String `tfsdk:"parent_id"`
 	FullPath    types.String `tfsdk:"full_path"`
 	LastUpdated types.String `tfsdk:"last_updated"`
 }
@@ -40,7 +42,7 @@ func NewGroupResource() resource.Resource {
 }
 
 type groupResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -86,8 +88,19 @@ func (t *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				MarkdownDescription: "Full path of the parent namespace.",
 				Description:         "Full path of the parent namespace.",
 				Optional:            true, // A root group has no parent path.
+				DeprecationMessage:  "Use parent_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"parent_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the parent group.",
+				Description:         "The ID of the parent group.",
+				Optional:            true, // A root group has no parent.
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"full_path": schema.StringAttribute{
@@ -114,7 +127,7 @@ func (t *groupResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *groupResource) Create(ctx context.Context,
@@ -128,16 +141,18 @@ func (t *groupResource) Create(ctx context.Context,
 	}
 
 	// Create the group.
-	var parentPath *string
-	if group.ParentPath.ValueString() != "" {
-		parentPath = ptr.String(group.ParentPath.ValueString())
+	input := &pb.CreateGroupRequest{
+		Name:        group.Name.ValueString(),
+		Description: group.Description.ValueString(),
 	}
-	created, err := t.client.Group.CreateGroup(ctx,
-		&ttypes.CreateGroupInput{
-			Name:        group.Name.ValueString(),
-			Description: group.Description.ValueString(),
-			ParentPath:  parentPath,
-		})
+	if v := group.ParentID.ValueString(); v != "" {
+		input.ParentId = &v
+	} else if v := group.ParentPath.ValueString(); v != "" {
+		parentID := trn.TypeGroup.Build(v)
+		input.ParentId = &parentID
+	}
+
+	created, err := t.client.GroupsClient.CreateGroup(ctx, input)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating group",
@@ -148,7 +163,7 @@ func (t *groupResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	t.copyGroup(*created, &group)
+	t.copyGroup(created, &group)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, group)...)
@@ -165,11 +180,11 @@ func (t *groupResource) Read(ctx context.Context,
 	}
 
 	// Get the group from Tharsis.
-	found, err := t.client.Group.GetGroup(ctx, &ttypes.GetGroupInput{
-		ID: ptr.String(state.ID.ValueString()),
+	found, err := t.client.GroupsClient.GetGroupByID(ctx, &pb.GetGroupByIDRequest{
+		Id: state.ID.ValueString(),
 	})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -181,7 +196,7 @@ func (t *groupResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyGroup(*found, &state)
+	t.copyGroup(found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -200,10 +215,10 @@ func (t *groupResource) Update(ctx context.Context,
 	// Update the group via Tharsis.
 	// The ID is used to find the record to update.
 	// The description is modified.
-	updated, err := t.client.Group.UpdateGroup(ctx,
-		&ttypes.UpdateGroupInput{
-			ID:          ptr.String(plan.ID.ValueString()),
-			Description: plan.Description.ValueString(),
+	updated, err := t.client.GroupsClient.UpdateGroup(ctx,
+		&pb.UpdateGroupRequest{
+			Id:          plan.ID.ValueString(),
+			Description: new(plan.Description.ValueString()),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -214,7 +229,7 @@ func (t *groupResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyGroup(*updated, &plan)
+	t.copyGroup(updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -231,13 +246,13 @@ func (t *groupResource) Delete(ctx context.Context,
 	}
 
 	// Delete the group via Tharsis.
-	err := t.client.Group.DeleteGroup(ctx,
-		&ttypes.DeleteGroupInput{
-			ID: ptr.String(state.ID.ValueString()),
+	_, err := t.client.GroupsClient.DeleteGroup(ctx,
+		&pb.DeleteGroupRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 		// Handle the case that the group no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -254,11 +269,11 @@ func (t *groupResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
 	// Get the group by full path from Tharsis.
-	found, err := t.client.Group.GetGroup(ctx, &ttypes.GetGroupInput{
-		Path: &req.ID,
+	found, err := t.client.GroupsClient.GetGroupByID(ctx, &pb.GetGroupByIDRequest{
+		Id: trn.TypeGroup.Normalize(req.ID),
 	})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.Diagnostics.AddError(
 				"Import group not found: "+req.ID,
 				"",
@@ -273,32 +288,26 @@ func (t *groupResource) ImportState(ctx context.Context,
 	}
 
 	// Import by full path.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.Id)...)
 }
 
 // copyGroup copies the contents of a group.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *groupResource) copyGroup(src ttypes.Group, dest *GroupModel) {
-	dest.ID = types.StringValue(src.Metadata.ID)
+func (t *groupResource) copyGroup(src *pb.Group, dest *GroupModel) {
+	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
-	parentPath := t.getParentPath(src.FullPath)
-	if parentPath != "" {
-		dest.ParentPath = types.StringValue(parentPath)
+	parsed := trn.MustParseAny(src.Metadata.Trn)
+	if parsed.HasParent() {
+		dest.ParentPath = types.StringValue(parsed.ParentPath())
+	}
+	if src.ParentId != "" {
+		dest.ParentID = types.StringValue(src.ParentId)
+	} else {
+		dest.ParentID = types.StringNull()
 	}
 	dest.FullPath = types.StringValue(src.FullPath)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
-}
-
-// getParentPath returns the parent path.
-// The parent path is not available as a separate field.
-func (t *groupResource) getParentPath(fullPath string) string {
-	if strings.Contains(fullPath, "/") {
-		return fullPath[:strings.LastIndex(fullPath, "/")]
-	}
-
-	// A root group has no non-empty parent path.
-	return ""
+	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

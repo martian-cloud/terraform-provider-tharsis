@@ -20,6 +20,15 @@ install: build
 	mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
 	mv ${BINARY} ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
 
+.PHONY: lint
+lint: ## run linting on Go code
+	@echo "Checking go.mod..."
+	@go mod tidy -diff > /dev/null
+	@echo "Linting Go code..."
+	@revive -set_exit_status $(PACKAGES)
+	@echo "Checking Go formatting..."
+	@test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)
+
 .PHONY: vet
 vet: ## run golint on all Go package
 	@go vet $(PACKAGES)
@@ -38,3 +47,7 @@ testacc:
 .PHONY: generate
 generate: ## run go generate
 	go generate $(PACKAGES)
+
+.PHONY: release-snapshot
+release-snapshot:
+	goreleaser release --snapshot --clean --skip=sign

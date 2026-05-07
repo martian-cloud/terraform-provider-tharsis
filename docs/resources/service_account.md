@@ -18,14 +18,18 @@ Defines and manages a service account.
 ### Required
 
 - `description` (String) A description of the service account.
-- `group_path` (String) Path of the parent group.
 - `name` (String) The name of the service account.
 - `oidc_trust_policies` (Attributes List) OIDC trust policies for this service account. (see [below for nested schema](#nestedatt--oidc_trust_policies))
+
+### Optional
+
+- `group_id` (String) The ID of the parent group.
+- `group_path` (String, Deprecated) Path of the parent group.
 
 ### Read-Only
 
 - `id` (String) String identifier of the service account.
-- `resource_path` (String) The path of the parent namespace plus the name of the service account.
+- `resource_path` (String, Deprecated) The path of the parent namespace plus the name of the service account.
 
 <a id="nestedatt--oidc_trust_policies"></a>
 ### Nested Schema for `oidc_trust_policies`

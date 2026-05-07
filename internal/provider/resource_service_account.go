@@ -9,8 +9,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // OIDCTrustPolicyModel is the model for a trust policy.
@@ -27,6 +30,7 @@ type ServiceAccountModel struct {
 	Name              types.String           `tfsdk:"name"`
 	Description       types.String           `tfsdk:"description"`
 	GroupPath         types.String           `tfsdk:"group_path"`
+	GroupID           types.String           `tfsdk:"group_id"`
 	OIDCTrustPolicies []OIDCTrustPolicyModel `tfsdk:"oidc_trust_policies"`
 }
 
@@ -43,7 +47,7 @@ func NewServiceAccountResource() resource.Resource {
 }
 
 type serviceAccountResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -73,6 +77,7 @@ func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequ
 				MarkdownDescription: "The path of the parent namespace plus the name of the service account.",
 				Description:         "The path of the parent namespace plus the name of the service account.",
 				Computed:            true,
+				DeprecationMessage:  "Use the id field instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -94,9 +99,20 @@ func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"group_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the parent group.",
+				Description:         "The ID of the parent group.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"oidc_trust_policies": schema.ListNestedAttribute{
@@ -131,7 +147,7 @@ func (t *serviceAccountResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *serviceAccountResource) Create(ctx context.Context,
@@ -145,12 +161,22 @@ func (t *serviceAccountResource) Create(ctx context.Context,
 	}
 
 	// Create the service account.
-	created, err := t.client.ServiceAccount.CreateServiceAccount(ctx,
-		&ttypes.CreateServiceAccountInput{
+	var groupID string
+	if v := serviceAccount.GroupID.ValueString(); v != "" {
+		groupID = v
+	} else if v := serviceAccount.GroupPath.ValueString(); v != "" {
+		groupID = trn.TypeGroup.Build(v)
+	} else {
+		resp.Diagnostics.AddError("Either group_id or group_path must be specified", "")
+		return
+	}
+
+	createResp, err := t.client.ServiceAccountsClient.CreateServiceAccount(ctx,
+		&pb.CreateServiceAccountRequest{
 			Name:              serviceAccount.Name.ValueString(),
 			Description:       serviceAccount.Description.ValueString(),
-			GroupPath:         serviceAccount.GroupPath.ValueString(),
-			OIDCTrustPolicies: t.copyTrustPoliciesToInput(serviceAccount.OIDCTrustPolicies),
+			GroupId:           groupID,
+			OidcTrustPolicies: t.trustPoliciesToProto(serviceAccount.OIDCTrustPolicies),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -162,7 +188,7 @@ func (t *serviceAccountResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	t.copyServiceAccount(*created, &serviceAccount)
+	t.copyServiceAccount(createResp.ServiceAccount, &serviceAccount)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, serviceAccount)...)
@@ -179,11 +205,12 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 	}
 
 	// Get the service account from Tharsis.
-	found, err := t.client.ServiceAccount.GetServiceAccount(ctx, &ttypes.GetServiceAccountInput{
-		ID: state.ID.ValueString(),
-	})
+	found, err := t.client.ServiceAccountsClient.GetServiceAccountByID(ctx,
+		&pb.GetServiceAccountByIDRequest{
+			Id: state.ID.ValueString(),
+		})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -196,7 +223,7 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyServiceAccount(*found, &state)
+	t.copyServiceAccount(found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -215,11 +242,11 @@ func (t *serviceAccountResource) Update(ctx context.Context,
 	// Update the service account via Tharsis.
 	// The ID is used to find the record to update.
 	// The description and trust policies are modified.
-	updated, err := t.client.ServiceAccount.UpdateServiceAccount(ctx,
-		&ttypes.UpdateServiceAccountInput{
-			ID:                plan.ID.ValueString(),
-			Description:       plan.Description.ValueString(),
-			OIDCTrustPolicies: t.copyTrustPoliciesToInput(plan.OIDCTrustPolicies),
+	updateResp, err := t.client.ServiceAccountsClient.UpdateServiceAccount(ctx,
+		&pb.UpdateServiceAccountRequest{
+			Id:                plan.ID.ValueString(),
+			Description:       new(plan.Description.ValueString()),
+			OidcTrustPolicies: t.trustPoliciesToProto(plan.OIDCTrustPolicies),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -230,7 +257,7 @@ func (t *serviceAccountResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyServiceAccount(*updated, &plan)
+	t.copyServiceAccount(updateResp.ServiceAccount, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -247,14 +274,14 @@ func (t *serviceAccountResource) Delete(ctx context.Context,
 	}
 
 	// Delete the service account via Tharsis.
-	err := t.client.ServiceAccount.DeleteServiceAccount(ctx,
-		&ttypes.DeleteServiceAccountInput{
-			ID: state.ID.ValueString(),
+	_, err := t.client.ServiceAccountsClient.DeleteServiceAccount(ctx,
+		&pb.DeleteServiceAccountRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the service account no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -276,15 +303,17 @@ func (t *serviceAccountResource) ImportState(ctx context.Context,
 
 // copyServiceAccount copies the contents of a service account.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *serviceAccountResource) copyServiceAccount(src ttypes.ServiceAccount, dest *ServiceAccountModel) {
-	dest.ID = types.StringValue(src.Metadata.ID)
-	dest.ResourcePath = types.StringValue(src.ResourcePath)
+func (t *serviceAccountResource) copyServiceAccount(src *pb.ServiceAccount, dest *ServiceAccountModel) {
+	parsed := trn.MustParseAny(src.Metadata.Trn)
+	dest.ID = types.StringValue(src.Metadata.Id)
+	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
-	dest.GroupPath = types.StringValue(src.GroupPath)
+	dest.GroupPath = types.StringValue(parsed.ParentPath())
+	dest.GroupID = types.StringValue(src.GroupId)
 
 	newPolicies := []OIDCTrustPolicyModel{}
-	for _, trustPolicy := range src.OIDCTrustPolicies {
+	for _, trustPolicy := range src.OidcTrustPolicies {
 		newPolicy := OIDCTrustPolicyModel{
 			BoundClaims: make(map[string]types.String),
 			Issuer:      types.StringValue(trustPolicy.Issuer),
@@ -297,16 +326,16 @@ func (t *serviceAccountResource) copyServiceAccount(src ttypes.ServiceAccount, d
 	dest.OIDCTrustPolicies = newPolicies
 }
 
-// copyTrustPoliciesToInput copies a slice of OIDCTrustPolicyModel to a slice of ttypes.OIDCTrustPolicyInput.
-func (t *serviceAccountResource) copyTrustPoliciesToInput(models []OIDCTrustPolicyModel) []ttypes.OIDCTrustPolicy {
-	result := []ttypes.OIDCTrustPolicy{}
+// trustPoliciesToProto converts from OIDCTrustPolicyModel to proto equivalent.
+func (t *serviceAccountResource) trustPoliciesToProto(models []OIDCTrustPolicyModel) []*pb.OIDCTrustPolicy {
+	var result []*pb.OIDCTrustPolicy
 
 	for _, model := range models {
 		boundClaims := map[string]string{}
 		for k, v := range model.BoundClaims {
 			boundClaims[k] = v.ValueString()
 		}
-		result = append(result, ttypes.OIDCTrustPolicy{
+		result = append(result, &pb.OIDCTrustPolicy{
 			Issuer:      model.Issuer.ValueString(),
 			BoundClaims: boundClaims,
 		})

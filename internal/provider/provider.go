@@ -17,9 +17,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	svchost "github.com/hashicorp/terraform-svchost"
 
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/auth"
-	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/config"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client/token"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -38,8 +37,8 @@ func New() provider.Provider {
 // tharsisProvider satisfies the provider.Provider interface and usually is included
 // with all Resource and DataSource implementations.
 type tharsisProvider struct {
-	// client is the Tharsis SDK Client that will be used to make the API calls.
-	client *tharsis.Client
+	// client is the combined Tharsis client for gRPC and REST API calls.
+	client *client.GRPCClient
 	// version is set to the provider version on release, "dev" when the
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
@@ -74,10 +73,21 @@ func (p *tharsisProvider) Schema(_ context.Context, _ provider.SchemaRequest, re
 				Description:         "Service account path to use for authenticating with the Tharsis API",
 				MarkdownDescription: "A Service account path to use for authenticating with the Tharsis API.",
 				Optional:            true,
+				DeprecationMessage:  "Use service_account_id instead. The path will be converted to a TRN automatically.",
+			},
+			"service_account_id": schema.StringAttribute{
+				Description:         "Service account ID (TRN or GID) to use for authenticating with the Tharsis API",
+				MarkdownDescription: "A Service account ID (TRN or GID) to use for authenticating with the Tharsis API.",
+				Optional:            true,
 			},
 			"service_account_token": schema.StringAttribute{
 				Description:         "Service account token to use for authenticating with the Tharsis API",
 				MarkdownDescription: "A Service account token to use for authenticating with the Tharsis API.",
+				Optional:            true,
+			},
+			"tls_skip_verify": schema.BoolAttribute{
+				Description:         "Skip TLS certificate verification when connecting to the Tharsis API",
+				MarkdownDescription: "Skip TLS certificate verification when connecting to the Tharsis API. For development use only.",
 				Optional:            true,
 			},
 		},
@@ -89,7 +99,9 @@ type providerData struct {
 	Host                types.String `tfsdk:"host"`
 	StaticToken         types.String `tfsdk:"static_token"`
 	ServiceAccountPath  types.String `tfsdk:"service_account_path"`
+	ServiceAccountID    types.String `tfsdk:"service_account_id"`
 	ServiceAccountToken types.String `tfsdk:"service_account_token"`
+	TLSSkipVerify       types.Bool   `tfsdk:"tls_skip_verify"`
 }
 
 // checkUnknowns validates that no field is unknown during configuration
@@ -119,6 +131,15 @@ func (pd *providerData) checkUnknowns() diag.Diagnostics {
 			diag.NewErrorDiagnostic(
 				"Unknown service account path",
 				"Cannot use an unknown value as service account path",
+			),
+		)
+	}
+
+	if pd.ServiceAccountID.IsUnknown() {
+		diags = append(diags,
+			diag.NewErrorDiagnostic(
+				"Unknown service account ID",
+				"Cannot use an unknown value as service account ID",
 			),
 		)
 	}
@@ -157,6 +178,7 @@ func (p *tharsisProvider) Configure(ctx context.Context, req provider.ConfigureR
 			"Error configuring the Tharsis client",
 			fmt.Sprintf("Error configuring the Tharsis client, this is an error in the provider.\n%s\n", err),
 		)
+		return
 	}
 
 	p.client = tClient
@@ -210,84 +232,73 @@ func (p *tharsisProvider) DataSources(context.Context) []func() datasource.DataS
 	}
 }
 
-func newTharsisClient(_ context.Context, pd *providerData) (*tharsis.Client, error) {
-	var (
-		host                                    string
-		staticToken                             string
-		serviceAccountPath, serviceAccountToken string
-		optFn                                   []func(*config.LoadOptions) error
-	)
-
-	// User must specify a host
-	if pd.Host.IsNull() {
+func newTharsisClient(ctx context.Context, pd *providerData) (*client.GRPCClient, error) {
+	host := pd.Host.ValueString()
+	if host == "" {
 		host = os.Getenv("THARSIS_ENDPOINT")
-	} else {
-		host = pd.Host.ValueString()
-
-		// Prepend scheme if only a hostname is passed in.
-		_, err := url.ParseRequestURI(host)
-		if err != nil {
-			host = scheme + host
-		}
 	}
 
 	if host == "" {
 		return nil, fmt.Errorf("host cannot be an empty string")
 	}
-	optFn = append(optFn, config.WithEndpoint(host))
 
-	// Add TF_TOKEN_<host> value as first optFn as it is lowest priority
-	if token := getTFTokenForHost(host); token != "" {
-		tokenProvider, err := auth.NewStaticTokenProvider(token)
-		if err != nil {
-			return nil, fmt.Errorf("failed to obtain a token provider for host \"%s\" using \"TF_TOKEN_\" environment variable: %v", host, err)
-		}
-		optFn = append(optFn, config.WithTokenProvider(tokenProvider))
+	// Prepend scheme if not already present, then validate.
+	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
+		host = scheme + host
 	}
 
-	if pd.StaticToken.IsNull() {
-		staticToken = os.Getenv("THARSIS_STATIC_TOKEN")
-	} else {
-		staticToken = pd.StaticToken.ValueString()
+	if _, err := url.ParseRequestURI(host); err != nil {
+		return nil, fmt.Errorf("invalid host URL %q: %w", host, err)
 	}
 
-	if staticToken != "" {
-		tokenProvider, err := auth.NewStaticTokenProvider(staticToken)
-		if err != nil {
-			return nil, fmt.Errorf("failed to obtain a token provider for static token: %v", err)
-		}
-		optFn = append(optFn, config.WithTokenProvider(tokenProvider))
+	// Build the TokenConfig from provider data. Env vars (THARSIS_STATIC_TOKEN,
+	// THARSIS_SERVICE_ACCOUNT_ID, etc.) are loaded automatically by TokenConfig.Resolve.
+	tokenCfg := &token.Config{
+		StaticToken: getTFTokenForHost(host), // TF_TOKEN_<host> is lowest priority.
 	}
 
-	if pd.ServiceAccountPath.IsNull() {
-		serviceAccountPath = os.Getenv("THARSIS_SERVICE_ACCOUNT_PATH")
-	} else {
-		serviceAccountPath = pd.ServiceAccountPath.ValueString()
+	// Provider config values seed the struct; env vars override in Resolve.
+	if v := pd.StaticToken.ValueString(); v != "" {
+		tokenCfg.StaticToken = v
 	}
 
-	if pd.ServiceAccountToken.IsNull() {
-		serviceAccountToken = os.Getenv("THARSIS_SERVICE_ACCOUNT_TOKEN")
-	} else {
-		serviceAccountToken = pd.ServiceAccountToken.ValueString()
+	if v := pd.ServiceAccountID.ValueString(); v != "" {
+		tokenCfg.ServiceAccountID = v
+	} else if v := pd.ServiceAccountPath.ValueString(); v != "" {
+		tokenCfg.ServiceAccountPath = v
 	}
 
-	if (serviceAccountPath != "") && (serviceAccountToken != "") {
-		tokenProvider, err := auth.NewServiceAccountTokenProvider(host, serviceAccountPath,
-			func() (string, error) {
-				return serviceAccountToken, nil
-			})
-		if err != nil {
-			return nil, fmt.Errorf("failed to obtain a token provider for service account %s: %v", serviceAccountPath, err)
-		}
-		optFn = append(optFn, config.WithTokenProvider(tokenProvider))
+	if v := pd.ServiceAccountToken.ValueString(); v != "" {
+		tokenCfg.ServiceAccountToken = v
 	}
 
-	sdkConfig, err := config.Load(optFn...)
+	userAgent := client.BuildUserAgent("terraform-provider-tharsis", Version)
+	tlsSkipVerify := pd.TLSSkipVerify.ValueBool()
+	logger := &tflogAdapter{ctx: ctx}
+
+	// Resolve the token.
+	resolver, err := tokenCfg.Resolve(ctx, host, nil,
+		token.WithTLSSkipVerify(tlsSkipVerify),
+		token.WithLogger(logger),
+		token.WithUserAgent(userAgent),
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve authentication: %w", err)
 	}
 
-	return tharsis.NewClient(sdkConfig)
+	// Create the gRPC client.
+	grpcClient, err := client.NewGRPCClient(ctx, &client.GRPCClientConfig{
+		HTTPEndpoint:  host,
+		TokenResolver: resolver,
+		TLSSkipVerify: tlsSkipVerify,
+		UserAgent:     userAgent,
+		Logger:        logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
+	}
+
+	return grpcClient, nil
 }
 
 func getTFTokenForHost(host string) string {

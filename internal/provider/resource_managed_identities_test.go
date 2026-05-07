@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
 )
 
 // TestManagedIdentityAWS tests creation, reading, updating, and deletion of an AWS managed identity resource.
 func TestManagedIdentityAWS(t *testing.T) {
-	createType := string(ttypes.ManagedIdentityAWSFederated)
+	createType := pb.ManagedIdentityType_aws_federated.String()
 	createName := "tmi_aws_name"
 	createDescription := "this is tmi_aws, a Tharsis managed identity of AWS type"
 	createResourcePath := testGroupPath + "/" + createName
@@ -78,7 +78,7 @@ func TestManagedIdentityAWS(t *testing.T) {
 
 // TestManagedIdentityAzure tests creation, reading, updating, and deletion of an Azure managed identity resource.
 func TestManagedIdentityAzure(t *testing.T) {
-	createType := string(ttypes.ManagedIdentityAzureFederated)
+	createType := pb.ManagedIdentityType_azure_federated.String()
 	createName := "tmi_azure_name"
 	createDescription := "this is tmi_azure, a Tharsis managed identity of Azure type"
 	createResourcePath := testGroupPath + "/" + createName
@@ -148,7 +148,7 @@ func TestManagedIdentityAzure(t *testing.T) {
 
 // TestManagedIdentityTharsis tests creation, reading, updating, and deletion of a Tharsis managed identity resource.
 func TestManagedIdentityTharsis(t *testing.T) {
-	createType := string(ttypes.ManagedIdentityTharsisFederated)
+	createType := pb.ManagedIdentityType_tharsis_federated.String()
 	createName := "tmi_tharsis_name"
 	createDescription := "this is tmi_tharsis, a Tharsis managed identity of Tharsis type"
 	createResourcePath := testGroupPath + "/" + createName
@@ -215,7 +215,7 @@ func TestManagedIdentityTharsis(t *testing.T) {
 }
 
 func testManagedIdentityAWSConfigurationCreate() string {
-	createType := string(ttypes.ManagedIdentityAWSFederated)
+	createType := pb.ManagedIdentityType_aws_federated.String()
 	createName := "tmi_aws_name"
 	createDescription := "this is tmi_aws, a Tharsis managed identity of AWS type"
 	createAWSRole := "some-iam-role"
@@ -235,7 +235,7 @@ resource "tharsis_managed_identity" "tmi_aws" {
 }
 
 func testManagedIdentityAWSConfigurationUpdate() string {
-	createType := string(ttypes.ManagedIdentityAWSFederated)
+	createType := pb.ManagedIdentityType_aws_federated.String()
 	createName := "tmi_aws_name"
 	updatedDescription := "this is an updated description for tmi_aws"
 	updatedAWSRole := "updated-iam-role"
@@ -255,7 +255,7 @@ resource "tharsis_managed_identity" "tmi_aws" {
 }
 
 func testManagedIdentityAzureConfigurationCreate() string {
-	createType := string(ttypes.ManagedIdentityAzureFederated)
+	createType := pb.ManagedIdentityType_azure_federated.String()
 	createName := "tmi_azure_name"
 	createDescription := "this is tmi_azure, a Tharsis managed identity of Azure type"
 	createAzureClientID := "some-azure-client-id"
@@ -277,7 +277,7 @@ resource "tharsis_managed_identity" "tmi_azure" {
 }
 
 func testManagedIdentityAzureConfigurationUpdate() string {
-	createType := string(ttypes.ManagedIdentityAzureFederated)
+	createType := pb.ManagedIdentityType_azure_federated.String()
 	createName := "tmi_azure_name"
 	updatedDescription := "this is an updated description for tmi_azure"
 	updatedAzureClientID := "updated-azure-client-id"
@@ -299,7 +299,7 @@ resource "tharsis_managed_identity" "tmi_azure" {
 }
 
 func testManagedIdentityTharsisConfigurationCreate() string {
-	createType := string(ttypes.ManagedIdentityTharsisFederated)
+	createType := pb.ManagedIdentityType_tharsis_federated.String()
 	createName := "tmi_tharsis_name"
 	createDescription := "this is tmi_tharsis, a Tharsis managed identity of Tharsis type"
 	createTharsisServiceAccountPath := "some-tharsis-service-account-path"
@@ -319,7 +319,7 @@ resource "tharsis_managed_identity" "tmi_tharsis" {
 }
 
 func testManagedIdentityTharsisConfigurationUpdate() string {
-	createType := string(ttypes.ManagedIdentityTharsisFederated)
+	createType := pb.ManagedIdentityType_tharsis_federated.String()
 	createName := "tmi_tharsis_name"
 	updatedDescription := "this is an updated description for tmi_tharsis"
 	updatedTharsisServiceAccountPath := "updated-tharsis-service-account-path"

@@ -8,7 +8,7 @@ terraform {
 
 provider "tharsis" {
   host                  = "<tharsis_api_host>"
-  service_account_path  = "<service_account_path>"
+  service_account_id    = "<service_account_id>"
   service_account_token = "<service_account_token>"
 }
 

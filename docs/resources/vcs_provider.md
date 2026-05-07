@@ -17,16 +17,19 @@ Defines and manages a VCS provider.
 
 ### Required
 
+> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
+
 - `auto_create_webhooks` (Boolean) Whether to automatically create webhooks.
 - `description` (String) A description of the VCS provider.
-- `group_path` (String) The path of the group where this VCS provider resides.
 - `name` (String) The name of the VCS provider.
-- `oauth_client_id` (String) A description of the VCS provider.
-- `oauth_client_secret` (String) A description of the VCS provider.
+- `oauth_client_id` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) A description of the VCS provider.
+- `oauth_client_secret` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) A description of the VCS provider.
 - `type` (String) The type of this VCS provider: gitlab, github, etc.
 
 ### Optional
 
+- `group_id` (String) The ID of the parent group.
+- `group_path` (String, Deprecated) The path of the group where this VCS provider resides.
 - `url` (String) API URL for this VCS provider.
 
 ### Read-Only
@@ -35,4 +38,4 @@ Defines and manages a VCS provider.
 - `id` (String) String identifier of the VCS provider.
 - `last_updated` (String) Timestamp when this VCS provider was most recently updated.
 - `oauth_authorization_url` (String) URL to use to complete OAuth flow for any links to this VCS provider.
-- `resource_path` (String) The path within the Tharsis group hierarchy to this VCS provider.
+- `resource_path` (String, Deprecated) The path within the Tharsis group hierarchy to this VCS provider.

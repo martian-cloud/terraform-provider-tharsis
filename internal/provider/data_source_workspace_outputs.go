@@ -14,7 +14,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
 )
 
 const (
@@ -65,6 +66,7 @@ func (t workspaceOutputsDataSource) Schema(_ context.Context, _ datasource.Schem
 				MarkdownDescription: "The path of the workspace to retrieve outputs.",
 				Description:         "The path of the workspace to retrieve outputs.",
 				Optional:            true,
+				DeprecationMessage:  "Use id instead. This field will be removed in a future version.",
 			},
 			"full_path": schema.StringAttribute{
 				MarkdownDescription: "The full path of the workspace.",
@@ -132,17 +134,13 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 		return
 	}
 
-	var input *ttypes.GetWorkspaceInput
-
+	var workspaceID string
 	if hasID {
 		// Use ID field (supports both UUID and TRN)
-		id := data.ID.ValueString()
-		input = &ttypes.GetWorkspaceInput{
-			ID: &id,
-		}
+		workspaceID = data.ID.ValueString()
 	} else {
 		// Use Path field
-		path, err := resolvePath(data.Path.ValueString())
+		resolvedPath, err := resolvePath(data.Path.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error resolving full path of workspace",
@@ -150,12 +148,11 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 			)
 			return
 		}
-		input = &ttypes.GetWorkspaceInput{
-			Path: &path,
-		}
+		workspaceID = trn.TypeWorkspace.Build(resolvedPath)
 	}
 
-	workspace, err := t.provider.client.Workspaces.GetWorkspace(ctx, input)
+	workspace, err := t.provider.client.WorkspacesClient.GetWorkspaceByID(ctx,
+		&pb.GetWorkspaceByIDRequest{Id: workspaceID})
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error retrieving workspace",
@@ -165,31 +162,44 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}
 
 	if workspace == nil {
-		var identifier string
-		if input.ID != nil {
-			identifier = *input.ID
-		} else {
-			identifier = *input.Path
-		}
 		resp.Diagnostics.AddError(
 			"Couldn't find workspace",
-			fmt.Sprintf("Workspace '%s' could not be found. Either the workspace doesn't exist or you don't have access.", identifier),
+			fmt.Sprintf("Workspace '%s' could not be found. Either the workspace doesn't exist or you don't have access.", workspaceID),
 		)
 		return
 	}
 
 	data.Outputs = map[string]string{}
 
-	if workspace.CurrentStateVersion == nil {
+	if workspace.CurrentStateVersionId == "" {
 		// Workspace has no state version - return empty outputs
 		data.StateVersionID = types.StringNull()
 	} else {
 		// Workspace has state version - process outputs
-		data.StateVersionID = types.StringValue(workspace.CurrentStateVersion.Metadata.ID)
+		data.StateVersionID = types.StringValue(workspace.CurrentStateVersionId)
 
-		for _, output := range workspace.CurrentStateVersion.Outputs {
+		outputsResp, err := t.provider.client.StateVersionsClient.GetStateVersionOutputs(ctx,
+			&pb.GetStateVersionOutputsRequest{StateVersionId: workspace.CurrentStateVersionId})
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error retrieving state version outputs",
+				err.Error(),
+			)
+			return
+		}
+
+		for _, output := range outputsResp.StateVersionOutputs {
+			outputType, err := ctyjson.UnmarshalType(output.Type)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					fmt.Sprintf("Failed to parse type from output \"%s\"", output.Name),
+					err.Error(),
+				)
+				return
+			}
+
 			if !t.isJSONEncoded {
-				switch output.Type {
+				switch outputType {
 				// Currently Strings are only supported
 				case cty.String:
 				default:
@@ -198,7 +208,16 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 				}
 			}
 
-			b, err := ctyjson.Marshal(output.Value, output.Type)
+			outputValue, err := ctyjson.Unmarshal(output.Value, outputType)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					fmt.Sprintf("Failed to parse value from output \"%s\"", output.Name),
+					err.Error(),
+				)
+				return
+			}
+
+			b, err := ctyjson.Marshal(outputValue, outputType)
 			if err != nil {
 				resp.Diagnostics.AddError(
 					fmt.Sprintf("Fail to parse value from output \"%s\"", output.Name),
@@ -224,11 +243,11 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 
 	// Add additional attributes
 	data.FullPath = types.StringValue(workspace.FullPath)
-	data.WorkspaceID = types.StringValue(workspace.Metadata.ID)
+	data.WorkspaceID = types.StringValue(workspace.Metadata.Id)
 
 	// Set the computed ID field to the workspace ID
 	if data.ID.IsNull() || data.ID.IsUnknown() {
-		data.ID = types.StringValue(workspace.Metadata.ID)
+		data.ID = types.StringValue(workspace.Metadata.Id)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

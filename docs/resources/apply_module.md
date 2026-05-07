@@ -18,13 +18,14 @@ Defines and manages tharsis_apply_module resources, which launch runs in other w
 ### Required
 
 - `module_source` (String) The source of the module.
-- `workspace_path` (String) The full path of the workspace.
 
 ### Optional
 
 - `module_version` (String) The version identifier of the module.
 - `refresh` (Boolean) Whether to do a Terraform refresh to update the state based on all managed remote objects.
 - `variables` (Attributes List) Optional list of variables for the run in the target workspace. (see [below for nested schema](#nestedatt--variables))
+- `workspace_id` (String) The ID of the workspace.
+- `workspace_path` (String, Deprecated) The full path of the workspace.
 
 ### Read-Only
 

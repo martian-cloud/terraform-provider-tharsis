@@ -18,7 +18,7 @@ Tharsis Workspace Outputs data source is used to retrieve outputs from workspace
 ### Optional
 
 - `id` (String) The ID (UUID or TRN) of the workspace to retrieve outputs.
-- `path` (String) The path of the workspace to retrieve outputs.
+- `path` (String, Deprecated) The path of the workspace to retrieve outputs.
 
 ### Read-Only
 

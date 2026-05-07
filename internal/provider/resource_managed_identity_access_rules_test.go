@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
 )
 
 const (
@@ -117,7 +117,7 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 }
 
 func testManagedIdentityAccessRulesConfigurationParent() string {
-	parentType := string(ttypes.ManagedIdentityAWSFederated)
+	parentType := pb.ManagedIdentityType_aws_federated.String()
 	parentName := "tmiar_parent_name"
 	parentDescription := "this is tmiar_parent, a Tharsis managed identity"
 	parentAWSRole := "some-iam-aws-role"

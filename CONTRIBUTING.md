@@ -4,7 +4,7 @@ There are many ways you can contribute to Martian Cloud projects.  This document
 
 ## Prerequisites
 
-* **Go >= 1.20** ( [https://golang.org/dl/](https://golang.org/dl/) or [https://golang.org/doc/install](https://golang.org/doc/install) )
+* **Go >= 1.26** ( [https://golang.org/dl/](https://golang.org/dl/) or [https://golang.org/doc/install](https://golang.org/doc/install) )
 
 ## Ways to Contribute
 

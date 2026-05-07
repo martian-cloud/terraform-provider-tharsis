@@ -17,7 +17,6 @@ Defines and manages a managed identity.
 
 ### Required
 
-- `group_path` (String) Full path of the parent group.
 - `name` (String) The name of the managed identity.
 - `type` (String) Type of managed identity: AWS, Azure, or Tharsis.
 
@@ -27,11 +26,13 @@ Defines and manages a managed identity.
 - `azure_client_id` (String) Azure client ID
 - `azure_tenant_id` (String) Azure tenant ID
 - `description` (String) A description of the managed identity.
+- `group_id` (String) The ID of the parent group.
+- `group_path` (String, Deprecated) Full path of the parent group.
 - `tharsis_service_account_path` (String) Tharsis service account path
 
 ### Read-Only
 
 - `id` (String) String identifier of the managed identity.
 - `last_updated` (String) Timestamp when this managed identity was most recently updated.
-- `resource_path` (String) The path of the parent group plus the name of the managed identity.
+- `resource_path` (String, Deprecated) The path of the parent group plus the name of the managed identity.
 - `subject` (String) subject string for AWS, Azure, and Tharsis

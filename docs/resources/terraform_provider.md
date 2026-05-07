@@ -17,11 +17,12 @@ Defines and manages a Terraform provider.
 
 ### Required
 
-- `group_path` (String) The path of the group where this Terraform provider resides.
 - `name` (String) The name of the Terraform provider.
 
 ### Optional
 
+- `group_id` (String) The ID of the parent group.
+- `group_path` (String, Deprecated) The path of the group where this Terraform provider resides.
 - `private` (Boolean) Whether this Terraform provider is hidden from other top-level groups.
 - `repository_url` (String) The repository URL where this Terraform provider can be found.
 
@@ -29,5 +30,5 @@ Defines and manages a Terraform provider.
 
 - `id` (String) String identifier of the Terraform provider.
 - `last_updated` (String) Timestamp when this Terraform provider was most recently updated.
-- `registry_namespace` (String) The top-level group where this Terraform provider resides.
-- `resource_path` (String) String identifier of this Terraform provider.
+- `registry_namespace` (String, Deprecated) The top-level group where this Terraform provider resides.
+- `resource_path` (String, Deprecated) String identifier of this Terraform provider.

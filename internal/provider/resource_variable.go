@@ -10,8 +10,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // VariableModel is the model for a namespace variable.
@@ -37,7 +39,7 @@ func NewVariableResource() resource.Resource {
 }
 
 type variableResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -102,7 +104,7 @@ func (t *variableResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *variableResource) Create(ctx context.Context,
@@ -116,10 +118,10 @@ func (t *variableResource) Create(ctx context.Context,
 	}
 
 	// Create the namespace variable.
-	created, err := t.client.Variable.CreateVariable(ctx,
-		&ttypes.CreateNamespaceVariableInput{
+	created, err := t.client.NamespaceVariablesClient.CreateNamespaceVariable(ctx,
+		&pb.CreateNamespaceVariableRequest{
 			NamespacePath: variable.NamespacePath.ValueString(),
-			Category:      ttypes.VariableCategory(variable.Category.ValueString()),
+			Category:      pb.VariableCategory(pb.VariableCategory_value[variable.Category.ValueString()]),
 			Key:           variable.Key.ValueString(),
 			Value:         variable.Value.ValueString(),
 		})
@@ -133,7 +135,7 @@ func (t *variableResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	if err = t.copyVariable(*created, &variable); err != nil {
+	if err = t.copyVariable(created, &variable); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state for variable",
 			err.Error(),
@@ -156,11 +158,12 @@ func (t *variableResource) Read(ctx context.Context,
 	}
 
 	// Get the namespace variable from Tharsis.
-	found, err := t.client.Variable.GetVariable(ctx, &ttypes.GetNamespaceVariableInput{
-		ID: state.ID.ValueString(),
-	})
+	found, err := t.client.NamespaceVariablesClient.GetNamespaceVariableByID(ctx,
+		&pb.GetNamespaceVariableByIDRequest{
+			Id: state.ID.ValueString(),
+		})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -173,7 +176,7 @@ func (t *variableResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	if err = t.copyVariable(*found, &state); err != nil {
+	if err = t.copyVariable(found, &state); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state for variable",
 			err.Error(),
@@ -198,9 +201,9 @@ func (t *variableResource) Update(ctx context.Context,
 	// Update the namespace variable via Tharsis.
 	// The ID is used to find the record to update.
 	// The other fields are modified.
-	updated, err := t.client.Variable.UpdateVariable(ctx,
-		&ttypes.UpdateNamespaceVariableInput{
-			ID:    plan.ID.ValueString(),
+	updated, err := t.client.NamespaceVariablesClient.UpdateNamespaceVariable(ctx,
+		&pb.UpdateNamespaceVariableRequest{
+			Id:    plan.ID.ValueString(),
 			Key:   plan.Key.ValueString(),
 			Value: plan.Value.ValueString(),
 		})
@@ -213,7 +216,7 @@ func (t *variableResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	if err = t.copyVariable(*updated, &plan); err != nil {
+	if err = t.copyVariable(updated, &plan); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state for variable",
 			err.Error(),
@@ -236,14 +239,14 @@ func (t *variableResource) Delete(ctx context.Context,
 	}
 
 	// Delete the namespace variable via Tharsis.
-	err := t.client.Variable.DeleteVariable(ctx,
-		&ttypes.DeleteNamespaceVariableInput{
-			ID: state.ID.ValueString(),
+	_, err := t.client.NamespaceVariablesClient.DeleteNamespaceVariable(ctx,
+		&pb.DeleteNamespaceVariableRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the namespace variable no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -265,14 +268,14 @@ func (t *variableResource) ImportState(ctx context.Context,
 
 // copyVariable copies the contents of a namespace variable.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *variableResource) copyVariable(src ttypes.NamespaceVariable, dest *VariableModel) error {
+func (t *variableResource) copyVariable(src *pb.NamespaceVariable, dest *VariableModel) error {
 	if src.Value == nil {
 		return errors.New("could not read variable value, ensure that you have the correct permissions to view this variable's value")
 	}
 
-	dest.ID = types.StringValue(src.Metadata.ID)
+	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.NamespacePath = types.StringValue(src.NamespacePath)
-	dest.Category = types.StringValue(string(src.Category))
+	dest.Category = types.StringValue(src.Category)
 	dest.Key = types.StringValue(src.Key)
 	dest.Value = types.StringValue(*src.Value)
 

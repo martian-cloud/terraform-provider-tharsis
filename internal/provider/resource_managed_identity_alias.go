@@ -5,15 +5,17 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ManagedIdentityAliasModel is the model for a managed identity alias.
@@ -22,6 +24,7 @@ type ManagedIdentityAliasModel struct {
 	ResourcePath    types.String `tfsdk:"resource_path"`
 	Name            types.String `tfsdk:"name"`
 	GroupPath       types.String `tfsdk:"group_path"`
+	GroupID         types.String `tfsdk:"group_id"`
 	LastUpdated     types.String `tfsdk:"last_updated"`
 	AliasSourceID   types.String `tfsdk:"alias_source_id"`
 	AliasSourcePath types.String `tfsdk:"alias_source_path"`
@@ -40,7 +43,7 @@ func NewManagedIdentityAliasResource() resource.Resource {
 }
 
 type managedIdentityAliasResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -69,6 +72,7 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				MarkdownDescription: "The path of the parent group plus the name of the managed identity alias.",
 				Description:         "The path of the parent group plus the name of the managed identity alias.",
 				Computed:            true,
+				DeprecationMessage:  "Use the id field instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -84,9 +88,20 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Full path of the group where alias will be created.",
 				Description:         "Full path of the group where alias will be created.",
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"group_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the group where alias will be created.",
+				Description:         "The ID of the group where alias will be created.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"last_updated": schema.StringAttribute{
@@ -107,6 +122,7 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				MarkdownDescription: "Full path of the managed identity being aliased.",
 				Description:         "Full path of the managed identity being aliased.",
 				Optional:            true,
+				DeprecationMessage:  "Use alias_source_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -121,7 +137,7 @@ func (t *managedIdentityAliasResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *managedIdentityAliasResource) Create(ctx context.Context,
@@ -134,22 +150,13 @@ func (t *managedIdentityAliasResource) Create(ctx context.Context,
 		return
 	}
 
-	var (
-		sourceIdentityID, sourceIdentityPath *string
-		count                                int
-	)
-
+	// Resolve alias source: prefer ID, fall back to path converted to TRN.
+	var aliasSourceID string
 	if v := managedIdentityAlias.AliasSourceID.ValueString(); v != "" {
-		sourceIdentityID = &v
-		count++
-	}
-
-	if v := managedIdentityAlias.AliasSourcePath.ValueString(); v != "" {
-		sourceIdentityPath = &v
-		count++
-	}
-
-	if count != 1 {
+		aliasSourceID = v
+	} else if v := managedIdentityAlias.AliasSourcePath.ValueString(); v != "" {
+		aliasSourceID = trn.TypeManagedIdentity.Build(v)
+	} else {
 		resp.Diagnostics.AddError(
 			"Error creating managed identity alias",
 			"Exactly one of alias_source_id or alias_source_path must be specified",
@@ -157,13 +164,22 @@ func (t *managedIdentityAliasResource) Create(ctx context.Context,
 		return
 	}
 
+	var groupID string
+	if v := managedIdentityAlias.GroupID.ValueString(); v != "" {
+		groupID = v
+	} else if v := managedIdentityAlias.GroupPath.ValueString(); v != "" {
+		groupID = trn.TypeGroup.Build(v)
+	} else {
+		resp.Diagnostics.AddError("Either group_id or group_path must be specified", "")
+		return
+	}
+
 	// Create the managed identity alias.
-	created, err := t.client.ManagedIdentity.CreateManagedIdentityAlias(ctx,
-		&ttypes.CreateManagedIdentityAliasInput{
-			Name:            managedIdentityAlias.Name.ValueString(),
-			AliasSourceID:   sourceIdentityID,
-			AliasSourcePath: sourceIdentityPath,
-			GroupPath:       managedIdentityAlias.GroupPath.ValueString(),
+	created, err := t.client.ManagedIdentitiesClient.CreateManagedIdentityAlias(ctx,
+		&pb.CreateManagedIdentityAliasRequest{
+			Name:          managedIdentityAlias.Name.ValueString(),
+			AliasSourceId: aliasSourceID,
+			GroupId:       groupID,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -175,13 +191,7 @@ func (t *managedIdentityAliasResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	if err = t.copyManagedIdentityAlias(*created, &managedIdentityAlias); err != nil {
-		resp.Diagnostics.AddError(
-			"Error setting state",
-			err.Error(),
-		)
-		return
-	}
+	t.copyManagedIdentityAlias(created, &managedIdentityAlias)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, managedIdentityAlias)...)
@@ -198,11 +208,12 @@ func (t *managedIdentityAliasResource) Read(ctx context.Context,
 	}
 
 	// Get the managed identity from Tharsis.
-	found, err := t.client.ManagedIdentity.GetManagedIdentity(ctx, &ttypes.GetManagedIdentityInput{
-		ID: ptr.String(state.ID.ValueString()),
-	})
+	found, err := t.client.ManagedIdentitiesClient.GetManagedIdentityByID(ctx,
+		&pb.GetManagedIdentityByIDRequest{
+			Id: state.ID.ValueString(),
+		})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -215,13 +226,7 @@ func (t *managedIdentityAliasResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	if err = t.copyManagedIdentityAlias(*found, &state); err != nil {
-		resp.Diagnostics.AddError(
-			"Error setting state",
-			err.Error(),
-		)
-		return
-	}
+	t.copyManagedIdentityAlias(found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -263,14 +268,14 @@ func (t *managedIdentityAliasResource) Delete(ctx context.Context,
 
 	// Delete the managed identity alias via Tharsis.
 	// The ID is used to find the record to delete.
-	err := t.client.ManagedIdentity.DeleteManagedIdentityAlias(ctx,
-		&ttypes.DeleteManagedIdentityAliasInput{
-			ID: state.ID.ValueString(),
+	_, err := t.client.ManagedIdentitiesClient.DeleteManagedIdentityAlias(ctx,
+		&pb.DeleteManagedIdentityAliasRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the managed identity alias no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -292,16 +297,15 @@ func (t *managedIdentityAliasResource) ImportState(ctx context.Context,
 
 // copyManagedIdentityAlias copies the contents of a managed identity alias.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *managedIdentityAliasResource) copyManagedIdentityAlias(src ttypes.ManagedIdentity, dest *ManagedIdentityAliasModel) error {
-
-	dest.ID = types.StringValue(src.Metadata.ID)
-	dest.ResourcePath = types.StringValue(src.ResourcePath)
+func (t *managedIdentityAliasResource) copyManagedIdentityAlias(src *pb.ManagedIdentity, dest *ManagedIdentityAliasModel) {
+	parsed := trn.MustParseAny(src.Metadata.Trn)
+	dest.ID = types.StringValue(src.Metadata.Id)
+	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
-	dest.GroupPath = types.StringValue(src.GroupPath)
-	dest.AliasSourceID = types.StringValue(*src.AliasSourceID)
+	dest.GroupPath = types.StringValue(parsed.ParentPath())
+	dest.GroupID = types.StringValue(src.GroupId)
+	dest.AliasSourceID = types.StringValue(*src.AliasSourceId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
-
-	return nil
+	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

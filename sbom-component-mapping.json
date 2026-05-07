@@ -114,11 +114,6 @@
       "name": "HashiCorp"
     }
   },
-  "github.com/hasura/go-graphql-client": {
-    "supplier": {
-      "name": "Hasura"
-    }
-  },
   "github.com/klauspost/compress": {
     "supplier": {
       "name": "Klaus Post"
@@ -174,7 +169,7 @@
       "name": "zclconf"
     }
   },
-  "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go": {
+  "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api": {
     "supplier": {
       "name": "Infor"
     }
@@ -217,11 +212,6 @@
   "gopkg.in/yaml.v3": {
     "supplier": {
       "name": "go-yaml"
-    }
-  },
-  "nhooyr.io/websocket": {
-    "supplier": {
-      "name": "Coder"
     }
   },
   "std": {
