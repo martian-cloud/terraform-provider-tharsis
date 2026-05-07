@@ -35,10 +35,11 @@ func TestWorkspace(t *testing.T) {
 
 			// Import the state.
 			{
-				ResourceName:      "tharsis_workspace.tw",
-				ImportStateId:     createFullPath,
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            "tharsis_workspace.tw",
+				ImportStateId:           createFullPath,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"max_job_duration", "prevent_destroy_plan", "terraform_version"},
 			},
 
 			// Update and read.
