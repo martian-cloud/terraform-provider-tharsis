@@ -118,14 +118,12 @@ func (t *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				MarkdownDescription: "Maximum job duration in minutes.",
 				Description:         "Maximum job duration in minutes.",
 				Optional:            true,
-				WriteOnly:           true, // Reading not yet supported by gRPC API.
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"terraform_version": schema.StringAttribute{
 				MarkdownDescription: "Terraform version for this workspace.",
 				Description:         "Terraform version for this workspace.",
 				Optional:            true,
-				WriteOnly:           true, // Reading not yet supported by gRPC API.
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 
@@ -133,7 +131,6 @@ func (t *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				MarkdownDescription: "Whether a destroy plan would be prevented.",
 				Description:         "Whether a destroy plan would be prevented.",
 				Optional:            true,
-				WriteOnly:           true, // Reading not yet supported by gRPC API.
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{

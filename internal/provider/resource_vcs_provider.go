@@ -154,14 +154,12 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "A description of the VCS provider.",
 				Description:         "A description of the VCS provider.",
 				Required:            true,
-				WriteOnly:           true,
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"oauth_client_secret": schema.StringAttribute{
 				MarkdownDescription: "A description of the VCS provider.",
 				Description:         "A description of the VCS provider.",
 				Required:            true,
-				WriteOnly:           true,
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"oauth_authorization_url": schema.StringAttribute{
