@@ -70,6 +70,7 @@ jobs:
         image: registry.gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-all-in-one-docker
         ports:
           - 8000:8000 # API
+          - 50051:50051 # gRPC
         options: >-
           --health-cmd "curl -f http://localhost:8000/health"
           --health-interval 30s
