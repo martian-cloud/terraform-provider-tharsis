@@ -17,13 +17,11 @@ Defines and manages a VCS provider.
 
 ### Required
 
-> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
-
 - `auto_create_webhooks` (Boolean) Whether to automatically create webhooks.
 - `description` (String) A description of the VCS provider.
 - `name` (String) The name of the VCS provider.
-- `oauth_client_id` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) A description of the VCS provider.
-- `oauth_client_secret` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) A description of the VCS provider.
+- `oauth_client_id` (String) A description of the VCS provider.
+- `oauth_client_secret` (String) A description of the VCS provider.
 - `type` (String) The type of this VCS provider: gitlab, github, etc.
 
 ### Optional
