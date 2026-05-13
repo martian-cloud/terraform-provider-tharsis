@@ -4,15 +4,17 @@ import (
 	"context"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // WorkspaceModel is the model for a workspace.
@@ -25,6 +27,7 @@ type WorkspaceModel struct {
 	Description        types.String `tfsdk:"description"`
 	FullPath           types.String `tfsdk:"full_path"`
 	GroupPath          types.String `tfsdk:"group_path"`
+	GroupID            types.String `tfsdk:"group_id"`
 	TerraformVersion   types.String `tfsdk:"terraform_version"`
 	LastUpdated        types.String `tfsdk:"last_updated"`
 	MaxJobDuration     types.Int64  `tfsdk:"max_job_duration"`
@@ -44,7 +47,7 @@ func NewWorkspaceResource() resource.Resource {
 }
 
 type workspaceResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -95,30 +98,39 @@ func (t *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"group_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the parent group.",
+				Description:         "The ID of the parent group.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"max_job_duration": schema.Int64Attribute{
 				MarkdownDescription: "Maximum job duration in minutes.",
 				Description:         "Maximum job duration in minutes.",
 				Optional:            true,
-				Computed:            true, // API sets a default value if not specified.
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"terraform_version": schema.StringAttribute{
 				MarkdownDescription: "Terraform version for this workspace.",
 				Description:         "Terraform version for this workspace.",
 				Optional:            true,
-				Computed:            true, // API sets a default value if not specified.
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
+
 			"prevent_destroy_plan": schema.BoolAttribute{
 				MarkdownDescription: "Whether a destroy plan would be prevented.",
 				Description:         "Whether a destroy plan would be prevented.",
 				Optional:            true,
-				Computed:            true, // API sets a (arguably trivial) default value if not specified.
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{
@@ -137,7 +149,7 @@ func (t *workspaceResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *workspaceResource) Create(ctx context.Context,
@@ -151,27 +163,31 @@ func (t *workspaceResource) Create(ctx context.Context,
 	}
 
 	// Create the workspace.
+	var groupID string
+	if v := workspace.GroupID.ValueString(); v != "" {
+		groupID = v
+	} else if v := workspace.GroupPath.ValueString(); v != "" {
+		groupID = trn.TypeGroup.Build(v)
+	} else {
+		resp.Diagnostics.AddError("Either group_id or group_path must be specified", "")
+		return
+	}
+
 	var maxJobDuration *int32
-	if workspace.MaxJobDuration.ValueInt64() != 0 {
-		maxJobDuration = ptr.Int32(int32(workspace.MaxJobDuration.ValueInt64()))
+	if !workspace.MaxJobDuration.IsNull() && !workspace.MaxJobDuration.IsUnknown() {
+		maxJobDuration = new(int32(workspace.MaxJobDuration.ValueInt64()))
 	}
-	var terraformVersion *string
-	if workspace.TerraformVersion.ValueString() != "" {
-		terraformVersion = ptr.String(workspace.TerraformVersion.ValueString())
+
+	input := &pb.CreateWorkspaceRequest{
+		Name:               workspace.Name.ValueString(),
+		Description:        workspace.Description.ValueString(),
+		GroupId:            groupID,
+		MaxJobDuration:     maxJobDuration,
+		TerraformVersion:   workspace.TerraformVersion.ValueString(),
+		PreventDestroyPlan: workspace.PreventDestroyPlan.ValueBool(),
 	}
-	var preventDestroyPlan *bool
-	if !(workspace.PreventDestroyPlan.IsUnknown() || workspace.PreventDestroyPlan.IsNull()) {
-		preventDestroyPlan = ptr.Bool(workspace.PreventDestroyPlan.ValueBool())
-	}
-	created, err := t.client.Workspaces.CreateWorkspace(ctx,
-		&ttypes.CreateWorkspaceInput{
-			Name:               workspace.Name.ValueString(),
-			Description:        workspace.Description.ValueString(),
-			GroupPath:          workspace.GroupPath.ValueString(),
-			MaxJobDuration:     maxJobDuration,
-			TerraformVersion:   terraformVersion,
-			PreventDestroyPlan: preventDestroyPlan,
-		})
+
+	created, err := t.client.WorkspacesClient.CreateWorkspace(ctx, input)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating workspace",
@@ -182,7 +198,7 @@ func (t *workspaceResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	t.copyWorkspace(*created, &workspace)
+	t.copyWorkspace(created, &workspace)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, workspace)...)
@@ -199,11 +215,11 @@ func (t *workspaceResource) Read(ctx context.Context,
 	}
 
 	// Get the workspace from Tharsis.
-	found, err := t.client.Workspaces.GetWorkspace(ctx, &ttypes.GetWorkspaceInput{
-		ID: ptr.String(state.ID.ValueString()),
+	found, err := t.client.WorkspacesClient.GetWorkspaceByID(ctx, &pb.GetWorkspaceByIDRequest{
+		Id: state.ID.ValueString(),
 	})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -216,7 +232,7 @@ func (t *workspaceResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyWorkspace(*found, &state)
+	t.copyWorkspace(found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -235,26 +251,23 @@ func (t *workspaceResource) Update(ctx context.Context,
 	// Update the workspace via Tharsis.
 	// The ID is used to find the record to update.
 	// The other fields are modified.
-	var maxJobDuration *int32
+	updateReq := &pb.UpdateWorkspaceRequest{
+		Id:          plan.ID.ValueString(),
+		Description: new(plan.Description.ValueString()),
+	}
+
+	if v := plan.TerraformVersion.ValueString(); v != "" {
+		updateReq.TerraformVersion = &v
+	}
+
 	if plan.MaxJobDuration.ValueInt64() != 0 {
-		maxJobDuration = ptr.Int32(int32(plan.MaxJobDuration.ValueInt64()))
+		updateReq.MaxJobDuration = new(int32(plan.MaxJobDuration.ValueInt64()))
 	}
-	var terraformVersion *string
-	if plan.TerraformVersion.ValueString() != "" {
-		terraformVersion = ptr.String(plan.TerraformVersion.ValueString())
+	if !plan.PreventDestroyPlan.IsNull() && !plan.PreventDestroyPlan.IsUnknown() {
+		updateReq.PreventDestroyPlan = new(plan.PreventDestroyPlan.ValueBool())
 	}
-	var preventDestroyPlan *bool
-	if !(plan.PreventDestroyPlan.IsUnknown() || plan.PreventDestroyPlan.IsNull()) {
-		preventDestroyPlan = ptr.Bool(plan.PreventDestroyPlan.ValueBool())
-	}
-	updated, err := t.client.Workspaces.UpdateWorkspace(ctx,
-		&ttypes.UpdateWorkspaceInput{
-			ID:                 ptr.String(plan.ID.ValueString()),
-			Description:        plan.Description.ValueString(),
-			MaxJobDuration:     maxJobDuration,
-			TerraformVersion:   terraformVersion,
-			PreventDestroyPlan: preventDestroyPlan,
-		})
+
+	updated, err := t.client.WorkspacesClient.UpdateWorkspace(ctx, updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating workspace",
@@ -264,7 +277,7 @@ func (t *workspaceResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyWorkspace(*updated, &plan)
+	t.copyWorkspace(updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -281,14 +294,14 @@ func (t *workspaceResource) Delete(ctx context.Context,
 	}
 
 	// Delete the workspace via Tharsis.
-	err := t.client.Workspaces.DeleteWorkspace(ctx,
-		&ttypes.DeleteWorkspaceInput{
-			ID: ptr.String(state.ID.ValueString()),
+	_, err := t.client.WorkspacesClient.DeleteWorkspace(ctx,
+		&pb.DeleteWorkspaceRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the workspace no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -305,11 +318,11 @@ func (t *workspaceResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
 	// Get the workspace by full path from Tharsis.
-	found, err := t.client.Workspaces.GetWorkspace(ctx, &ttypes.GetWorkspaceInput{
-		Path: &req.ID,
+	found, err := t.client.WorkspacesClient.GetWorkspaceByID(ctx, &pb.GetWorkspaceByIDRequest{
+		Id: trn.TypeWorkspace.Normalize(req.ID),
 	})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.Diagnostics.AddError(
 				"Import workspace not found: "+req.ID,
 				"",
@@ -325,21 +338,21 @@ func (t *workspaceResource) ImportState(ctx context.Context,
 	}
 
 	// Import by full path.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.Id)...)
 }
 
 // copyWorkspace copies the contents of a workspace.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *workspaceResource) copyWorkspace(src ttypes.Workspace, dest *WorkspaceModel) {
-	dest.ID = types.StringValue(src.Metadata.ID)
+func (t *workspaceResource) copyWorkspace(src *pb.Workspace, dest *WorkspaceModel) {
+	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
 	dest.FullPath = types.StringValue(src.FullPath)
-	dest.GroupPath = types.StringValue(src.GroupPath)
-	dest.MaxJobDuration = types.Int64Value(int64(src.MaxJobDuration))
-	dest.TerraformVersion = types.StringValue(src.TerraformVersion)
-	dest.PreventDestroyPlan = types.BoolValue(src.PreventDestroyPlan)
+
+	parsed := trn.MustParseAny(src.Metadata.Trn)
+	dest.GroupPath = types.StringValue(parsed.ParentPath())
+	dest.GroupID = types.StringValue(src.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
+	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

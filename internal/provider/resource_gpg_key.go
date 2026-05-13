@@ -10,8 +10,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // GPGKeyModel is the model for a GPG key.
@@ -26,6 +29,7 @@ type GPGKeyModel struct {
 	Fingerprint  types.String `tfsdk:"fingerprint"`
 	GPGKeyID     types.String `tfsdk:"gpg_key_id"`
 	GroupPath    types.String `tfsdk:"group_path"`
+	GroupID      types.String `tfsdk:"group_id"`
 	ResourcePath types.String `tfsdk:"resource_path"`
 }
 
@@ -42,7 +46,7 @@ func NewGPGKeyResource() resource.Resource {
 }
 
 type gpgKeyResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -108,15 +112,27 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"group_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the parent group.",
+				Description:         "The ID of the parent group.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "Path of this GPG key.",
 				Description:         "Path of this GPG key.",
 				Computed:            true,
+				DeprecationMessage:  "Use the id field instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -132,7 +148,7 @@ func (t *gpgKeyResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *gpgKeyResource) Create(ctx context.Context,
@@ -146,10 +162,20 @@ func (t *gpgKeyResource) Create(ctx context.Context,
 	}
 
 	// Create the GPG key.
-	created, err := t.client.GPGKey.CreateGPGKey(ctx,
-		&ttypes.CreateGPGKeyInput{
-			ASCIIArmor: gpgKey.ASCIIArmor.ValueString(),
-			GroupPath:  gpgKey.GroupPath.ValueString(),
+	var groupID string
+	if v := gpgKey.GroupID.ValueString(); v != "" {
+		groupID = v
+	} else if v := gpgKey.GroupPath.ValueString(); v != "" {
+		groupID = trn.TypeGroup.Build(v)
+	} else {
+		resp.Diagnostics.AddError("Either group_id or group_path must be specified", "")
+		return
+	}
+
+	created, err := t.client.GPGKeysClient.CreateGPGKey(ctx,
+		&pb.CreateGPGKeyRequest{
+			AsciiArmor: gpgKey.ASCIIArmor.ValueString(),
+			GroupId:    groupID,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -160,7 +186,7 @@ func (t *gpgKeyResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyGPGKey(*created, &gpgKey)
+	t.copyGPGKey(created, &gpgKey)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, gpgKey)...)
@@ -177,11 +203,11 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 	}
 
 	// Get the GPG key from Tharsis.
-	found, err := t.client.GPGKey.GetGPGKey(ctx, &ttypes.GetGPGKeyInput{
-		ID: state.ID.ValueString(),
+	found, err := t.client.GPGKeysClient.GetGPGKeyByID(ctx, &pb.GetGPGKeyByIDRequest{
+		Id: state.ID.ValueString(),
 	})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -194,7 +220,7 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyGPGKey(*found, &state)
+	t.copyGPGKey(found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -225,14 +251,14 @@ func (t *gpgKeyResource) Delete(ctx context.Context,
 	}
 
 	// Delete the GPG key via Tharsis.
-	_, err := t.client.GPGKey.DeleteGPGKey(ctx,
-		&ttypes.DeleteGPGKeyInput{
-			ID: state.ID.ValueString(),
+	_, err := t.client.GPGKeysClient.DeleteGPGKey(ctx,
+		&pb.DeleteGPGKeyRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the GPG key no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -254,15 +280,17 @@ func (t *gpgKeyResource) ImportState(ctx context.Context,
 
 // copyGPGKey copies the contents of a GPG key.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *gpgKeyResource) copyGPGKey(src ttypes.GPGKey, dest *GPGKeyModel) {
-	dest.ID = types.StringValue(src.Metadata.ID)
+func (t *gpgKeyResource) copyGPGKey(src *pb.GPGKey, dest *GPGKeyModel) {
+	parsed := trn.MustParseAny(src.Metadata.Trn)
+	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.CreatedBy = types.StringValue(src.CreatedBy)
-	dest.ASCIIArmor = types.StringValue(src.ASCIIArmor)
+	dest.ASCIIArmor = types.StringValue(src.AsciiArmor)
 	dest.Fingerprint = types.StringValue(src.Fingerprint)
-	dest.GPGKeyID = types.StringValue(src.GPGKeyID)
-	dest.GroupPath = types.StringValue(src.GroupPath)
-	dest.ResourcePath = types.StringValue(src.ResourcePath)
+	dest.GPGKeyID = types.StringValue(src.GpgKeyId)
+	dest.GroupPath = types.StringValue(parsed.ParentPath())
+	dest.GroupID = types.StringValue(src.GroupId)
+	dest.ResourcePath = types.StringValue(parsed.Path())
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
+	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

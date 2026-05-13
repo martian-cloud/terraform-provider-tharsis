@@ -10,8 +10,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // TerraformProviderModel is the model for a Terraform provider.
@@ -20,6 +23,7 @@ type TerraformProviderModel struct {
 	LastUpdated       types.String `tfsdk:"last_updated"`
 	Name              types.String `tfsdk:"name"`
 	GroupPath         types.String `tfsdk:"group_path"`
+	GroupID           types.String `tfsdk:"group_id"`
 	ResourcePath      types.String `tfsdk:"resource_path"`
 	RegistryNamespace types.String `tfsdk:"registry_namespace"`
 	RepositoryURL     types.String `tfsdk:"repository_url"`
@@ -39,7 +43,7 @@ func NewTerraformProviderResource() resource.Resource {
 }
 
 type terraformProviderResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -76,15 +80,27 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the group where this Terraform provider resides.",
 				Description:         "The path of the group where this Terraform provider resides.",
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"group_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the parent group.",
+				Description:         "The ID of the parent group.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "String identifier of this Terraform provider.",
 				Description:         "String identifier of this Terraform provider.",
 				Computed:            true,
+				DeprecationMessage:  "Use the id field instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -93,6 +109,7 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				MarkdownDescription: "The top-level group where this Terraform provider resides.",
 				Description:         "The top-level group where this Terraform provider resides.",
 				Computed:            true,
+				DeprecationMessage:  "This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -125,7 +142,7 @@ func (t *terraformProviderResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *terraformProviderResource) Create(ctx context.Context,
@@ -139,11 +156,21 @@ func (t *terraformProviderResource) Create(ctx context.Context,
 	}
 
 	// Create the Terraform provider.
-	created, err := t.client.TerraformProvider.CreateProvider(ctx,
-		&ttypes.CreateTerraformProviderInput{
+	var groupID string
+	if v := terraformProvider.GroupID.ValueString(); v != "" {
+		groupID = v
+	} else if v := terraformProvider.GroupPath.ValueString(); v != "" {
+		groupID = trn.TypeGroup.Build(v)
+	} else {
+		resp.Diagnostics.AddError("Either group_id or group_path must be specified", "")
+		return
+	}
+
+	created, err := t.client.TerraformProvidersClient.CreateTerraformProvider(ctx,
+		&pb.CreateTerraformProviderRequest{
 			Name:          terraformProvider.Name.ValueString(),
-			GroupPath:     terraformProvider.GroupPath.ValueString(),
-			RepositoryURL: terraformProvider.RepositoryURL.ValueString(),
+			GroupId:       groupID,
+			RepositoryUrl: terraformProvider.RepositoryURL.ValueString(),
 			Private:       terraformProvider.Private.ValueBool(),
 		})
 	if err != nil {
@@ -155,7 +182,7 @@ func (t *terraformProviderResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyTerraformProvider(*created, &terraformProvider)
+	t.copyTerraformProvider(created, &terraformProvider)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, terraformProvider)...)
@@ -172,11 +199,12 @@ func (t *terraformProviderResource) Read(ctx context.Context,
 	}
 
 	// Get the Terraform provider from Tharsis.
-	found, err := t.client.TerraformProvider.GetProvider(ctx, &ttypes.GetTerraformProviderInput{
-		ID: state.ID.ValueString(),
-	})
+	found, err := t.client.TerraformProvidersClient.GetTerraformProviderByID(ctx,
+		&pb.GetTerraformProviderByIDRequest{
+			Id: state.ID.ValueString(),
+		})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -189,7 +217,7 @@ func (t *terraformProviderResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyTerraformProvider(*found, &state)
+	t.copyTerraformProvider(found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -207,11 +235,11 @@ func (t *terraformProviderResource) Update(ctx context.Context,
 
 	// Update the Terraform provider via Tharsis.
 	// The ID is used to find the record to update.
-	updated, err := t.client.TerraformProvider.UpdateProvider(ctx,
-		&ttypes.UpdateTerraformProviderInput{
-			ID:            plan.ID.ValueString(),
-			RepositoryURL: plan.RepositoryURL.ValueString(),
-			Private:       plan.Private.ValueBool(),
+	updated, err := t.client.TerraformProvidersClient.UpdateTerraformProvider(ctx,
+		&pb.UpdateTerraformProviderRequest{
+			Id:            plan.ID.ValueString(),
+			RepositoryUrl: new(plan.RepositoryURL.ValueString()),
+			Private:       new(plan.Private.ValueBool()),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -222,7 +250,7 @@ func (t *terraformProviderResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyTerraformProvider(*updated, &plan)
+	t.copyTerraformProvider(updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -239,14 +267,14 @@ func (t *terraformProviderResource) Delete(ctx context.Context,
 	}
 
 	// Delete the Terraform provider via Tharsis.
-	_, err := t.client.TerraformProvider.DeleteProvider(ctx,
-		&ttypes.DeleteTerraformProviderInput{
-			ID: state.ID.ValueString(),
+	_, err := t.client.TerraformProvidersClient.DeleteTerraformProvider(ctx,
+		&pb.DeleteTerraformProviderRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the Terraform provider no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -268,15 +296,19 @@ func (t *terraformProviderResource) ImportState(ctx context.Context,
 
 // copyTerraformProvider copies the contents of a Terraform provider.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *terraformProviderResource) copyTerraformProvider(src ttypes.TerraformProvider, dest *TerraformProviderModel) {
-	dest.ID = types.StringValue(src.Metadata.ID)
+func (t *terraformProviderResource) copyTerraformProvider(src *pb.TerraformProvider, dest *TerraformProviderModel) {
+	parsed := trn.MustParseAny(src.Metadata.Trn)
+	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.Name = types.StringValue(src.Name)
-	dest.GroupPath = types.StringValue(src.GroupPath)
-	dest.ResourcePath = types.StringValue(src.ResourcePath)
-	dest.RegistryNamespace = types.StringValue(src.RegistryNamespace)
-	dest.RepositoryURL = types.StringValue(src.RepositoryURL)
+	dest.GroupPath = types.StringValue(parsed.ParentPath())
+	dest.GroupID = types.StringValue(src.GroupId)
+	dest.ResourcePath = types.StringValue(parsed.Path())
+	if parts := parsed.PathParts(); len(parts) > 0 {
+		dest.RegistryNamespace = types.StringValue(parts[0])
+	}
+	dest.RepositoryURL = types.StringValue(src.RepositoryUrl)
 	dest.Private = types.BoolValue(src.Private)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
+	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

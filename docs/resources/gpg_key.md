@@ -18,7 +18,11 @@ Defines and manages a GPG key.
 ### Required
 
 - `ascii_armor` (String) The ASCII armored key.
-- `group_path` (String) Path of the parent group.
+
+### Optional
+
+- `group_id` (String) The ID of the parent group.
+- `group_path` (String, Deprecated) Path of the parent group.
 
 ### Read-Only
 
@@ -27,4 +31,4 @@ Defines and manages a GPG key.
 - `gpg_key_id` (String) The GPG key string for this GPG key.
 - `id` (String) String identifier of the GPG key.
 - `last_updated` (String) Timestamp when this GPG key was most recently updated.
-- `resource_path` (String) Path of this GPG key.
+- `resource_path` (String, Deprecated) Path of this GPG key.

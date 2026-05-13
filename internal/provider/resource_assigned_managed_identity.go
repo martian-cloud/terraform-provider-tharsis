@@ -3,15 +3,16 @@ package provider
 import (
 	"context"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // AssignedManagedIdentityModel is the model for an assigned managed identity.
@@ -33,7 +34,7 @@ func NewAssignedManagedIdentityResource() resource.Resource {
 }
 
 type assignedManagedIdentityResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -86,7 +87,7 @@ func (t *assignedManagedIdentityResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *assignedManagedIdentityResource) Create(ctx context.Context,
@@ -99,30 +100,18 @@ func (t *assignedManagedIdentityResource) Create(ctx context.Context,
 		return
 	}
 
-	// Get the workspace in order to have the path.
-	workspace, err := t.client.Workspaces.GetWorkspace(ctx,
-		&ttypes.GetWorkspaceInput{
-			ID: ptr.String(assignment.WorkspaceID.ValueString()),
-		},
-	)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error getting workspace",
-			err.Error(),
-		)
-		return
-	}
+	managedIdentityID := assignment.ManagedIdentityID.ValueString()
+	workspaceID := assignment.WorkspaceID.ValueString()
 
 	// Create the assigned managed identity. (In other words, assign the managed identity to the workspace.)
-	managedIdentityID := assignment.ManagedIdentityID.ValueString()
-	_, err = t.client.ManagedIdentity.AssignManagedIdentityToWorkspace(ctx,
-		&ttypes.AssignManagedIdentityInput{
-			ManagedIdentityID: &managedIdentityID,
-			WorkspacePath:     workspace.FullPath,
+	_, err := t.client.ManagedIdentitiesClient.AssignManagedIdentityToWorkspace(ctx,
+		&pb.AssignManagedIdentityToWorkspaceRequest{
+			ManagedIdentityId: managedIdentityID,
+			WorkspaceId:       workspaceID,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating assigned managed identity",
+			"Error assigning managed identity",
 			err.Error(),
 		)
 		return
@@ -133,7 +122,7 @@ func (t *assignedManagedIdentityResource) Create(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &AssignedManagedIdentityModel{
 		ID:                types.StringValue(newManufacturedID), // computed with no input from any other resource
 		ManagedIdentityID: types.StringValue(managedIdentityID),
-		WorkspaceID:       types.StringValue(workspace.Metadata.ID),
+		WorkspaceID:       types.StringValue(workspaceID),
 	})...)
 }
 
@@ -148,16 +137,16 @@ func (t *assignedManagedIdentityResource) Read(ctx context.Context,
 	}
 
 	// Get the assigned managed identities from Tharsis.
-	managedIdentities, err := t.client.Workspaces.GetAssignedManagedIdentities(ctx,
-		&ttypes.GetAssignedManagedIdentitiesInput{
-			ID: ptr.String(state.WorkspaceID.ValueString()),
+	identitiesResp, err := t.client.ManagedIdentitiesClient.GetManagedIdentitiesForWorkspace(ctx,
+		&pb.GetManagedIdentitiesForWorkspaceRequest{
+			WorkspaceId: state.WorkspaceID.ValueString(),
 		})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			resp.Diagnostics.AddError(
 				"Error finding assigned specified workspace and its managed identities",
-				"either the workspace no longer exists or there was another problem with database access",
+				"either the workspace no longer exists, or no managed identities found",
 			)
 			return
 		}
@@ -172,10 +161,10 @@ func (t *assignedManagedIdentityResource) Read(ctx context.Context,
 	// Find the assigned managed identity by ID.
 	wantID := state.ManagedIdentityID.ValueString()
 	var found *AssignedManagedIdentityModel
-	for _, candidate := range managedIdentities {
-		if candidate.Metadata.ID == wantID {
+	for _, candidate := range identitiesResp.ManagedIdentities {
+		if candidate.Metadata.Id == wantID {
 			found = &AssignedManagedIdentityModel{
-				ManagedIdentityID: types.StringValue(candidate.Metadata.ID),
+				ManagedIdentityID: types.StringValue(candidate.Metadata.Id),
 				WorkspaceID:       state.WorkspaceID,
 			}
 			break
@@ -219,36 +208,17 @@ func (t *assignedManagedIdentityResource) Delete(ctx context.Context,
 		return
 	}
 
-	// Get the workspace from Tharsis so we can have its path, required to unassign the managed identity.
-	workspace, err := t.client.Workspaces.GetWorkspace(ctx,
-		&ttypes.GetWorkspaceInput{
-			ID: ptr.String(state.WorkspaceID.ValueString()),
-		},
-	)
-	if err != nil {
-		if tharsis.IsNotFoundError(err) {
-			resp.State.RemoveResource(ctx)
-			return
-		}
-
-		resp.Diagnostics.AddError(
-			"Error getting workspace",
-			err.Error(),
-		)
-		return
-	}
-
 	// Delete the assigned managed identity via Tharsis.
 	// In other words, unassign the managed identity from the workspace.
-	_, err = t.client.ManagedIdentity.UnassignManagedIdentityFromWorkspace(ctx,
-		&ttypes.AssignManagedIdentityInput{
-			WorkspacePath:     workspace.FullPath,
-			ManagedIdentityID: ptr.String(state.ManagedIdentityID.ValueString()),
+	_, err := t.client.ManagedIdentitiesClient.RemoveManagedIdentityFromWorkspace(ctx,
+		&pb.RemoveManagedIdentityFromWorkspaceRequest{
+			ManagedIdentityId: state.ManagedIdentityID.ValueString(),
+			WorkspaceId:       state.WorkspaceID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the assigned managed identity no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}

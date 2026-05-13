@@ -18,11 +18,12 @@ Defines and manages a workspace.
 ### Required
 
 - `description` (String) A description of the workspace.
-- `group_path` (String) Path of the parent group.
 - `name` (String) The name of the workspace.
 
 ### Optional
 
+- `group_id` (String) The ID of the parent group.
+- `group_path` (String, Deprecated) Path of the parent group.
 - `max_job_duration` (Number) Maximum job duration in minutes.
 - `prevent_destroy_plan` (Boolean) Whether a destroy plan would be prevented.
 - `terraform_version` (String) Terraform version for this workspace.

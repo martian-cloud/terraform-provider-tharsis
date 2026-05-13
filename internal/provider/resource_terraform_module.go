@@ -2,17 +2,20 @@ package provider
 
 import (
 	"context"
+	"strings"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // TerraformModuleModel is the model for a Terraform module.
@@ -21,6 +24,7 @@ type TerraformModuleModel struct {
 	Name              types.String `tfsdk:"name"`
 	System            types.String `tfsdk:"system"`
 	GroupPath         types.String `tfsdk:"group_path"`
+	GroupID           types.String `tfsdk:"group_id"`
 	ResourcePath      types.String `tfsdk:"resource_path"`
 	RegistryNamespace types.String `tfsdk:"registry_namespace"`
 	RepositoryURL     types.String `tfsdk:"repository_url"`
@@ -41,7 +45,7 @@ func NewTerraformModuleResource() resource.Resource {
 }
 
 type terraformModuleResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -86,15 +90,27 @@ func (t *terraformModuleResource) Schema(_ context.Context, _ resource.SchemaReq
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "The group path for this module.",
 				Description:         "The group path for this module.",
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"group_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the parent group.",
+				Description:         "The ID of the parent group.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent namespace plus the name of the terraform module.",
 				Description:         "The path of the parent namespace plus the name of the terraform module.",
 				Computed:            true,
+				DeprecationMessage:  "Use the id field instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -103,6 +119,7 @@ func (t *terraformModuleResource) Schema(_ context.Context, _ resource.SchemaReq
 				MarkdownDescription: "The top-level group in which this module resides.",
 				Description:         "The top-level group in which this module resides.",
 				Computed:            true,
+				DeprecationMessage:  "This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -136,7 +153,7 @@ func (t *terraformModuleResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *terraformModuleResource) Create(ctx context.Context,
@@ -149,12 +166,22 @@ func (t *terraformModuleResource) Create(ctx context.Context,
 		return
 	}
 
-	created, err := t.client.TerraformModule.CreateModule(ctx,
-		&ttypes.CreateTerraformModuleInput{
+	var groupID string
+	if v := terraformModule.GroupID.ValueString(); v != "" {
+		groupID = v
+	} else if v := terraformModule.GroupPath.ValueString(); v != "" {
+		groupID = trn.TypeGroup.Build(v)
+	} else {
+		resp.Diagnostics.AddError("Either group_id or group_path must be specified", "")
+		return
+	}
+
+	created, err := t.client.TerraformModulesClient.CreateTerraformModule(ctx,
+		&pb.CreateTerraformModuleRequest{
 			Name:          terraformModule.Name.ValueString(),
 			System:        terraformModule.System.ValueString(),
-			GroupPath:     terraformModule.GroupPath.ValueString(),
-			RepositoryURL: terraformModule.RepositoryURL.ValueString(),
+			GroupId:       groupID,
+			RepositoryUrl: terraformModule.RepositoryURL.ValueString(),
 			Private:       terraformModule.Private.ValueBool(),
 		})
 	if err != nil {
@@ -166,7 +193,7 @@ func (t *terraformModuleResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyTerraformModule(*created, &terraformModule)
+	t.copyTerraformModule(created, &terraformModule)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, terraformModule)...)
@@ -183,11 +210,12 @@ func (t *terraformModuleResource) Read(ctx context.Context,
 	}
 
 	// Get the Terraform module from Tharsis.
-	found, err := t.client.TerraformModule.GetModule(ctx, &ttypes.GetTerraformModuleInput{
-		ID: ptr.String(state.ID.ValueString()),
-	})
+	found, err := t.client.TerraformModulesClient.GetTerraformModuleByID(ctx,
+		&pb.GetTerraformModuleByIDRequest{
+			Id: state.ID.ValueString(),
+		})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -199,7 +227,7 @@ func (t *terraformModuleResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyTerraformModule(*found, &state)
+	t.copyTerraformModule(found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -217,11 +245,11 @@ func (t *terraformModuleResource) Update(ctx context.Context,
 
 	// Update the Terraform module via Tharsis.
 	// The ID is used to find the record to update.
-	updated, err := t.client.TerraformModule.UpdateModule(ctx,
-		&ttypes.UpdateTerraformModuleInput{
-			ID:            plan.ID.ValueString(),
-			RepositoryURL: ptr.String(plan.RepositoryURL.ValueString()),
-			Private:       ptr.Bool(plan.Private.ValueBool()),
+	updated, err := t.client.TerraformModulesClient.UpdateTerraformModule(ctx,
+		&pb.UpdateTerraformModuleRequest{
+			Id:            plan.ID.ValueString(),
+			RepositoryUrl: new(plan.RepositoryURL.ValueString()),
+			Private:       new(plan.Private.ValueBool()),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -232,7 +260,7 @@ func (t *terraformModuleResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyTerraformModule(*updated, &plan)
+	t.copyTerraformModule(updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -249,13 +277,13 @@ func (t *terraformModuleResource) Delete(ctx context.Context,
 	}
 
 	// Delete the Terraform module via Tharsis.
-	err := t.client.TerraformModule.DeleteModule(ctx,
-		&ttypes.DeleteTerraformModuleInput{
-			ID: state.ID.ValueString(),
+	_, err := t.client.TerraformModulesClient.DeleteTerraformModule(ctx,
+		&pb.DeleteTerraformModuleRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 		// Handle the case that the Terraform module no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -276,16 +304,23 @@ func (t *terraformModuleResource) ImportState(ctx context.Context,
 
 // copyTerraformModule copies the contents of a Terraform module.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *terraformModuleResource) copyTerraformModule(src ttypes.TerraformModule, dest *TerraformModuleModel) {
-	dest.ID = types.StringValue(src.Metadata.ID)
+func (t *terraformModuleResource) copyTerraformModule(src *pb.TerraformModule, dest *TerraformModuleModel) {
+	parsed := trn.MustParseAny(src.Metadata.Trn)
+	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.Name = types.StringValue(src.Name)
 	dest.System = types.StringValue(src.System)
-	dest.GroupPath = types.StringValue(src.GroupPath)
-	dest.ResourcePath = types.StringValue(src.ResourcePath)
-	dest.RegistryNamespace = types.StringValue(src.RegistryNamespace)
-	dest.RepositoryURL = types.StringValue(src.RepositoryURL)
+	// TRN path is <group_path>/<name>/<system>, strip last two segments for group path.
+	resourcePath := parsed.Path()
+	suffix := "/" + src.Name + "/" + src.System
+	dest.GroupPath = types.StringValue(strings.TrimSuffix(resourcePath, suffix))
+	dest.GroupID = types.StringValue(src.GroupId)
+	dest.ResourcePath = types.StringValue(parsed.Path())
+	if parts := parsed.PathParts(); len(parts) > 0 {
+		dest.RegistryNamespace = types.StringValue(parts[0])
+	}
+	dest.RepositoryURL = types.StringValue(src.RepositoryUrl)
 	dest.Private = types.BoolValue(src.Private)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
+	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

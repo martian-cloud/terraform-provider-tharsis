@@ -3,10 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -18,20 +16,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	sdktypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
-)
-
-const (
-	// logChunkSize is the maximum number of bytes to request in a single log request.
-	logChunkSize = 1024 * 10
-
-	// lookForError is the string to look for in the logs to find the error message.
-	// Need to look at the start of a line to avoid false positives.
-	lookForError = "\nError: "
-
-	// lookForStateCreation is the string to look for in the logs to find the state creation message.
-	lookForStateCreation = "Created new state version"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
 )
 
 type createRunInput struct {
@@ -41,7 +28,7 @@ type createRunInput struct {
 
 type createRunOutput struct {
 	moduleVersion     string
-	resolvedVariables []sdktypes.RunVariable
+	resolvedVariables []*pb.RunVariable
 }
 
 // appliedModuleInfo contains what information was available about the latest applied run.
@@ -56,8 +43,6 @@ type appliedModuleInfo struct {
 const (
 	jobCompletionPollInterval = 5 * time.Second
 )
-
-var applyRunComment = "terraform-provider-tharsis" // must be var, not const, to take address
 
 // RunVariableModel is used in apply modules to set Terraform and environment variables.
 type RunVariableModel struct {
@@ -101,6 +86,7 @@ func (e *RunVariableModel) FromTerraform5Value(val tftypes.Value) error {
 type ApplyModuleModel struct {
 	ID                types.String        `tfsdk:"id"`
 	WorkspacePath     types.String        `tfsdk:"workspace_path"`
+	WorkspaceID       types.String        `tfsdk:"workspace_id"`
 	ModuleSource      types.String        `tfsdk:"module_source"`
 	ModuleVersion     types.String        `tfsdk:"module_version"`
 	Refresh           types.Bool          `tfsdk:"refresh"`
@@ -120,7 +106,7 @@ func NewApplyModuleResource() resource.Resource {
 }
 
 type applyModuleResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -149,7 +135,16 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"workspace_path": schema.StringAttribute{
 				MarkdownDescription: "The full path of the workspace.",
 				Description:         "The full path of the workspace.",
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use workspace_id instead. This field will be removed in a future version.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"workspace_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the workspace.",
+				Description:         "The ID of the workspace.",
+				Optional:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -239,7 +234,7 @@ func (t *applyModuleResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *applyModuleResource) Create(ctx context.Context,
@@ -435,12 +430,24 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 	// Call CreateRun
 	var moduleVersion *string
 	if !input.model.ModuleVersion.IsUnknown() {
-		moduleVersion = ptr.String(input.model.ModuleVersion.ValueString())
+		moduleVersion = new(input.model.ModuleVersion.ValueString())
 	}
-	createdRun, err := t.client.Run.CreateRun(ctx, &sdktypes.CreateRunInput{
-		WorkspacePath: input.model.WorkspacePath.ValueString(),
+
+	// Convert workspace_path to workspace TRN.
+	var workspaceID string
+	if v := input.model.WorkspaceID.ValueString(); v != "" {
+		workspaceID = v
+	} else if v := input.model.WorkspacePath.ValueString(); v != "" {
+		workspaceID = trn.TypeWorkspace.Build(v)
+	} else {
+		diags.AddError("Either workspace_id or workspace_path must be specified", "")
+		return nil, diags
+	}
+
+	createdRun, err := t.client.RunsClient.CreateRun(ctx, &pb.CreateRunRequest{
+		WorkspaceId:   workspaceID,
 		IsDestroy:     input.doDestroy,
-		ModuleSource:  ptr.String(input.model.ModuleSource.ValueString()),
+		ModuleSource:  new(input.model.ModuleSource.ValueString()),
 		ModuleVersion: moduleVersion,
 		Refresh:       input.model.Refresh.ValueBool(),
 		Variables:     vars,
@@ -450,114 +457,117 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		return nil, diags
 	}
 
-	if err = t.waitForJobCompletion(ctx, createdRun.Plan.CurrentJobID); err != nil {
+	// Wait for plan job.
+	planJob, err := t.client.JobsClient.GetLatestJobForPlan(ctx, &pb.GetLatestJobForPlanRequest{
+		PlanId: createdRun.PlanId,
+	})
+	if err != nil {
+		diags.AddError("Failed to get plan job", err.Error())
+		return nil, diags
+	}
+
+	if err = t.waitForJobCompletion(ctx, planJob.Metadata.Id); err != nil {
 		diags.AddError("Failed to wait for plan job completion", err.Error())
 		return nil, diags
 	}
 
-	plannedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: createdRun.Metadata.ID})
+	// Check plan status.
+	plan, err := t.client.RunsClient.GetPlanByID(ctx, &pb.GetPlanByIDRequest{Id: createdRun.PlanId})
 	if err != nil {
-		diags.AddError("Failed to get planned run", err.Error())
+		diags.AddError("Failed to get plan", err.Error())
 		return nil, diags
 	}
 
-	// If the plan fails, both plannedRun.Status and plannedRun.Plan.Status are "errored".
-	// If the plan succeeds, plannedRun.Status is "planned",
-	// while plannedRun.Plan.Status is "finished".
-	//
-	switch plannedRun.Plan.Status {
-	case sdktypes.PlanCanceled:
-		diags.AddError("Plan was canceled", string(plannedRun.Plan.Status))
+	switch plan.Status {
+	case pb.PlanStatus_CANCELED.String():
+		diags.AddError("Plan was canceled", plan.Status)
 		return nil, diags
-	case sdktypes.PlanErrored:
-		// Bring in any error message(s) from the finished inner plan run.
-		innerPlanRunDiags := t.extractRunError(ctx, plannedRun)
-		if innerPlanRunDiags.HasError() {
-			diags.Append(innerPlanRunDiags...)
-		} else {
-			diags.AddError("Plan failed with unknown error", string(plannedRun.Plan.Status))
+	case pb.PlanStatus_ERRORED.String():
+		msg := "Plan failed with unknown error"
+		if plan.ErrorMessage != nil {
+			msg = *plan.ErrorMessage
 		}
+		diags.AddError("Plan failed", msg)
 		return nil, diags
 	}
 
 	// Capture the run ID.
-	runID := plannedRun.Metadata.ID
+	runID := createdRun.Metadata.Id
 
 	// Get the resolved variables from the run.
-	resolvedPlanVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunVariablesInput{RunID: runID})
+	resolvedPlanVarsResp, err := t.client.RunsClient.GetRunVariables(ctx, &pb.GetRunVariablesRequest{Id: runID})
 	if err != nil {
 		diags.AddError("Failed to get resolved variables", err.Error())
 		return nil, diags
 	}
 
-	if plannedRun.Status == sdktypes.RunPlannedAndFinished {
+	if createdRun.Status == "planned_and_finished" {
 		result := &createRunOutput{
-			resolvedVariables: resolvedPlanVars,
+			resolvedVariables: resolvedPlanVarsResp.Variables,
 		}
 
-		if plannedRun.ModuleVersion != nil {
-			result.moduleVersion = *plannedRun.ModuleVersion
+		if createdRun.ModuleVersion != nil {
+			result.moduleVersion = *createdRun.ModuleVersion
 		}
 		return result, diags
 	}
 
 	// Do the apply run.
-	appliedRun, err := t.client.Run.ApplyRun(ctx, &sdktypes.ApplyRunInput{
-		RunID:   runID,
-		Comment: &applyRunComment,
+	appliedRun, err := t.client.RunsClient.ApplyRun(ctx, &pb.ApplyRunRequest{
+		RunId: runID,
 	})
 	if err != nil {
 		diags.AddError("Failed to apply a run", err.Error())
 		return nil, diags
 	}
 
-	// Make sure the run has an apply.
-	if appliedRun.Apply == nil {
-		msg := fmt.Sprintf("Created run does not have an apply: %s", appliedRun.Metadata.ID)
-		diags.AddError(msg, "")
+	// Wait for apply job.
+	applyJob, err := t.client.JobsClient.GetLatestJobForApply(ctx, &pb.GetLatestJobForApplyRequest{
+		ApplyId: appliedRun.ApplyId,
+	})
+	if err != nil {
+		diags.AddError("Failed to get apply job", err.Error())
 		return nil, diags
 	}
 
-	if err = t.waitForJobCompletion(ctx, appliedRun.Apply.CurrentJobID); err != nil {
+	if err = t.waitForJobCompletion(ctx, applyJob.Metadata.Id); err != nil {
 		diags.AddError("Failed to wait for apply job completion", err.Error())
 		return nil, diags
 	}
 
-	finishedRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{ID: appliedRun.Metadata.ID})
+	// Check apply status.
+	apply, err := t.client.RunsClient.GetApplyByID(ctx, &pb.GetApplyByIDRequest{Id: appliedRun.ApplyId})
 	if err != nil {
-		diags.AddError("Failed to get finished run", err.Error())
+		diags.AddError("Failed to get apply", err.Error())
 		return nil, diags
 	}
 
-	// If an apply job succeeds, finishedRun.Status is "applied" and
-	// finishedRun.Apply.Status is "finished".
-	switch finishedRun.Apply.Status {
-	case sdktypes.ApplyCanceled:
-		diags.AddError("Apply was canceled", string(finishedRun.Apply.Status))
+	switch apply.Status {
+	case pb.ApplyStatus_CANCELED.String():
+		diags.AddError("Apply was canceled", apply.Status)
 		return nil, diags
-	case sdktypes.ApplyErrored:
-		// Bring in any error message(s) from the finished inner apply run.
-		innerApplyRunDiags := t.extractRunError(ctx, finishedRun)
-		if innerApplyRunDiags.HasError() {
-			diags.Append(innerApplyRunDiags...)
-		} else {
-			diags.AddError("Apply failed with unknown error", string(finishedRun.Apply.Status))
+	case pb.ApplyStatus_ERRORED.String():
+		msg := "Apply failed with unknown error"
+		if apply.ErrorMessage != nil {
+			msg = *apply.ErrorMessage
 		}
+		diags.AddError("Apply failed", msg)
 		return nil, diags
 	}
 
 	// In case of a rainy day, make sure the ModuleSource and ModuleVersion *string aren't nil.
-	if finishedRun.ModuleSource == nil {
+	if createdRun.ModuleSource == nil {
 		diags.AddError("Finished run's module source is nil.", "")
 		return nil, diags
 	}
-	if finishedRun.ModuleVersion == nil {
+
+	if createdRun.ModuleVersion == nil {
 		diags.AddError("Finished run's module version is nil.", "")
 		return nil, diags
 	}
 
 	// Get the resolved variables from the run.
-	resolvedApplyVars, err := t.client.Run.GetRunVariables(ctx, &sdktypes.GetRunVariablesInput{RunID: finishedRun.Metadata.ID})
+	resolvedApplyVarsResp, err := t.client.RunsClient.GetRunVariables(ctx, &pb.GetRunVariablesRequest{Id: runID})
 	if err != nil {
 		diags.AddError("Failed to get resolved variables", err.Error())
 		return nil, diags
@@ -566,27 +576,27 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 	// The module version was checked above, so it's safe to dereference.
 	// These diags may include those from the inner run if it errored out.
 	return &createRunOutput{
-		resolvedVariables: resolvedApplyVars,
-		moduleVersion:     *finishedRun.ModuleVersion,
+		resolvedVariables: resolvedApplyVarsResp.Variables,
+		moduleVersion:     *createdRun.ModuleVersion,
 	}, diags
 }
 
-func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID *string) error {
-	if jobID == nil {
-		return fmt.Errorf("nil job ID")
+func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID string) error {
+	if jobID == "" {
+		return fmt.Errorf("empty job ID")
 	}
 
 	// Poll until job has finished or the context expires.
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("context expired while waiting for job ID %s", *jobID)
+			return fmt.Errorf("context expired while waiting for job ID %s", jobID)
 		case <-time.After(jobCompletionPollInterval):
-			job, err := t.client.Job.GetJob(ctx, &sdktypes.GetJobInput{
-				ID: *jobID,
+			job, err := t.client.JobsClient.GetJobByID(ctx, &pb.GetJobByIDRequest{
+				Id: jobID,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to get job ID %s", *jobID)
+				return fmt.Errorf("failed to get job ID %s", jobID)
 			}
 
 			if job.Status == "finished" {
@@ -603,22 +613,38 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 	var diags diag.Diagnostics
 
 	// Get latest run on the target workspace.
-	wsPath := tfState.WorkspacePath.ValueString()
-	ws, err := t.client.Workspaces.GetWorkspace(ctx, &sdktypes.GetWorkspaceInput{
-		Path: &wsPath,
+	var wsTRN string
+	if v := tfState.WorkspaceID.ValueString(); v != "" {
+		wsTRN = v
+	} else if v := tfState.WorkspacePath.ValueString(); v != "" {
+		wsTRN = trn.TypeWorkspace.Build(v)
+	} else {
+		diags.AddError("Either workspace_id or workspace_path must be specified", "")
+		return nil, diags
+	}
+	ws, err := t.client.WorkspacesClient.GetWorkspaceByID(ctx, &pb.GetWorkspaceByIDRequest{
+		Id: wsTRN,
 	})
 	if err != nil {
-		diags.AddError(fmt.Sprintf("Failed to get specified workspace by path: %s", wsPath), err.Error())
+		diags.AddError(fmt.Sprintf("Failed to get specified workspace by path: %s", tfState.WorkspacePath.ValueString()), err.Error())
 		return nil, diags
 	}
 
 	// Get whatever information may be available about the latest applied module.
-	if ws.CurrentStateVersion != nil {
+	if ws.CurrentStateVersionId != "" {
 		moduleInfoOutput := &appliedModuleInfo{}
 
-		if ws.CurrentStateVersion.RunID != "" {
-			latestRun, err := t.client.Run.GetRun(ctx, &sdktypes.GetRunInput{
-				ID: ws.CurrentStateVersion.RunID,
+		sv, err := t.client.StateVersionsClient.GetStateVersionByID(ctx, &pb.GetStateVersionByIDRequest{
+			Id: ws.CurrentStateVersionId,
+		})
+		if err != nil {
+			diags.AddError("Failed to get state version", err.Error())
+			return nil, diags
+		}
+
+		if sv.RunId != nil {
+			latestRun, err := t.client.RunsClient.GetRunByID(ctx, &pb.GetRunByIDRequest{
+				Id: *sv.RunId,
 			})
 			if err != nil {
 				diags.AddError("Failed to get latest run", err.Error())
@@ -632,7 +658,7 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 			if latestRun.ModuleVersion != nil {
 				moduleInfoOutput.moduleVersion = latestRun.ModuleVersion
 			}
-			if latestRun.IsDestroy && (latestRun.Status == sdktypes.RunApplied) && (latestRun.Apply != nil) {
+			if latestRun.IsDestroy && latestRun.Status == "applied" {
 				moduleInfoOutput.wasSuccessfulDestroy = true
 			}
 		} else {
@@ -646,117 +672,10 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 	return nil, diags
 }
 
-// extractRunError extracts the error from a run's logs (if the run errored out).
-func (t *applyModuleResource) extractRunError(ctx context.Context, run *sdktypes.Run) diag.Diagnostics {
-	var diags diag.Diagnostics
-	var jobID string
-
-	// Check whether the plan errored.
-	if run.Plan != nil {
-		if run.Plan.Status == sdktypes.PlanErrored {
-			// The plan errored.
-			if run.Plan.CurrentJobID != nil {
-				jobID = *run.Plan.CurrentJobID
-			} else {
-				diags.AddWarning("Plan status is errored, but no job ID found", "")
-				return diags
-			}
-		}
-	}
-
-	// If no job ID yet, check the apply.
-	if (jobID == "") && (run.Apply != nil) {
-		if run.Apply.CurrentJobID != nil {
-			jobID = *run.Apply.CurrentJobID
-		}
-	}
-	if jobID == "" {
-		diags.AddWarning("Run status is errored, but no job ID found", "")
-		return diags
-	}
-
-	// Must get the job to know the size of the logs to paginate in reverse.
-	job, err := t.client.Job.GetJob(ctx, &sdktypes.GetJobInput{
-		ID: jobID,
-	})
-	if err != nil {
-		diags.AddError("Failed to get job", err.Error())
-		return diags
-	}
-
-	// Get the logs from the end.  There will most likely be a smaller chunk at the beginning.
-	allLogs := ""
-	currentStart := int32(job.LogSize) - logChunkSize
-	nextChunkSize := int32(logChunkSize)
-	if currentStart < 0 {
-		// Only one chunk to read.
-		currentStart = 0
-		nextChunkSize = int32(job.LogSize)
-	}
-	for {
-		logs, err := t.client.Job.GetJobLogs(ctx, &sdktypes.GetJobLogsInput{
-			JobID: jobID,
-			Start: currentStart,
-			Limit: &nextChunkSize,
-		})
-		if err != nil {
-			diags.AddError("Failed to get job logs", err.Error())
-			return diags
-		}
-
-		// Workaround: The API returns one more character than asked for.
-		newLogs := logs.Logs
-		if len(newLogs) > int(nextChunkSize) {
-			newLogs = newLogs[:nextChunkSize]
-		}
-
-		allLogs = newLogs + allLogs
-		if strings.Contains(allLogs, lookForError) {
-			// Found the error, so break out of the loop.
-			break
-		}
-
-		if currentStart == 0 {
-			// No error found, and we've read the whole log.
-			break
-		}
-
-		if currentStart >= logChunkSize {
-			currentStart -= logChunkSize
-		} else {
-			// A smaller chunk at the beginning.
-			nextChunkSize = currentStart
-			currentStart = 0
-		}
-	}
-
-	// Find the beginning of the error message to return.
-	startIx := strings.Index(allLogs, lookForError)
-	if startIx < 0 {
-		// No error found, so return empty diags.
-		return diags
-	}
-
-	// Find the end of the error message to return.
-	foundMessage := allLogs[(startIx + 1):]
-	endIx := strings.Index(foundMessage, lookForStateCreation)
-	if endIx > 0 {
-		foundMessage = foundMessage[:endIx]
-	}
-
-	// Add a prefix line so the user knows what module source and workspace the error came from.
-	diags.AddError(fmt.Sprintf(
-		"Failed to %s module %s in workspace %s\n",
-		strings.ToLower(string(job.Type)), ptr.ToString(run.ModuleSource), run.WorkspacePath,
-	)+strings.TrimPrefix(foundMessage, "Error: "), "")
-
-	return diags
-}
-
 // copyRunVariablesToInput converts from RunVariableModel to SDK equivalent.
 func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list *basetypes.ListValue,
-) ([]sdktypes.RunVariable, error) {
-	result := []sdktypes.RunVariable{}
+) ([]*pb.RunVariableInput, error) {
+	var result []*pb.RunVariableInput
 
 	for _, element := range list.Elements() {
 		terraformValue, err := element.ToTerraformValue(ctx)
@@ -769,10 +688,10 @@ func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list 
 			return nil, err
 		}
 
-		result = append(result, sdktypes.RunVariable{
+		result = append(result, &pb.RunVariableInput{
 			Value:    &model.Value,
 			Key:      model.Key,
-			Category: sdktypes.VariableCategory(model.Category),
+			Category: model.Category,
 		})
 	}
 
@@ -787,7 +706,7 @@ func (t *applyModuleResource) copyRunVariablesToInput(ctx context.Context, list 
 // toProviderOutputVariables converts SDK variables from a finished run to the types the provider can return to Terraform.
 func (t *applyModuleResource) toProviderOutputVariables(
 	ctx context.Context,
-	arg []sdktypes.RunVariable,
+	arg []*pb.RunVariable,
 ) (basetypes.ListValue, diag.Diagnostics) {
 	variables := []types.Object{}
 

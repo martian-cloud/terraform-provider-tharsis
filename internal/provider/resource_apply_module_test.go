@@ -19,7 +19,6 @@ func TestApplyModule(t *testing.T) {
 	ws1Path := testGroupPath + "/" + ws1Name
 	ws2Name := "workspace-2"
 	ws2Desc := "this is workspace 2"
-	wsPreventDestroyPlan := false
 	varValueBase := "some variable value "
 	varKey := "trigger_name"
 	varCategory := "terraform"
@@ -36,13 +35,9 @@ func TestApplyModule(t *testing.T) {
 					resource.TestCheckResourceAttr("tharsis_workspace.tw1", "name", ws1Name),
 					resource.TestCheckResourceAttr("tharsis_workspace.tw1", "description", ws1Desc),
 					resource.TestCheckResourceAttr("tharsis_workspace.tw1", "group_path", testGroupPath),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw1", "prevent_destroy_plan",
-						strconv.FormatBool(wsPreventDestroyPlan)),
 					resource.TestCheckResourceAttr("tharsis_workspace.tw2", "name", ws2Name),
 					resource.TestCheckResourceAttr("tharsis_workspace.tw2", "description", ws2Desc),
 					resource.TestCheckResourceAttr("tharsis_workspace.tw2", "group_path", testGroupPath),
-					resource.TestCheckResourceAttr("tharsis_workspace.tw2", "prevent_destroy_plan",
-						strconv.FormatBool(wsPreventDestroyPlan)),
 				),
 			},
 
@@ -144,7 +139,6 @@ func testApplyModuleConfigurationCreate() string {
 	ws1Desc := "this is workspace 1"
 	ws2Name := "workspace-2"
 	ws2Desc := "this is workspace 2"
-	wsPreventDestroyPlan := false
 
 	return fmt.Sprintf(`
 
@@ -154,19 +148,18 @@ resource "tharsis_workspace" "tw1" {
 	name                 = "%s"
 	description          = "%s"
 	group_path           = tharsis_group.root-group.full_path
-	prevent_destroy_plan = "%v"
+	prevent_destroy_plan = false
 }
 
 resource "tharsis_workspace" "tw2" {
 	name                 = "%s"
 	description          = "%s"
 	group_path           = tharsis_group.root-group.full_path
-	prevent_destroy_plan = "%v"
+	prevent_destroy_plan = false
 }
 
 	`, createRootGroup(testGroupPath, "this is a test root group"),
-		ws1Name, ws1Desc, wsPreventDestroyPlan,
-		ws2Name, ws2Desc, wsPreventDestroyPlan,
+		ws1Name, ws1Desc, ws2Name, ws2Desc,
 	)
 }
 

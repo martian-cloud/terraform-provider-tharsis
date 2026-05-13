@@ -7,15 +7,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ManagedIdentityModel is the model for a managed identity.
@@ -26,6 +28,7 @@ type ManagedIdentityModel struct {
 	Name                      types.String `tfsdk:"name"`
 	Description               types.String `tfsdk:"description"`
 	GroupPath                 types.String `tfsdk:"group_path"`
+	GroupID                   types.String `tfsdk:"group_id"`
 	AWSRole                   types.String `tfsdk:"aws_role"`
 	AzureClientID             types.String `tfsdk:"azure_client_id"`
 	AzureTenantID             types.String `tfsdk:"azure_tenant_id"`
@@ -66,7 +69,7 @@ func NewManagedIdentityResource() resource.Resource {
 }
 
 type managedIdentityResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -104,6 +107,7 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				MarkdownDescription: "The path of the parent group plus the name of the managed identity.",
 				Description:         "The path of the parent group plus the name of the managed identity.",
 				Computed:            true,
+				DeprecationMessage:  "Use the id field instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -125,9 +129,20 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "Full path of the parent group.",
 				Description:         "Full path of the parent group.",
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"group_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the parent group.",
+				Description:         "The ID of the parent group.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"aws_role": schema.StringAttribute{
@@ -175,7 +190,7 @@ func (t *managedIdentityResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *managedIdentityResource) Create(ctx context.Context,
@@ -203,13 +218,23 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 		return
 	}
 
+	var groupID string
+	if v := managedIdentity.GroupID.ValueString(); v != "" {
+		groupID = v
+	} else if v := managedIdentity.GroupPath.ValueString(); v != "" {
+		groupID = trn.TypeGroup.Build(v)
+	} else {
+		resp.Diagnostics.AddError("Either group_id or group_path must be specified", "")
+		return
+	}
+
 	// Create the managed identity.
-	created, err := t.client.ManagedIdentity.CreateManagedIdentity(ctx,
-		&ttypes.CreateManagedIdentityInput{
-			Type:        ttypes.ManagedIdentityType(managedIdentity.Type.ValueString()),
+	created, err := t.client.ManagedIdentitiesClient.CreateManagedIdentity(ctx,
+		&pb.CreateManagedIdentityRequest{
+			Type:        pb.ManagedIdentityType(pb.ManagedIdentityType_value[managedIdentity.Type.ValueString()]),
 			Name:        managedIdentity.Name.ValueString(),
 			Description: managedIdentity.Description.ValueString(),
-			GroupPath:   managedIdentity.GroupPath.ValueString(),
+			GroupId:     groupID,
 			Data:        encodedData,
 		})
 	if err != nil {
@@ -222,7 +247,7 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	if err = t.copyManagedIdentity(*created, &managedIdentity); err != nil {
+	if err = t.copyManagedIdentity(created, &managedIdentity); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state",
 			err.Error(),
@@ -245,11 +270,12 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 	}
 
 	// Get the managed identity from Tharsis.
-	found, err := t.client.ManagedIdentity.GetManagedIdentity(ctx, &ttypes.GetManagedIdentityInput{
-		ID: ptr.String(state.ID.ValueString()),
-	})
+	found, err := t.client.ManagedIdentitiesClient.GetManagedIdentityByID(ctx,
+		&pb.GetManagedIdentityByIDRequest{
+			Id: state.ID.ValueString(),
+		})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -262,7 +288,7 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	if err = t.copyManagedIdentity(*found, &state); err != nil {
+	if err = t.copyManagedIdentity(found, &state); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state",
 			err.Error(),
@@ -302,11 +328,11 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 	// Update the managed identity via Tharsis.
 	// The ID is used to find the record to update.
 	// The description and data are modified.
-	updated, err := t.client.ManagedIdentity.UpdateManagedIdentity(ctx,
-		&ttypes.UpdateManagedIdentityInput{
-			ID:          plan.ID.ValueString(),
-			Description: plan.Description.ValueString(),
-			Data:        encodedData,
+	updated, err := t.client.ManagedIdentitiesClient.UpdateManagedIdentity(ctx,
+		&pb.UpdateManagedIdentityRequest{
+			Id:          plan.ID.ValueString(),
+			Description: new(plan.Description.ValueString()),
+			Data:        &encodedData,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -317,7 +343,7 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	if err = t.copyManagedIdentity(*updated, &plan); err != nil {
+	if err = t.copyManagedIdentity(updated, &plan); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state",
 			err.Error(),
@@ -341,14 +367,14 @@ func (t *managedIdentityResource) Delete(ctx context.Context,
 
 	// Delete the managed identity via Tharsis.
 	// The ID is used to find the record to delete.
-	err := t.client.ManagedIdentity.DeleteManagedIdentity(ctx,
-		&ttypes.DeleteManagedIdentityInput{
-			ID: state.ID.ValueString(),
+	_, err := t.client.ManagedIdentitiesClient.DeleteManagedIdentity(ctx,
+		&pb.DeleteManagedIdentityRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the managed identity no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -370,18 +396,20 @@ func (t *managedIdentityResource) ImportState(ctx context.Context,
 
 // copyManagedIdentity copies the contents of a managed identity.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *managedIdentityResource) copyManagedIdentity(src ttypes.ManagedIdentity, dest *ManagedIdentityModel) error {
+func (t *managedIdentityResource) copyManagedIdentity(src *pb.ManagedIdentity, dest *ManagedIdentityModel) error {
 	decodedData, err := t.decodeDataString(src.Data)
 	if err != nil {
 		return err
 	}
 
-	dest.ID = types.StringValue(src.Metadata.ID)
-	dest.Type = types.StringValue(string(src.Type))
-	dest.ResourcePath = types.StringValue(src.ResourcePath)
+	parsed := trn.MustParseAny(src.Metadata.Trn)
+	dest.ID = types.StringValue(src.Metadata.Id)
+	dest.Type = types.StringValue(src.Type)
+	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
-	dest.GroupPath = types.StringValue(src.GroupPath)
+	dest.GroupPath = types.StringValue(parsed.ParentPath())
+	dest.GroupID = types.StringValue(src.GroupId)
 	if decodedData.AWSRole != nil {
 		dest.AWSRole = types.StringValue(*decodedData.AWSRole)
 	}
@@ -397,7 +425,7 @@ func (t *managedIdentityResource) copyManagedIdentity(src ttypes.ManagedIdentity
 	dest.Subject = types.StringValue(decodedData.Subject)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
+	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	return nil
 }
@@ -405,11 +433,11 @@ func (t *managedIdentityResource) copyManagedIdentity(src ttypes.ManagedIdentity
 // encodeDataString checks the AWS role, Azure client ID, Azure tenant ID, Tharsis service account path,
 // and subject fields and then marshals them into the appropriate type and base64 encodes that.
 func (t *managedIdentityResource) encodeDataString(managedIdentityType types.String, input managedIdentityDataInput) (string, error) {
-	type2 := ttypes.ManagedIdentityType(managedIdentityType.ValueString())
+	type2 := pb.ManagedIdentityType(pb.ManagedIdentityType_value[managedIdentityType.ValueString()])
 
 	// What to check depends on the type of managed identity this is.
 	switch type2 {
-	case ttypes.ManagedIdentityAWSFederated:
+	case pb.ManagedIdentityType_aws_federated:
 		if input.AWSRole == "" {
 			return "", fmt.Errorf("non-empty role is required for AWS managed identity")
 		}
@@ -419,7 +447,7 @@ func (t *managedIdentityResource) encodeDataString(managedIdentityType types.Str
 		if input.AzureTenantID != "" {
 			return "", fmt.Errorf("non-empty tenant ID is not allowed for AWS managed identity")
 		}
-	case ttypes.ManagedIdentityAzureFederated:
+	case pb.ManagedIdentityType_azure_federated:
 		if input.AWSRole != "" {
 			return "", fmt.Errorf("non-empty role is not allowed for Azure managed identity")
 		}
@@ -429,7 +457,7 @@ func (t *managedIdentityResource) encodeDataString(managedIdentityType types.Str
 		if input.AzureTenantID == "" {
 			return "", fmt.Errorf("non-empty tenant ID is required for Azure managed identity")
 		}
-	case ttypes.ManagedIdentityTharsisFederated:
+	case pb.ManagedIdentityType_tharsis_federated:
 		if input.TharsisServiceAccountPath == "" {
 			return "", fmt.Errorf("non-empty service account path is required for Tharsis managed identity")
 		}
@@ -457,7 +485,7 @@ func (t *managedIdentityResource) decodeDataString(encoded string) (*managedIden
 
 	var result managedIdentityData
 	if jErr := json.Unmarshal(decoded, &result); jErr != nil {
-		return nil, err
+		return nil, jErr
 	}
 
 	return &result, nil

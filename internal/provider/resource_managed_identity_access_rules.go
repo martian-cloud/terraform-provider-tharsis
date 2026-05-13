@@ -2,8 +2,8 @@ package provider
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -15,8 +15,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/martian-cloud/terraform-provider-tharsis/internal/modifiers"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ModuleAttestationPolicyModel is used in access rules to verify that a
@@ -56,8 +59,11 @@ type ManagedIdentityAccessRuleModel struct {
 	ManagedIdentityID         types.String        `tfsdk:"managed_identity_id"`
 	ModuleAttestationPolicies basetypes.ListValue `tfsdk:"module_attestation_policies"`
 	AllowedUsers              basetypes.SetValue  `tfsdk:"allowed_users"`
+	AllowedUserIDs            basetypes.SetValue  `tfsdk:"allowed_user_ids"`
 	AllowedServiceAccounts    basetypes.SetValue  `tfsdk:"allowed_service_accounts"`
+	AllowedServiceAccountIDs  basetypes.SetValue  `tfsdk:"allowed_service_account_ids"`
 	AllowedTeams              basetypes.SetValue  `tfsdk:"allowed_teams"`
+	AllowedTeamIDs            basetypes.SetValue  `tfsdk:"allowed_team_ids"`
 	VerifyStateLineage        types.Bool          `tfsdk:"verify_state_lineage"`
 }
 
@@ -74,7 +80,7 @@ func NewManagedIdentityAccessRuleResource() resource.Resource {
 }
 
 type managedIdentityAccessRuleResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -112,7 +118,9 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				MarkdownDescription: "Type of job, plan or apply.",
 				Description:         "Type of job, plan or apply.",
 				Required:            true,
-				// Can be updated in place, so no RequiresReplace plan modifier.
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"managed_identity_id": schema.StringAttribute{
 				MarkdownDescription: "String identifier of the connected managed identity.",
@@ -128,6 +136,17 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				Description:         "List of usernames allowed to use the managed identity associated with this rule.",
 				Optional:            true,
 				Computed:            true,
+				DeprecationMessage:  "Use allowed_user_ids instead. This field will be removed in a future version.",
+				PlanModifiers: []planmodifier.Set{
+					modifiers.SetDefault([]attr.Value{}),
+				},
+			},
+			"allowed_user_ids": schema.SetAttribute{
+				ElementType:         types.StringType,
+				MarkdownDescription: "List of user IDs allowed to use the managed identity associated with this rule.",
+				Description:         "List of user IDs allowed to use the managed identity associated with this rule.",
+				Optional:            true,
+				Computed:            true,
 				PlanModifiers: []planmodifier.Set{
 					modifiers.SetDefault([]attr.Value{}),
 				},
@@ -139,6 +158,17 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				Description:         "List of resource paths of service accounts allowed to use the managed identity associated with this rule.",
 				Optional:            true,
 				Computed:            true,
+				DeprecationMessage:  "Use allowed_service_account_ids instead. This field will be removed in a future version.",
+				PlanModifiers: []planmodifier.Set{
+					modifiers.SetDefault([]attr.Value{}),
+				},
+			},
+			"allowed_service_account_ids": schema.SetAttribute{
+				ElementType:         types.StringType,
+				MarkdownDescription: "List of service account IDs allowed to use the managed identity associated with this rule.",
+				Description:         "List of service account IDs allowed to use the managed identity associated with this rule.",
+				Optional:            true,
+				Computed:            true,
 				PlanModifiers: []planmodifier.Set{
 					modifiers.SetDefault([]attr.Value{}),
 				},
@@ -148,6 +178,17 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				ElementType:         types.StringType,
 				MarkdownDescription: "List of names of teams allowed to use the managed identity associated with this rule.",
 				Description:         "List of names of teams allowed to use the managed identity associated with this rule.",
+				Optional:            true,
+				Computed:            true,
+				DeprecationMessage:  "Use allowed_team_ids instead. This field will be removed in a future version.",
+				PlanModifiers: []planmodifier.Set{
+					modifiers.SetDefault([]attr.Value{}),
+				},
+			},
+			"allowed_team_ids": schema.SetAttribute{
+				ElementType:         types.StringType,
+				MarkdownDescription: "List of team IDs allowed to use the managed identity associated with this rule.",
+				Description:         "List of team IDs allowed to use the managed identity associated with this rule.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.Set{
@@ -196,7 +237,7 @@ func (t *managedIdentityAccessRuleResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
@@ -209,7 +250,7 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 		return
 	}
 
-	policies, err := t.copyAttestationPoliciesToInput(ctx, &accessRule.ModuleAttestationPolicies)
+	policies, err := t.copyAttestationPoliciesToProto(ctx, &accessRule.ModuleAttestationPolicies)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error while copying module attestation policies to Tharsis input",
@@ -218,7 +259,7 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 		return
 	}
 
-	allowedUsersInput, err := t.valueStrings(ctx, accessRule.AllowedUsers)
+	allowedUsersInput, err := t.resolveIDs(ctx, accessRule.AllowedUserIDs, accessRule.AllowedUsers, trn.TypeUser)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error while copying access rule AllowedUsers to Tharsis input",
@@ -227,7 +268,7 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 		return
 	}
 
-	allowedServiceAccountsInput, err := t.valueStrings(ctx, accessRule.AllowedServiceAccounts)
+	allowedServiceAccountsInput, err := t.resolveIDs(ctx, accessRule.AllowedServiceAccountIDs, accessRule.AllowedServiceAccounts, trn.TypeServiceAccount)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error while copying access rule AllowedServiceAccounts to Tharsis input",
@@ -236,7 +277,7 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 		return
 	}
 
-	allowedTeamsInput, err := t.valueStrings(ctx, accessRule.AllowedTeams)
+	allowedTeamsInput, err := t.resolveIDs(ctx, accessRule.AllowedTeamIDs, accessRule.AllowedTeams, trn.TypeTeam)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error while copying access rule AllowedTeams to Tharsis input",
@@ -246,10 +287,10 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	}
 
 	// Build the access rule input.
-	accessRuleInput := ttypes.CreateManagedIdentityAccessRuleInput{
-		ManagedIdentityID:         accessRule.ManagedIdentityID.ValueString(),
-		Type:                      ttypes.ManagedIdentityAccessRuleType(accessRule.Type.ValueString()),
-		RunStage:                  ttypes.JobType(accessRule.RunStage.ValueString()),
+	input := &pb.CreateManagedIdentityAccessRuleRequest{
+		ManagedIdentityId:         accessRule.ManagedIdentityID.ValueString(),
+		Type:                      pb.ManagedIdentityAccessRuleType(pb.ManagedIdentityAccessRuleType_value[accessRule.Type.ValueString()]),
+		RunStage:                  pb.JobType(pb.JobType_value[accessRule.RunStage.ValueString()]),
 		AllowedUsers:              allowedUsersInput,
 		AllowedServiceAccounts:    allowedServiceAccountsInput,
 		AllowedTeams:              allowedTeamsInput,
@@ -258,12 +299,11 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 
 	// Pass in VerifyStateLineage if supplied.
 	if !accessRule.VerifyStateLineage.IsNull() {
-		accessRuleInput.VerifyStateLineage = ptr.Bool(accessRule.VerifyStateLineage.ValueBool())
+		input.VerifyStateLineage = accessRule.VerifyStateLineage.ValueBool()
 	}
 
 	// Create the managed identity access rule.
-	created, err := t.client.ManagedIdentity.CreateManagedIdentityAccessRule(ctx,
-		&accessRuleInput)
+	created, err := t.client.ManagedIdentitiesClient.CreateManagedIdentityAccessRule(ctx, input)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating managed identity access rule",
@@ -273,50 +313,8 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	accessRule.ID = types.StringValue(created.Metadata.ID)
-	accessRule.Type = types.StringValue(string(created.Type))
-	accessRule.RunStage = types.StringValue(string(created.RunStage))
-	accessRule.ManagedIdentityID = types.StringValue(created.ManagedIdentityID)
-	accessRule.VerifyStateLineage = types.BoolValue(created.VerifyStateLineage)
-
-	allowedUsers := []attr.Value{}
-	for _, user := range created.AllowedUsers {
-		allowedUsers = append(allowedUsers, types.StringValue(user.Username))
-	}
-
-	var diags diag.Diagnostics
-	accessRule.AllowedUsers, diags = types.SetValue(types.StringType, allowedUsers)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	allowedServiceAccounts := []attr.Value{}
-	for _, serviceAccount := range created.AllowedServiceAccounts {
-		allowedServiceAccounts = append(allowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
-	}
-
-	accessRule.AllowedServiceAccounts, diags = types.SetValue(types.StringType, allowedServiceAccounts)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	allowedTeams := []attr.Value{}
-	for _, team := range created.AllowedTeams {
-		allowedTeams = append(allowedTeams, types.StringValue(team.Name))
-	}
-
-	accessRule.AllowedTeams, diags = types.SetValue(types.StringType, allowedTeams)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	accessRule.ModuleAttestationPolicies, diags = t.toProviderAttestationPolicies(ctx, created.ModuleAttestationPolicies)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
+	t.copyAccessRuleToState(ctx, created, &accessRule, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -335,14 +333,14 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 	}
 
 	// Get the managed identity access rule from Tharsis.
-	found, err := t.client.ManagedIdentity.GetManagedIdentityAccessRule(ctx,
-		&ttypes.GetManagedIdentityAccessRuleInput{
-			ID: state.ID.ValueString(),
+	found, err := t.client.ManagedIdentitiesClient.GetManagedIdentityAccessRuleByID(ctx,
+		&pb.GetManagedIdentityAccessRuleByIDRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the access rule no longer exists if that fact is reported by returning an error.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -354,57 +352,16 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 		return
 	}
 
-	// Copy the from-Tharsis run stage to the state, but not if it no longer exists.
-	state.RunStage = types.StringValue(string(found.RunStage))
-	state.Type = types.StringValue(string(found.Type))
-
 	// When this Read method is called during a "terraform import" operation, state.ManagedIdentityID is null.
 	// In that case, it is necessary to copy ManagedIdentityID from found to state.
 	if state.ManagedIdentityID.IsNull() {
-		state.ManagedIdentityID = types.StringValue(found.ManagedIdentityID)
+		state.ManagedIdentityID = types.StringValue(found.ManagedIdentityId)
 	}
 
-	allowedUsers := []attr.Value{}
-	for _, user := range found.AllowedUsers {
-		allowedUsers = append(allowedUsers, types.StringValue(user.Username))
-	}
-
-	var diags diag.Diagnostics
-	state.AllowedUsers, diags = types.SetValue(types.StringType, allowedUsers)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
+	t.copyAccessRuleToState(ctx, found, &state, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	allowedServiceAccounts := []attr.Value{}
-	for _, serviceAccount := range found.AllowedServiceAccounts {
-		allowedServiceAccounts = append(allowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
-	}
-
-	state.AllowedServiceAccounts, diags = types.SetValue(types.StringType, allowedServiceAccounts)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	allowedTeams := []attr.Value{}
-	for _, team := range found.AllowedTeams {
-		allowedTeams = append(allowedTeams, types.StringValue(team.Name))
-	}
-
-	state.AllowedTeams, diags = types.SetValue(types.StringType, allowedTeams)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	state.ModuleAttestationPolicies, diags = t.toProviderAttestationPolicies(ctx, found.ModuleAttestationPolicies)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	state.VerifyStateLineage = types.BoolValue(found.VerifyStateLineage)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -420,7 +377,7 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		return
 	}
 
-	policies, err := t.copyAttestationPoliciesToInput(ctx, &plan.ModuleAttestationPolicies)
+	policies, err := t.copyAttestationPoliciesToProto(ctx, &plan.ModuleAttestationPolicies)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to copy module attestation policies to Tharsis input",
@@ -429,7 +386,7 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		return
 	}
 
-	allowedUsersInput, err := t.valueStrings(ctx, plan.AllowedUsers)
+	allowedUsersInput, err := t.resolveIDs(ctx, plan.AllowedUserIDs, plan.AllowedUsers, trn.TypeUser)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error while copying access rule AllowedUsers to Tharsis input",
@@ -438,7 +395,7 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		return
 	}
 
-	allowedServiceAccountsInput, err := t.valueStrings(ctx, plan.AllowedServiceAccounts)
+	allowedServiceAccountsInput, err := t.resolveIDs(ctx, plan.AllowedServiceAccountIDs, plan.AllowedServiceAccounts, trn.TypeServiceAccount)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error while copying access rule AllowedServiceAccounts to Tharsis input",
@@ -447,7 +404,7 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		return
 	}
 
-	allowedTeamsInput, err := t.valueStrings(ctx, plan.AllowedTeams)
+	allowedTeamsInput, err := t.resolveIDs(ctx, plan.AllowedTeamIDs, plan.AllowedTeams, trn.TypeTeam)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error while copying access rule AllowedTeams to Tharsis input",
@@ -459,9 +416,8 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	// Update the access rule via Tharsis.
 	// The ID is used to find the record to update.
 	// The other fields are modified.
-	toUpdate := &ttypes.UpdateManagedIdentityAccessRuleInput{
-		ID:                        plan.ID.ValueString(),
-		RunStage:                  ttypes.JobType(plan.RunStage.ValueString()),
+	toUpdate := &pb.UpdateManagedIdentityAccessRuleRequest{
+		Id:                        plan.ID.ValueString(),
 		AllowedUsers:              allowedUsersInput,
 		AllowedServiceAccounts:    allowedServiceAccountsInput,
 		AllowedTeams:              allowedTeamsInput,
@@ -469,10 +425,10 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	}
 
 	if !plan.VerifyStateLineage.IsNull() {
-		toUpdate.VerifyStateLineage = ptr.Bool(plan.VerifyStateLineage.ValueBool())
+		toUpdate.VerifyStateLineage = new(plan.VerifyStateLineage.ValueBool())
 	}
 
-	updated, err := t.client.ManagedIdentity.UpdateManagedIdentityAccessRule(ctx, toUpdate)
+	updated, err := t.client.ManagedIdentitiesClient.UpdateManagedIdentityAccessRule(ctx, toUpdate)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating managed identity access rule",
@@ -481,49 +437,8 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		return
 	}
 
-	// Copy fields returned by Tharsis to the plan.  Apparently, must copy all fields, not just the computed fields.
-	plan.RunStage = types.StringValue(string(updated.RunStage))
-	plan.Type = types.StringValue(string(updated.Type))
-
-	allowedUsers := []attr.Value{}
-	for _, user := range updated.AllowedUsers {
-		allowedUsers = append(allowedUsers, types.StringValue(user.Username))
-	}
-
-	var diags diag.Diagnostics
-	plan.AllowedUsers, diags = types.SetValue(types.StringType, allowedUsers)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	allowedServiceAccounts := []attr.Value{}
-	for _, serviceAccount := range updated.AllowedServiceAccounts {
-		allowedServiceAccounts = append(allowedServiceAccounts, types.StringValue(serviceAccount.ResourcePath))
-	}
-
-	plan.AllowedServiceAccounts, diags = types.SetValue(types.StringType, allowedServiceAccounts)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	allowedTeams := []attr.Value{}
-	for _, team := range updated.AllowedTeams {
-		allowedTeams = append(allowedTeams, types.StringValue(team.Name))
-	}
-
-	plan.AllowedTeams, diags = types.SetValue(types.StringType, allowedTeams)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	plan.VerifyStateLineage = types.BoolValue(updated.VerifyStateLineage)
-
-	plan.ModuleAttestationPolicies, diags = t.toProviderAttestationPolicies(ctx, updated.ModuleAttestationPolicies)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
+	t.copyAccessRuleToState(ctx, updated, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -543,14 +458,14 @@ func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
 
 	// Delete the access rule via Tharsis.
 	// The ID is used to find the record to delete.
-	err := t.client.ManagedIdentity.DeleteManagedIdentityAccessRule(ctx,
-		&ttypes.DeleteManagedIdentityAccessRuleInput{
-			ID: state.ID.ValueString(),
+	_, err := t.client.ManagedIdentitiesClient.DeleteManagedIdentityAccessRule(ctx,
+		&pb.DeleteManagedIdentityAccessRuleRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the access rule no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -570,6 +485,77 @@ func (t *managedIdentityAccessRuleResource) ImportState(ctx context.Context,
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 
 	// Setting of the ManagedIdentityID field during import is handled in the Read method.
+}
+
+// copyAccessRuleToState copies the proto access rule to the Terraform state model.
+func (t *managedIdentityAccessRuleResource) copyAccessRuleToState(
+	ctx context.Context,
+	src *pb.ManagedIdentityAccessRule,
+	dest *ManagedIdentityAccessRuleModel,
+	diags *diag.Diagnostics,
+) {
+	dest.ID = types.StringValue(src.Metadata.Id)
+	dest.Type = types.StringValue(src.Type)
+	dest.RunStage = types.StringValue(src.RunStage)
+	dest.ManagedIdentityID = types.StringValue(src.ManagedIdentityId)
+	dest.VerifyStateLineage = types.BoolValue(src.VerifyStateLineage)
+
+	var d diag.Diagnostics
+
+	allowedUsers := []attr.Value{}
+	for _, user := range src.AllowedUsers {
+		allowedUsers = append(allowedUsers, types.StringValue(user))
+	}
+	dest.AllowedUsers, d = types.SetValue(types.StringType, allowedUsers)
+	if d.HasError() {
+		diags.Append(d...)
+		return
+	}
+
+	dest.AllowedUserIDs, d = types.SetValue(types.StringType, allowedUsers)
+	if d.HasError() {
+		diags.Append(d...)
+		return
+	}
+
+	allowedServiceAccounts := []attr.Value{}
+	for _, sa := range src.AllowedServiceAccounts {
+		allowedServiceAccounts = append(allowedServiceAccounts, types.StringValue(sa))
+	}
+
+	dest.AllowedServiceAccounts, d = types.SetValue(types.StringType, allowedServiceAccounts)
+	if d.HasError() {
+		diags.Append(d...)
+		return
+	}
+
+	dest.AllowedServiceAccountIDs, d = types.SetValue(types.StringType, allowedServiceAccounts)
+	if d.HasError() {
+		diags.Append(d...)
+		return
+	}
+
+	allowedTeams := []attr.Value{}
+	for _, team := range src.AllowedTeams {
+		allowedTeams = append(allowedTeams, types.StringValue(team))
+	}
+
+	dest.AllowedTeams, d = types.SetValue(types.StringType, allowedTeams)
+	if d.HasError() {
+		diags.Append(d...)
+		return
+	}
+
+	dest.AllowedTeamIDs, d = types.SetValue(types.StringType, allowedTeams)
+	if d.HasError() {
+		diags.Append(d...)
+		return
+	}
+
+	dest.ModuleAttestationPolicies, d = t.toProviderAttestationPolicies(ctx, src.ModuleAttestationPolicies)
+	if d.HasError() {
+		diags.Append(d...)
+	}
 }
 
 // valueStrings converts a slice of types.String to a slice of strings.
@@ -592,9 +578,35 @@ func (t *managedIdentityAccessRuleResource) valueStrings(ctx context.Context, ar
 	return result, nil
 }
 
-// copyAttestationPoliciesToInput converts from ModuleAttestationPolicyModel to SDK equivalent.
-func (t *managedIdentityAccessRuleResource) copyAttestationPoliciesToInput(ctx context.Context, list *basetypes.ListValue) ([]ttypes.ManagedIdentityAccessRuleModuleAttestationPolicy, error) {
-	result := []ttypes.ManagedIdentityAccessRuleModuleAttestationPolicy{}
+// resolveIDs prefers the ID set; if empty, normalizes the deprecated path set using the given TRN type.
+// Returns an error if both are specified.
+func (t *managedIdentityAccessRuleResource) resolveIDs(ctx context.Context, ids, deprecated basetypes.SetValue, trnType trn.Type) ([]string, error) {
+	hasIDs := len(ids.Elements()) > 0
+	hasDeprecated := len(deprecated.Elements()) > 0
+
+	if hasIDs && hasDeprecated {
+		return nil, fmt.Errorf("cannot specify both ID and deprecated path fields for the same attribute")
+	}
+
+	if hasIDs {
+		return t.valueStrings(ctx, ids)
+	}
+
+	paths, err := t.valueStrings(ctx, deprecated)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, p := range paths {
+		paths[i] = trnType.Normalize(p)
+	}
+
+	return paths, nil
+}
+
+// copyAttestationPoliciesToProto converts from ModuleAttestationPolicyModel to proto equivalent.
+func (t *managedIdentityAccessRuleResource) copyAttestationPoliciesToProto(ctx context.Context, list *basetypes.ListValue) ([]*pb.ManagedIdentityAccessRuleModuleAttestationPolicy, error) {
+	var result []*pb.ManagedIdentityAccessRuleModuleAttestationPolicy
 
 	for _, element := range list.Elements() {
 		terraformValue, err := element.ToTerraformValue(ctx)
@@ -607,10 +619,15 @@ func (t *managedIdentityAccessRuleResource) copyAttestationPoliciesToInput(ctx c
 			return nil, err
 		}
 
-		result = append(result, ttypes.ManagedIdentityAccessRuleModuleAttestationPolicy{
-			PredicateType: model.PredicateType,
-			PublicKey:     model.PublicKey,
-		})
+		policy := &pb.ManagedIdentityAccessRuleModuleAttestationPolicy{
+			PublicKey: model.PublicKey,
+		}
+
+		if model.PredicateType != nil {
+			policy.PredicateType = model.PredicateType
+		}
+
+		result = append(result, policy)
 	}
 
 	// Terraform generally wants to see nil rather than an empty list.
@@ -621,9 +638,9 @@ func (t *managedIdentityAccessRuleResource) copyAttestationPoliciesToInput(ctx c
 	return result, nil
 }
 
-// toProviderAttestationPolicies converts from ManagedIdentityAccessRuleModuleAttestationPolicy to provider equivalent.
+// toProviderAttestationPolicies converts from proto to provider equivalent.
 func (t *managedIdentityAccessRuleResource) toProviderAttestationPolicies(ctx context.Context,
-	arg []ttypes.ManagedIdentityAccessRuleModuleAttestationPolicy,
+	arg []*pb.ManagedIdentityAccessRuleModuleAttestationPolicy,
 ) (basetypes.ListValue, diag.Diagnostics) {
 	policies := []types.Object{}
 

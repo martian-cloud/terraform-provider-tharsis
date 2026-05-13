@@ -4,15 +4,17 @@ import (
 	"context"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // WorkspaceVCSProviderLinkModel is the model for a workspace VCS provider link.
@@ -46,7 +48,7 @@ func NewWorkspaceVCSProviderLinkResource() resource.Resource {
 }
 
 type workspaceVCSProviderLinkResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -77,15 +79,18 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 			"workspace_id": schema.StringAttribute{
 				MarkdownDescription: "The ID of the workspace.",
 				Description:         "The ID of the workspace.",
+				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"workspace_path": schema.StringAttribute{
 				MarkdownDescription: "The resource path of the workspace.",
 				Description:         "The resource path of the workspace.",
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use workspace_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -169,48 +174,55 @@ func (t *workspaceVCSProviderLinkResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *workspaceVCSProviderLinkResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse,
 ) {
 	// Retrieve values from workspace VCS provider link.
-	var workspaceVCSProviderLink WorkspaceVCSProviderLinkModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &workspaceVCSProviderLink)...)
+	var link WorkspaceVCSProviderLinkModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &link)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	// Resolve workspace ID: prefer workspace_id, fall back to workspace_path.
+	var workspaceID string
+	if v := link.WorkspaceID.ValueString(); v != "" {
+		workspaceID = v
+	} else if v := link.WorkspacePath.ValueString(); v != "" {
+		workspaceID = trn.TypeWorkspace.Build(v)
+	} else {
+		resp.Diagnostics.AddError("Either workspace_id or workspace_path must be specified", "")
+		return
+	}
+
 	// Create the workspace VCS provider link.
-	var moduleDirectory *string
-	if workspaceVCSProviderLink.ModuleDirectory.ValueString() != "" {
-		moduleDirectory = ptr.String(workspaceVCSProviderLink.ModuleDirectory.ValueString())
+	input := &pb.CreateWorkspaceVCSProviderLinkRequest{
+		WorkspaceId:         workspaceID,
+		ProviderId:          link.VCSProviderID.ValueString(),
+		RepositoryPath:      link.RepositoryPath.ValueString(),
+		AutoSpeculativePlan: link.AutoSpeculativePlan.ValueBool(),
+		WebhookDisabled:     link.WebhookDisabled.ValueBool(),
 	}
-	var branch *string
-	if workspaceVCSProviderLink.Branch.ValueString() != "" {
-		branch = ptr.String(workspaceVCSProviderLink.Branch.ValueString())
+	if v := link.ModuleDirectory.ValueString(); v != "" {
+		input.ModuleDirectory = &v
 	}
-	var tagRegex *string
-	if workspaceVCSProviderLink.TagRegex.ValueString() != "" {
-		tagRegex = ptr.String(workspaceVCSProviderLink.TagRegex.ValueString())
+
+	if v := link.Branch.ValueString(); v != "" {
+		input.Branch = &v
 	}
-	globPatterns := []string{}
-	for _, gp := range workspaceVCSProviderLink.GlobPatterns {
-		globPatterns = append(globPatterns, gp.ValueString())
+
+	if v := link.TagRegex.ValueString(); v != "" {
+		input.TagRegex = &v
 	}
-	createResponse, err := t.client.WorkspaceVCSProviderLink.CreateLink(ctx,
-		&ttypes.CreateWorkspaceVCSProviderLinkInput{
-			ModuleDirectory:     moduleDirectory,
-			RepositoryPath:      workspaceVCSProviderLink.RepositoryPath.ValueString(),
-			WorkspacePath:       workspaceVCSProviderLink.WorkspacePath.ValueString(),
-			ProviderID:          workspaceVCSProviderLink.VCSProviderID.ValueString(),
-			Branch:              branch,
-			TagRegex:            tagRegex,
-			GlobPatterns:        globPatterns,
-			AutoSpeculativePlan: workspaceVCSProviderLink.AutoSpeculativePlan.ValueBool(),
-			WebhookDisabled:     workspaceVCSProviderLink.WebhookDisabled.ValueBool(),
-		})
+
+	for _, gp := range link.GlobPatterns {
+		input.GlobPatterns = append(input.GlobPatterns, gp.ValueString())
+	}
+
+	createResponse, err := t.client.VCSProvidersClient.CreateWorkspaceVCSProviderLink(ctx, input)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating workspace VCS provider link",
@@ -220,10 +232,10 @@ func (t *workspaceVCSProviderLinkResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyWorkspaceVCSProviderLink(createResponse.VCSProviderLink, &workspaceVCSProviderLink)
+	t.copyWorkspaceVCSProviderLink(createResponse.VcsProviderLink, &link)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
-	resp.Diagnostics.Append(resp.State.Set(ctx, workspaceVCSProviderLink)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, link)...)
 }
 
 func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
@@ -237,11 +249,12 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 	}
 
 	// Get the workspace VCS provider link from Tharsis.
-	found, err := t.client.WorkspaceVCSProviderLink.GetLink(ctx, &ttypes.GetWorkspaceVCSProviderLinkInput{
-		ID: state.ID.ValueString(),
-	})
+	found, err := t.client.VCSProvidersClient.GetWorkspaceVCSProviderLinkByID(ctx,
+		&pb.GetWorkspaceVCSProviderLinkByIDRequest{
+			Id: state.ID.ValueString(),
+		})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -254,7 +267,7 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyWorkspaceVCSProviderLink(*found, &state)
+	t.copyWorkspaceVCSProviderLink(found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -272,32 +285,29 @@ func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
 
 	// Update the workspace VCS provider link via Tharsis.
 	// The ID is used to find the record to update.
-	var moduleDirectory *string
-	if plan.ModuleDirectory.ValueString() != "" {
-		moduleDirectory = ptr.String(plan.ModuleDirectory.ValueString())
+	input := &pb.UpdateWorkspaceVCSProviderLinkRequest{
+		Id:                  plan.ID.ValueString(),
+		AutoSpeculativePlan: new(plan.AutoSpeculativePlan.ValueBool()),
+		WebhookDisabled:     new(plan.WebhookDisabled.ValueBool()),
 	}
-	var branch *string
-	if plan.Branch.ValueString() != "" {
-		branch = ptr.String(plan.Branch.ValueString())
+
+	if v := plan.ModuleDirectory.ValueString(); v != "" {
+		input.ModuleDirectory = &v
 	}
-	var tagRegex *string
-	if plan.TagRegex.ValueString() != "" {
-		tagRegex = ptr.String(plan.TagRegex.ValueString())
+
+	if v := plan.Branch.ValueString(); v != "" {
+		input.Branch = &v
 	}
-	globPatterns := []string{}
+
+	if v := plan.TagRegex.ValueString(); v != "" {
+		input.TagRegex = &v
+	}
+
 	for _, gp := range plan.GlobPatterns {
-		globPatterns = append(globPatterns, gp.ValueString())
+		input.GlobPatterns = append(input.GlobPatterns, gp.ValueString())
 	}
-	updated, err := t.client.WorkspaceVCSProviderLink.UpdateLink(ctx,
-		&ttypes.UpdateWorkspaceVCSProviderLinkInput{
-			ID:                  plan.ID.ValueString(),
-			ModuleDirectory:     moduleDirectory,
-			Branch:              branch,
-			TagRegex:            tagRegex,
-			GlobPatterns:        globPatterns,
-			AutoSpeculativePlan: plan.AutoSpeculativePlan.ValueBool(),
-			WebhookDisabled:     plan.WebhookDisabled.ValueBool(),
-		})
+
+	updated, err := t.client.VCSProvidersClient.UpdateWorkspaceVCSProviderLink(ctx, input)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating workspace VCS provider link",
@@ -307,7 +317,7 @@ func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyWorkspaceVCSProviderLink(*updated, &plan)
+	t.copyWorkspaceVCSProviderLink(updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -324,14 +334,14 @@ func (t *workspaceVCSProviderLinkResource) Delete(ctx context.Context,
 	}
 
 	// Delete the workspace VCS provider link via Tharsis.
-	_, err := t.client.WorkspaceVCSProviderLink.DeleteLink(ctx,
-		&ttypes.DeleteWorkspaceVCSProviderLinkInput{
-			ID: state.ID.ValueString(),
+	_, err := t.client.VCSProvidersClient.DeleteWorkspaceVCSProviderLink(ctx,
+		&pb.DeleteWorkspaceVCSProviderLinkRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the workspace VCS provider link no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -353,18 +363,27 @@ func (t *workspaceVCSProviderLinkResource) ImportState(ctx context.Context,
 
 // copyWorkspaceVCSProviderLink copies the contents of a workspace VCS provider link.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src ttypes.WorkspaceVCSProviderLink,
+func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src *pb.WorkspaceVCSProviderLink,
 	dest *WorkspaceVCSProviderLinkModel,
 ) {
-	dest.ID = types.StringValue(src.Metadata.ID)
-	dest.WorkspaceID = types.StringValue(src.WorkspaceID)
-	dest.WorkspacePath = types.StringValue(src.WorkspacePath)
-	dest.VCSProviderID = types.StringValue(src.VCSProviderID)
+	parsed := trn.MustParseAny(src.Metadata.Trn)
+	dest.ID = types.StringValue(src.Metadata.Id)
+	dest.WorkspaceID = types.StringValue(src.WorkspaceId)
+	dest.WorkspacePath = types.StringValue(parsed.ParentPath())
+	dest.VCSProviderID = types.StringValue(src.VcsProviderId)
 	dest.RepositoryPath = types.StringValue(src.RepositoryPath)
-	dest.WebhookID = t.stringValueFromStringPtr(src.WebhookID)
-	dest.ModuleDirectory = t.stringValueFromStringPtr(src.ModuleDirectory)
+	dest.WebhookID = types.StringValue(src.WebhookId)
+	if src.ModuleDirectory != nil {
+		dest.ModuleDirectory = types.StringValue(*src.ModuleDirectory)
+	} else {
+		dest.ModuleDirectory = types.StringNull()
+	}
 	dest.Branch = types.StringValue(src.Branch)
-	dest.TagRegex = t.stringValueFromStringPtr(src.TagRegex)
+	if src.TagRegex != nil {
+		dest.TagRegex = types.StringValue(*src.TagRegex)
+	} else {
+		dest.TagRegex = types.StringNull()
+	}
 	dest.GlobPatterns = []types.String{}
 	for _, gp := range src.GlobPatterns {
 		dest.GlobPatterns = append(dest.GlobPatterns, types.StringValue(gp))
@@ -373,14 +392,5 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src ttyp
 	dest.WebhookDisabled = types.BoolValue(src.WebhookDisabled)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
-}
-
-// stringValueFromStringPtr produces a types.StringValue from a *string that might be nil.
-func (t *workspaceVCSProviderLinkResource) stringValueFromStringPtr(sp *string) types.String {
-	if sp == nil {
-		return types.StringNull()
-	}
-
-	return types.StringValue(*sp)
+	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

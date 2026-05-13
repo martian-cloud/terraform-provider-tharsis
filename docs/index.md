@@ -21,7 +21,7 @@ provider "tharsis" {
 # # Tharsis provider using a service account
 # provider "tharsis" {
 #   host                  = "<tharsis_api_host>"
-#   service_account_path  = "<service_account_path>"
+#   service_account_id    = "<service_account_id>"
 #   service_account_token = "<service_account_token>"
 # }
 ```
@@ -32,6 +32,8 @@ provider "tharsis" {
 ### Optional
 
 - `host` (String) This is the hostname for the Tharsis API (e.g. https://tharsis.example.com).
-- `service_account_path` (String) A Service account path to use for authenticating with the Tharsis API.
+- `service_account_id` (String) A Service account ID (TRN or GID) to use for authenticating with the Tharsis API.
+- `service_account_path` (String, Deprecated) A Service account path to use for authenticating with the Tharsis API.
 - `service_account_token` (String) A Service account token to use for authenticating with the Tharsis API.
 - `static_token` (String) A static token to use to authenticate with the Tharsis API.
+- `tls_skip_verify` (Boolean) Skip TLS certificate verification when connecting to the Tharsis API. For development use only.

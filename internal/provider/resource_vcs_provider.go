@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -12,8 +11,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	tharsis "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg"
-	ttypes "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-sdk-go/pkg/types"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // VCSProviderModel is the model for a VCS provider.
@@ -24,6 +26,7 @@ type VCSProviderModel struct {
 	Name                  types.String `tfsdk:"name"`
 	Description           types.String `tfsdk:"description"`
 	GroupPath             types.String `tfsdk:"group_path"`
+	GroupID               types.String `tfsdk:"group_id"`
 	ID                    types.String `tfsdk:"id"`
 	URL                   types.String `tfsdk:"url"`
 	Type                  types.String `tfsdk:"type"`
@@ -46,7 +49,7 @@ func NewVCSProviderResource() resource.Resource {
 }
 
 type vcsProviderResource struct {
-	client *tharsis.Client
+	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
@@ -97,15 +100,27 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"group_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the group where this VCS provider resides.",
 				Description:         "The path of the group where this VCS provider resides.",
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"group_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the parent group.",
+				Description:         "The ID of the parent group.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "The path within the Tharsis group hierarchy to this VCS provider.",
 				Description:         "The path within the Tharsis group hierarchy to this VCS provider.",
 				Computed:            true,
+				DeprecationMessage:  "Use the id field instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -140,14 +155,12 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description:         "A description of the VCS provider.",
 				Required:            true,
 				// Can be updated in place, so no RequiresReplace plan modifier.
-				// Is write-only, so will not be set after import.
 			},
 			"oauth_client_secret": schema.StringAttribute{
 				MarkdownDescription: "A description of the VCS provider.",
 				Description:         "A description of the VCS provider.",
 				Required:            true,
 				// Can be updated in place, so no RequiresReplace plan modifier.
-				// Is write-only, so will not be set after import.
 			},
 			"oauth_authorization_url": schema.StringAttribute{
 				MarkdownDescription: "URL to use to complete OAuth flow for any links to this VCS provider.",
@@ -171,7 +184,7 @@ func (t *vcsProviderResource) Configure(_ context.Context,
 	if req.ProviderData == nil {
 		return
 	}
-	t.client = req.ProviderData.(*tharsis.Client)
+	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
 func (t *vcsProviderResource) Create(ctx context.Context,
@@ -185,17 +198,28 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 	}
 
 	// Create the VCS provider.
-	createResponse, err := t.client.VCSProvider.CreateProvider(ctx,
-		&ttypes.CreateVCSProviderInput{
-			Name:               vcsProvider.Name.ValueString(),
-			Description:        vcsProvider.Description.ValueString(),
-			GroupPath:          vcsProvider.GroupPath.ValueString(),
-			URL:                ptr.String(vcsProvider.URL.ValueString()),
-			Type:               ttypes.VCSProviderType(vcsProvider.Type.ValueString()),
-			AutoCreateWebhooks: vcsProvider.AutoCreateWebhooks.ValueBool(),
-			OAuthClientID:      vcsProvider.OAuthClientID.ValueString(),
-			OAuthClientSecret:  vcsProvider.OAuthClientSecret.ValueString(),
-		})
+	var groupID string
+	if v := vcsProvider.GroupID.ValueString(); v != "" {
+		groupID = v
+	} else if v := vcsProvider.GroupPath.ValueString(); v != "" {
+		groupID = trn.TypeGroup.Build(v)
+	} else {
+		resp.Diagnostics.AddError("Either group_id or group_path must be specified", "")
+		return
+	}
+
+	input := &pb.CreateVCSProviderRequest{
+		Name:               vcsProvider.Name.ValueString(),
+		Description:        vcsProvider.Description.ValueString(),
+		GroupId:            groupID,
+		Url:                new(vcsProvider.URL.ValueString()),
+		Type:               pb.VCSProviderType(pb.VCSProviderType_value[vcsProvider.Type.ValueString()]),
+		AutoCreateWebhooks: vcsProvider.AutoCreateWebhooks.ValueBool(),
+		OauthClientId:      vcsProvider.OAuthClientID.ValueString(),
+		OauthClientSecret:  vcsProvider.OAuthClientSecret.ValueString(),
+	}
+
+	createResponse, err := t.client.VCSProvidersClient.CreateVCSProvider(ctx, input)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating VCS provider",
@@ -205,8 +229,8 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyVCSProvider(*createResponse.VCSProvider, &vcsProvider)
-	vcsProvider.OAuthAuthorizationURL = types.StringValue(createResponse.OAuthAuthorizationURL)
+	t.copyVCSProvider(createResponse.VcsProvider, &vcsProvider)
+	vcsProvider.OAuthAuthorizationURL = types.StringValue(createResponse.OauthAuthorizationUrl)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, vcsProvider)...)
@@ -223,11 +247,12 @@ func (t *vcsProviderResource) Read(ctx context.Context,
 	}
 
 	// Get the VCS provider from Tharsis.
-	found, err := t.client.VCSProvider.GetProvider(ctx, &ttypes.GetVCSProviderInput{
-		ID: state.ID.ValueString(),
-	})
+	found, err := t.client.VCSProvidersClient.GetVCSProviderByID(ctx,
+		&pb.GetVCSProviderByIDRequest{
+			Id: state.ID.ValueString(),
+		})
 	if err != nil {
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -240,7 +265,7 @@ func (t *vcsProviderResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyVCSProvider(*found, &state)
+	t.copyVCSProvider(found, &state)
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -258,13 +283,19 @@ func (t *vcsProviderResource) Update(ctx context.Context,
 
 	// Update the VCS provider via Tharsis.
 	// The ID is used to find the record to update.
-	updated, err := t.client.VCSProvider.UpdateProvider(ctx,
-		&ttypes.UpdateVCSProviderInput{
-			ID:                plan.ID.ValueString(),
-			Description:       ptr.String(plan.Description.ValueString()),
-			OAuthClientID:     ptr.String(plan.OAuthClientID.ValueString()),
-			OAuthClientSecret: ptr.String(plan.OAuthClientSecret.ValueString()),
-		})
+	updateReq := &pb.UpdateVCSProviderRequest{
+		Id:          plan.ID.ValueString(),
+		Description: new(plan.Description.ValueString()),
+	}
+
+	if v := plan.OAuthClientID.ValueString(); v != "" {
+		updateReq.OauthClientId = &v
+	}
+	if v := plan.OAuthClientSecret.ValueString(); v != "" {
+		updateReq.OauthClientSecret = &v
+	}
+
+	updated, err := t.client.VCSProvidersClient.UpdateVCSProvider(ctx, updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating VCS provider",
@@ -274,7 +305,7 @@ func (t *vcsProviderResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyVCSProvider(*updated, &plan)
+	t.copyVCSProvider(updated, &plan)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -291,14 +322,14 @@ func (t *vcsProviderResource) Delete(ctx context.Context,
 	}
 
 	// Delete the VCS provider via Tharsis.
-	_, err := t.client.VCSProvider.DeleteProvider(ctx,
-		&ttypes.DeleteVCSProviderInput{
-			ID: state.ID.ValueString(),
+	_, err := t.client.VCSProvidersClient.DeleteVCSProvider(ctx,
+		&pb.DeleteVCSProviderRequest{
+			Id: state.ID.ValueString(),
 		})
 	if err != nil {
 
 		// Handle the case that the VCS provider no longer exists.
-		if tharsis.IsNotFoundError(err) {
+		if status.Code(err) == codes.NotFound {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -320,15 +351,17 @@ func (t *vcsProviderResource) ImportState(ctx context.Context,
 
 // copyVCSProvider copies the contents of a VCS provider.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSProviderModel) {
-	dest.ID = types.StringValue(src.Metadata.ID)
+func (t *vcsProviderResource) copyVCSProvider(src *pb.VCSProvider, dest *VCSProviderModel) {
+	parsed := trn.MustParseAny(src.Metadata.Trn)
+	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.Name = types.StringValue(src.Name)
 	dest.CreatedBy = types.StringValue(src.CreatedBy)
 	dest.Description = types.StringValue(src.Description)
-	dest.URL = types.StringValue(src.URL)
-	dest.GroupPath = types.StringValue(src.GroupPath)
-	dest.ResourcePath = types.StringValue(src.ResourcePath)
-	dest.Type = types.StringValue(string(src.Type))
+	dest.URL = types.StringValue(src.Url)
+	dest.GroupPath = types.StringValue(parsed.ParentPath())
+	dest.GroupID = types.StringValue(src.GroupId)
+	dest.ResourcePath = types.StringValue(parsed.Path())
+	dest.Type = types.StringValue(src.Type)
 	dest.AutoCreateWebhooks = types.BoolValue(src.AutoCreateWebhooks)
 	// The OAuthClientID and OAuthClientSecret fields are write-only to the Tharsis SDK, so no copying here.
 	// For the create operation, the OAuthAuthorizationURL field must be assigned by the caller.
@@ -336,5 +369,5 @@ func (t *vcsProviderResource) copyVCSProvider(src ttypes.VCSProvider, dest *VCSP
 	dest.OAuthAuthorizationURL = types.StringValue("")
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.LastUpdatedTimestamp.Format(time.RFC850))
+	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

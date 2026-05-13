@@ -5,7 +5,7 @@ Use the Tharsis Provider to interact with Tharsis resources.
 ## Requirements
 
 - [Terraform](https://www.terraform.io/downloads.html) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.17
+- [Go](https://golang.org/doc/install) >= 1.26
 
 ## Building The Provider
 
@@ -49,19 +49,22 @@ For a service account it would look like this:
 ```hcl
 provider "tharsis" {
     host = "https://tharsis.example.com"
-    service_account_path = "my-service_account-path"
+    service_account_id = "trn:service_account:my-group/my-service-account"
     service_account_token = "my-service-account-token"
 }
 ```
 
+> **Note:** `service_account_path` is deprecated. Use `service_account_id` (TRN or GID) instead.
+
 Alternatively, you can provide these values by environment variables.
 
-| Environment Variable            | Definition                                                |
-| ------------------------------- | --------------------------------------------------------- |
-| `THARSIS_ENDPOINT`              | The host for Tharsis.                                     |
-| `THARSIS_STATIC_TOKEN`          | The static token to use with the provider.                |
-| `THARSIS_SERVICE_ACCOUNT_PATH`  | The service account's full path to use with the provider. |
-| `THARSIS_SERVICE_ACCOUNT_TOKEN` | The service account token to use with the provider.       |
+| Environment Variable            | Definition                                                       |
+| ------------------------------- | ---------------------------------------------------------------- |
+| `THARSIS_ENDPOINT`              | The host for Tharsis.                                            |
+| `THARSIS_STATIC_TOKEN`          | The static token to use with the provider.                       |
+| `THARSIS_SERVICE_ACCOUNT_ID`    | The service account's ID (TRN or GID) to use with the provider.  |
+| `THARSIS_SERVICE_ACCOUNT_PATH`  | Deprecated: The service account's full path. Use the ID instead. |
+| `THARSIS_SERVICE_ACCOUNT_TOKEN` | The service account token to use with the provider.              |
 
 The provider block values take precedence over environment variables. It is recommended to use configuration values to define the provider over environment variables, especially if you are defining the provider more than once.
 
@@ -89,7 +92,7 @@ If you've discovered a security vulnerability in the Terraform Tharsis Provider,
 
 ## Statement of support
 
-Please submit any bugs or feature requests for Tharsis.  Of course, MR's are even better.  :)
+Please submit any bugs or feature requests for Tharsis. Of course, MR's are even better. :)
 
 ## License
 
