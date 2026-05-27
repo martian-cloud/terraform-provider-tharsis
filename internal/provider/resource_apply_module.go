@@ -599,7 +599,7 @@ func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID st
 				return fmt.Errorf("failed to get job ID %s", jobID)
 			}
 
-			if job.Status == "finished" {
+			if job.Status == pb.JobStatus_finished {
 				return nil
 			}
 		}
