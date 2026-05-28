@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestAccWorkspaceOutputsDataSource(t *testing.T) {
@@ -63,6 +64,91 @@ data "tharsis_workspace_outputs" "by_uuid" {
   id = tharsis_workspace.test.id
 }
 `, testSharedProviderConfiguration(), groupName, workspaceName)
+}
+
+func Test_outputConversion(t *testing.T) {
+	tests := []struct {
+		name        string
+		outputType  cty.Type
+		outputValue []byte
+		wantValue   string
+		wantErr     bool
+	}{
+		{
+			name:        "string output is included",
+			outputType:  cty.String,
+			outputValue: []byte(`"hello"`),
+			wantValue:   "hello",
+		},
+		{
+			name:        "bool true output is included",
+			outputType:  cty.Bool,
+			outputValue: []byte(`true`),
+			wantValue:   "true",
+		},
+		{
+			name:        "bool false output is included",
+			outputType:  cty.Bool,
+			outputValue: []byte(`false`),
+			wantValue:   "false",
+		},
+		{
+			name:        "number output is included",
+			outputType:  cty.Number,
+			outputValue: []byte(`42`),
+			wantValue:   "42",
+		},
+		{
+			name:        "null bool output is empty string",
+			outputType:  cty.Bool,
+			outputValue: []byte(`null`),
+			wantValue:   "",
+		},
+		{
+			name:        "null number output is empty string",
+			outputType:  cty.Number,
+			outputValue: []byte(`null`),
+			wantValue:   "",
+		},
+		{
+			name:        "null string output is empty string",
+			outputType:  cty.String,
+			outputValue: []byte(`null`),
+			wantValue:   "",
+		},
+		{
+			name:        "large number output",
+			outputType:  cty.Number,
+			outputValue: []byte(`1e+20`),
+			wantValue:   "100000000000000000000",
+		},
+		{
+			name:        "unsupported type returns error",
+			outputType:  cty.DynamicPseudoType,
+			outputValue: []byte(`"anything"`),
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value, err := convertOutputToString(tt.outputType, tt.outputValue)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if value != tt.wantValue {
+				t.Errorf("got %q, want %q", value, tt.wantValue)
+			}
+		})
+	}
 }
 
 func Test_resolvePath(t *testing.T) {

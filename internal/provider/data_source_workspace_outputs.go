@@ -189,53 +189,61 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 		}
 
 		for _, output := range outputsResp.StateVersionOutputs {
-			outputType, err := ctyjson.UnmarshalType(output.Type)
-			if err != nil {
-				resp.Diagnostics.AddError(
-					fmt.Sprintf("Failed to parse type from output \"%s\"", output.Name),
-					err.Error(),
-				)
-				return
-			}
-
 			if !t.isJSONEncoded {
+				outputType, err := ctyjson.UnmarshalType(output.Type)
+				if err != nil {
+					resp.Diagnostics.AddError(
+						fmt.Sprintf("Failed to parse type from output %q", output.Name),
+						err.Error(),
+					)
+					return
+				}
+
 				switch outputType {
-				// Currently Strings are only supported
-				case cty.String:
+				case cty.String, cty.Bool, cty.Number:
 				default:
-					// Unsupported types for non-json encoded provider need to be skipped
+					resp.Diagnostics.AddWarning(
+						fmt.Sprintf("Skipping output %q", output.Name),
+						fmt.Sprintf("Output %q has a complex type that is not supported by tharsis_workspace_outputs. Use tharsis_workspace_outputs_json instead.", output.Name),
+					)
 					continue
 				}
-			}
 
-			outputValue, err := ctyjson.Unmarshal(output.Value, outputType)
-			if err != nil {
-				resp.Diagnostics.AddError(
-					fmt.Sprintf("Failed to parse value from output \"%s\"", output.Name),
-					err.Error(),
-				)
-				return
-			}
-
-			b, err := ctyjson.Marshal(outputValue, outputType)
-			if err != nil {
-				resp.Diagnostics.AddError(
-					fmt.Sprintf("Fail to parse value from output \"%s\"", output.Name),
-					err.Error(),
-				)
-			}
-
-			if !t.isJSONEncoded {
-				var s string
-				if err := json.Unmarshal(b, &s); err != nil {
+				s, err := convertOutputToString(outputType, output.Value)
+				if err != nil {
 					resp.Diagnostics.AddError(
-						fmt.Sprintf("Failed to parse value from output \"%s\"", output.Name),
+						fmt.Sprintf("Failed to parse output %q", output.Name),
 						err.Error(),
 					)
 					return
 				}
 				data.Outputs[output.Name] = s
 			} else {
+				outputType, err := ctyjson.UnmarshalType(output.Type)
+				if err != nil {
+					resp.Diagnostics.AddError(
+						fmt.Sprintf("Failed to parse type from output %q", output.Name),
+						err.Error(),
+					)
+					return
+				}
+
+				outputValue, err := ctyjson.Unmarshal(output.Value, outputType)
+				if err != nil {
+					resp.Diagnostics.AddError(
+						fmt.Sprintf("Failed to parse value from output %q", output.Name),
+						err.Error(),
+					)
+					return
+				}
+
+				b, err := ctyjson.Marshal(outputValue, outputType)
+				if err != nil {
+					resp.Diagnostics.AddError(
+						fmt.Sprintf("Failed to parse value from output %q", output.Name),
+						err.Error(),
+					)
+				}
 				data.Outputs[output.Name] = string(b)
 			}
 		}
@@ -251,6 +259,38 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+// convertOutputToString converts a state version output with a primitive type
+// (string, bool, number) to its string representation.
+func convertOutputToString(outputType cty.Type, valueBytes []byte) (string, error) {
+	outputValue, err := ctyjson.Unmarshal(valueBytes, outputType)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse value: %w", err)
+	}
+
+	b, err := ctyjson.Marshal(outputValue, outputType)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal value: %w", err)
+	}
+
+	switch outputType {
+	case cty.String:
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return "", fmt.Errorf("failed to parse string value: %w", err)
+		}
+		return s, nil
+
+	case cty.Bool, cty.Number:
+		raw := string(b)
+		if raw == "null" {
+			return "", nil
+		}
+		return raw, nil
+	}
+
+	return "", fmt.Errorf("unsupported type")
 }
 
 func resolvePath(path string) (string, error) {
