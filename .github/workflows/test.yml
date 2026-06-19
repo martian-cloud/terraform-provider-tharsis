@@ -102,17 +102,31 @@ jobs:
           TF_ACC: "1"
           THARSIS_ENDPOINT: http://localhost:8000
         run: |
-          THARSIS_STATIC_TOKEN=$(curl -s -X POST 'http://localhost:8000/oauth/login' \
+          # Log in using the OAuth2 resource owner password credentials grant.
+          THARSIS_STATIC_TOKEN=$(curl -s -X POST 'http://localhost:8000/oauth/token' \
           -H 'Content-Type: application/x-www-form-urlencoded' \
+          --data-urlencode 'grant_type=password' \
+          --data-urlencode 'client_id=tharsis' \
           --data-urlencode 'username=martian' \
           --data-urlencode 'password=martian' \
-          --data-urlencode 'client_id=tharsis' \
-          --data-urlencode 'redirect_uri=http://localhost:3000/callback' \
-          --data-urlencode 'response_type=code' \
-          --data-urlencode 'state=test' \
-          --data-urlencode 'scope=openid tharsis' \
-          --data-urlencode 'code_challenge=test_challenge' \
-          --data-urlencode 'code_challenge_method=S256' \
-          -D - | grep 'tharsis_access_token=' | sed 's/.*tharsis_access_token=\([^;]*\).*/\1/')
+          --data-urlencode 'scope=openid tharsis' | jq -r '.access_token')
+
+          if [ -z "$THARSIS_STATIC_TOKEN" ] || [ "$THARSIS_STATIC_TOKEN" = "null" ]; then
+            echo "Failed to obtain access token"
+            exit 1
+          fi
           export THARSIS_STATIC_TOKEN
+
+          # Activate admin mode for the logged-in user.
+          ADMIN_MODE_RESPONSE=$(curl -s -X POST 'http://localhost:8000/graphql' \
+          -H "Authorization: Bearer ${THARSIS_STATIC_TOKEN}" \
+          -H 'Content-Type: application/json' \
+          --data '{"query":"mutation { activateAdminMode(input: {}) { problems { message type } } }"}')
+
+          echo "Activate admin mode response: ${ADMIN_MODE_RESPONSE}"
+          if [ "$(echo "$ADMIN_MODE_RESPONSE" | jq '((.errors // []) | length) + ((.data.activateAdminMode.problems // []) | length)')" != "0" ]; then
+            echo "Failed to activate admin mode"
+            exit 1
+          fi
+
           go test -v -cover ./internal/provider/
