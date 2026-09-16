@@ -23,7 +23,7 @@ Defines and manages a group.
 
 - `description` (String) A description of the group.
 - `parent_id` (String) The ID of the parent group.
-- `parent_path` (String, Deprecated) Full path of the parent namespace.
+- `parent_path` (String) Full path of the parent namespace.
 
 ### Read-Only
 

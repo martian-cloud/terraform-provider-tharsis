@@ -113,9 +113,11 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
 				Optional:            true,
+				Computed:            true,
 				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"group_id": schema.StringAttribute{
