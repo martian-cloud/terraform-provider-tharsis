@@ -89,9 +89,11 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				MarkdownDescription: "Full path of the group where alias will be created.",
 				Description:         "Full path of the group where alias will be created.",
 				Optional:            true,
+				Computed:            true,
 				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"group_id": schema.StringAttribute{
