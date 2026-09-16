@@ -301,6 +301,8 @@ func (t *groupResource) copyGroup(src *pb.Group, dest *GroupModel) {
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	if parsed.HasParent() {
 		dest.ParentPath = types.StringValue(parsed.ParentPath())
+	} else {
+		dest.ParentPath = types.StringNull()
 	}
 	if src.ParentId != "" {
 		dest.ParentID = types.StringValue(src.ParentId)
