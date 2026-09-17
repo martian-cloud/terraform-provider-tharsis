@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -212,6 +213,36 @@ func TestManagedIdentityTharsis(t *testing.T) {
 			// Destroy should be covered automatically by TestCase.
 		},
 	})
+}
+
+// TestManagedIdentityInvalidType tests that an unsupported type value produces a validation error.
+func TestManagedIdentityInvalidType(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testSharedProviderConfiguration() + testManagedIdentityInvalidTypeConfiguration(),
+				ExpectError: regexp.MustCompile(`(?s)Attribute type value must be one of:.*got: "invalid_type"`),
+			},
+		},
+	})
+}
+
+func testManagedIdentityInvalidTypeConfiguration() string {
+	createName := "tmi_invalid_type_name"
+	createDescription := "this is tmi_invalid_type, a managed identity with an unsupported type"
+	return fmt.Sprintf(`
+
+%s
+
+resource "tharsis_managed_identity" "tmi_invalid_type" {
+	type        = "invalid_type"
+	name        = "%s"
+	description = "%s"
+	group_path  = tharsis_group.root-group.full_path
+}
+
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, createDescription)
 }
 
 func testManagedIdentityAWSConfigurationCreate() string {

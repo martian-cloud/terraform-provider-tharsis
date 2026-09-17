@@ -100,9 +100,11 @@ func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequ
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
 				Optional:            true,
+				Computed:            true,
 				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"group_id": schema.StringAttribute{

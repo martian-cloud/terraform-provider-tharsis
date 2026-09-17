@@ -81,9 +81,11 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				MarkdownDescription: "The path of the group where this Terraform provider resides.",
 				Description:         "The path of the group where this Terraform provider resides.",
 				Optional:            true,
+				Computed:            true,
 				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"group_id": schema.StringAttribute{

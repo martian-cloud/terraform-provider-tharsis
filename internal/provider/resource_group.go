@@ -88,9 +88,10 @@ func (t *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				MarkdownDescription: "Full path of the parent namespace.",
 				Description:         "Full path of the parent namespace.",
 				Optional:            true, // A root group has no parent path.
-				DeprecationMessage:  "Use parent_id instead. This field will be removed in a future version.",
+				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"parent_id": schema.StringAttribute{
@@ -300,6 +301,8 @@ func (t *groupResource) copyGroup(src *pb.Group, dest *GroupModel) {
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	if parsed.HasParent() {
 		dest.ParentPath = types.StringValue(parsed.ParentPath())
+	} else {
+		dest.ParentPath = types.StringNull()
 	}
 	if src.ParentId != "" {
 		dest.ParentID = types.StringValue(src.ParentId)

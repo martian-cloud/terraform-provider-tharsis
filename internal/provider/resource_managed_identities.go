@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
 	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
@@ -102,6 +104,13 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{
+					stringvalidator.OneOf(
+						pb.ManagedIdentityType_aws_federated.String(),
+						pb.ManagedIdentityType_azure_federated.String(),
+						pb.ManagedIdentityType_tharsis_federated.String(),
+					),
+				},
 			},
 			"resource_path": schema.StringAttribute{
 				MarkdownDescription: "The path of the parent group plus the name of the managed identity.",
@@ -130,9 +139,11 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				MarkdownDescription: "Full path of the parent group.",
 				Description:         "Full path of the parent group.",
 				Optional:            true,
+				Computed:            true,
 				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"group_id": schema.StringAttribute{

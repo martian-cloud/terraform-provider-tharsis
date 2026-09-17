@@ -101,9 +101,11 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "The path of the group where this VCS provider resides.",
 				Description:         "The path of the group where this VCS provider resides.",
 				Optional:            true,
+				Computed:            true,
 				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"group_id": schema.StringAttribute{

@@ -99,9 +99,10 @@ func (t *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				MarkdownDescription: "Path of the parent group.",
 				Description:         "Path of the parent group.",
 				Optional:            true,
-				DeprecationMessage:  "Use group_id instead. This field will be removed in a future version.",
+				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"group_id": schema.StringAttribute{

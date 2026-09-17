@@ -66,7 +66,6 @@ func (t workspaceOutputsDataSource) Schema(_ context.Context, _ datasource.Schem
 				MarkdownDescription: "The path of the workspace to retrieve outputs.",
 				Description:         "The path of the workspace to retrieve outputs.",
 				Optional:            true,
-				DeprecationMessage:  "Use id instead. This field will be removed in a future version.",
 			},
 			"full_path": schema.StringAttribute{
 				MarkdownDescription: "The full path of the workspace.",
