@@ -57,8 +57,8 @@ func (t workspaceOutputsDataSource) Schema(_ context.Context, _ datasource.Schem
 		Description:         description,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "The ID (UUID or TRN) of the workspace to retrieve outputs.",
-				Description:         "The ID (UUID or TRN) of the workspace to retrieve outputs.",
+				MarkdownDescription: "The ID or TRN of the workspace to retrieve outputs.",
+				Description:         "The ID or TRN of the workspace to retrieve outputs.",
 				Optional:            true,
 				Computed:            true,
 			},
@@ -128,7 +128,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	if !hasID && !hasPath {
 		resp.Diagnostics.AddError(
 			"Either ID or Path is required",
-			"Either 'id' (UUID or TRN) or 'path' must be provided",
+			"Either 'id' (ID or TRN) or 'path' must be provided",
 		)
 		return
 	}

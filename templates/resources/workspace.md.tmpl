@@ -1,0 +1,29 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- A workspace holds a Terraform deployment. It plans, applies, or destroys the infrastructure defined by a Terraform module, and stores the resulting state, variables, outputs, and run history.
+- A workspace runs one job at a time, in first-in, first-out order.
+- Variables, managed identities, service accounts, and VCS providers set on a parent group are inherited by the workspace.
+- A name may contain digits, lowercase letters, hyphens, and underscores, and cannot start or end with a hyphen or underscore. It cannot be changed after creation.
+
+## Deletion
+
+Deleting a workspace is irreversible. It permanently removes the workspace's runs, state files, and outputs.
+
+{{ .SchemaMarkdown | trimspace }}

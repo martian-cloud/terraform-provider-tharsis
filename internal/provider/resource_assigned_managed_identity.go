@@ -61,16 +61,16 @@ func (t *assignedManagedIdentityResource) Schema(_ context.Context, _ resource.S
 				},
 			},
 			"managed_identity_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the assigned managed identity.",
-				Description:         "The ID of the assigned managed identity.",
+				MarkdownDescription: "The ID or TRN of the assigned managed identity.",
+				Description:         "The ID or TRN of the assigned managed identity.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"workspace_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the assigned-to workspace.",
-				Description:         "The ID of the assigned-to workspace.",
+				MarkdownDescription: "The ID or TRN of the assigned-to workspace.",
+				Description:         "The ID or TRN of the assigned-to workspace.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

@@ -109,8 +109,8 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				},
 			},
 			"group_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the parent group.",
-				Description:         "The ID of the parent group.",
+				MarkdownDescription: "The ID or TRN of the parent group.",
+				Description:         "The ID or TRN of the parent group.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{

@@ -154,8 +154,8 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				},
 			},
 			"workspace_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the workspace.",
-				Description:         "The ID of the workspace.",
+				MarkdownDescription: "The ID or TRN of the workspace.",
+				Description:         "The ID or TRN of the workspace.",
 				Optional:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

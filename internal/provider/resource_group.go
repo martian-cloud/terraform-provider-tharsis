@@ -95,8 +95,8 @@ func (t *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				},
 			},
 			"parent_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the parent group.",
-				Description:         "The ID of the parent group.",
+				MarkdownDescription: "The ID or TRN of the parent group.",
+				Description:         "The ID or TRN of the parent group.",
 				Optional:            true, // A root group has no parent.
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{

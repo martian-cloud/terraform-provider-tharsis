@@ -1,0 +1,25 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- A provider address has the form `hostname/namespace/type`, where the namespace is the path of the group that contains the provider.
+- The name is the provider type. It may contain digits, lowercase letters, hyphens, and underscores, and cannot start or end with a hyphen or underscore. It must be unique within the group.
+- Provider versions must follow Semantic Versioning 2.0 and are not managed by this resource.
+- Uploading provider versions requires a GPG key to have been added to the group. See `tharsis_gpg_key`.
+
+{{ .SchemaMarkdown | trimspace }}

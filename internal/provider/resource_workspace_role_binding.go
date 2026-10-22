@@ -67,8 +67,8 @@ func (t *workspaceRoleBindingResource) Schema(_ context.Context, _ resource.Sche
 				},
 			},
 			"workspace_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the workspace this role binding applies to.",
-				Description:         "The ID of the workspace this role binding applies to.",
+				MarkdownDescription: "The ID or TRN of the workspace this role binding applies to.",
+				Description:         "The ID or TRN of the workspace this role binding applies to.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

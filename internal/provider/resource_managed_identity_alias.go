@@ -97,8 +97,8 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				},
 			},
 			"group_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the group where alias will be created.",
-				Description:         "The ID of the group where alias will be created.",
+				MarkdownDescription: "The ID or TRN of the group where alias will be created.",
+				Description:         "The ID or TRN of the group where alias will be created.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
@@ -112,8 +112,8 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				Computed:            true,
 			},
 			"alias_source_id": schema.StringAttribute{
-				MarkdownDescription: "ID of the managed identity being aliased.",
-				Description:         "ID of the managed identity being aliased.",
+				MarkdownDescription: "The ID or TRN of the managed identity being aliased.",
+				Description:         "The ID or TRN of the managed identity being aliased.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{

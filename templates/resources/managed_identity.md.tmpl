@@ -1,0 +1,33 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- A managed identity assumes cloud provider credentials through OIDC federation, so no credentials are stored.
+- The `type` determines which other attributes are required:
+  - `aws_federated` requires `aws_role`.
+  - `azure_federated` requires `azure_client_id` and `azure_tenant_id`.
+  - `tharsis_federated` requires `tharsis_service_account_path`.
+- A managed identity is created in a group and inherited by its child groups. Inheritance does not assign it: each workspace must be assigned the identity, for example with `tharsis_assigned_managed_identity`.
+- By default, anyone with deployer access to the identity can assume it. Use `tharsis_managed_identity_access_rule` to restrict this.
+- A name cannot be changed after creation. Only the description and provider configuration can be edited.
+
+## Permissions
+
+Only the owner role can create, update, or delete managed identities.
+
+{{ .SchemaMarkdown | trimspace }}

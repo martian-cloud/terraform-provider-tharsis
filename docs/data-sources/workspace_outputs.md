@@ -58,7 +58,7 @@ output "str" {
 
 ### Optional
 
-- `id` (String) The ID (UUID or TRN) of the workspace to retrieve outputs.
+- `id` (String) The ID or TRN of the workspace to retrieve outputs.
 - `path` (String) The path of the workspace to retrieve outputs.
 
 ### Read-Only

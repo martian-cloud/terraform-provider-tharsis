@@ -1,0 +1,33 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- By default, anyone with deployer access to a managed identity can assume it. Access rules restrict this.
+- Rules of the same type are combined with OR logic: one match is enough. Rules of different types are combined with AND logic: at least one rule of each type must match.
+- A rule applies to one run stage, `plan` or `apply`. If no rule exists for a stage, any principal may assume the identity for that stage.
+
+## Rule types
+
+- `eligible_principals` limits use to specific users, teams, or service accounts, given by `allowed_user_ids`, `allowed_team_ids`, and `allowed_service_account_ids`.
+- `module_attestation` requires the root module to carry an attestation signed with the public key of one of the `module_attestation_policies`. This is supported only for modules in the Tharsis registry.
+
+## State lineage
+
+When `verify_state_lineage` is true, the rule also verifies that the workspace's current state came from the same module source. It defaults to false.
+
+{{ .SchemaMarkdown | trimspace }}

@@ -1,0 +1,24 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- A managed identity inherited from a group is not assigned to workspaces automatically. Each workspace that uses it must be assigned the identity.
+- Multiple AWS managed identities can be assigned to one workspace. In that case, each AWS provider block must set `profile` to the resource path of the identity it uses.
+- Other managed identity types are limited to one per workspace.
+
+{{ .SchemaMarkdown | trimspace }}

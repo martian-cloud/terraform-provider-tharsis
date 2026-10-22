@@ -25,7 +25,7 @@ resource "tharsis_workspace_role_binding" "wrb" {
 ### Required
 
 - `role_name` (String) The name of the role bound to the workspace.
-- `workspace_id` (String) The ID of the workspace this role binding applies to.
+- `workspace_id` (String) The ID or TRN of the workspace this role binding applies to.
 
 ### Read-Only
 

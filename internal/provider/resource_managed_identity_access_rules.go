@@ -123,8 +123,8 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				},
 			},
 			"managed_identity_id": schema.StringAttribute{
-				MarkdownDescription: "String identifier of the connected managed identity.",
-				Description:         "String identifier of the connected managed identity.",
+				MarkdownDescription: "The ID or TRN of the connected managed identity.",
+				Description:         "The ID or TRN of the connected managed identity.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

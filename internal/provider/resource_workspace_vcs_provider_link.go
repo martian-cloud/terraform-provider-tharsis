@@ -77,8 +77,8 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				},
 			},
 			"workspace_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the workspace.",
-				Description:         "The ID of the workspace.",
+				MarkdownDescription: "The ID or TRN of the workspace.",
+				Description:         "The ID or TRN of the workspace.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
@@ -96,8 +96,8 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				},
 			},
 			"vcs_provider_id": schema.StringAttribute{
-				MarkdownDescription: "The string identifier of the  VCS provider.",
-				Description:         "The string identifier of the  VCS provider.",
+				MarkdownDescription: "The ID or TRN of the VCS provider.",
+				Description:         "The ID or TRN of the VCS provider.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
