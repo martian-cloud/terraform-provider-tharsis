@@ -503,7 +503,6 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		return nil, diags
 	}
 
-	// Plan status arrives as the lowercased proto status value on the wire.
 	switch enumToDomain(plan.Status) {
 	case "canceled":
 		diags.AddError("Plan was canceled", enumToDomain(plan.Status))
@@ -581,7 +580,6 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		return nil, diags
 	}
 
-	// Apply status arrives as the lowercased proto status value on the wire.
 	switch enumToDomain(apply.Status) {
 	case "canceled":
 		diags.AddError("Apply was canceled", enumToDomain(apply.Status))

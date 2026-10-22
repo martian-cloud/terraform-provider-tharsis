@@ -49,9 +49,7 @@ func (t *workspaceRoleBindingResource) Metadata(_ context.Context,
 func (t *workspaceRoleBindingResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
 ) {
-	description := "Defines and manages a workspace role binding. A workspace role binding confers a " +
-		"role on a workspace: the role's permissions become available to the workspace's job caller at " +
-		"the workspace's direct parent namespace."
+	description := "Defines and manages a workspace role binding."
 
 	resp.Schema = schema.Schema{
 		Version:             1,

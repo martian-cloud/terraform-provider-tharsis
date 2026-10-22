@@ -21,7 +21,7 @@ func TestWorkspaceRoleBinding(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and read back a workspace role binding.
 			{
-				Config: testWorkspaceRoleBindingConfigurationCreate(),
+				Config: testWorkspaceRoleBindingConfiguration(testDeployerRoleName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("tharsis_workspace_role_binding.twrb", "role_name", testDeployerRoleName),
 					resource.TestCheckResourceAttrPair("tharsis_workspace_role_binding.twrb", "workspace_id",
@@ -42,7 +42,7 @@ func TestWorkspaceRoleBinding(t *testing.T) {
 
 			// Update and read.
 			{
-				Config: testWorkspaceRoleBindingConfigurationUpdate(),
+				Config: testWorkspaceRoleBindingConfiguration(testViewerRoleName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("tharsis_workspace_role_binding.twrb", "role_name", testViewerRoleName),
 					resource.TestCheckResourceAttrPair("tharsis_workspace_role_binding.twrb", "workspace_id",
@@ -67,7 +67,8 @@ func testAccWorkspaceRoleBindingImportStateIDFunc(state *terraform.State) (strin
 	return rs.Primary.Attributes["workspace_id"], nil
 }
 
-func testWorkspaceRoleBindingConfigurationCreate() string {
+// testWorkspaceRoleBindingConfiguration returns a configuration that binds the named role to a test workspace.
+func testWorkspaceRoleBindingConfiguration(roleName string) string {
 	createName := "tw_for_role_binding"
 	createDescription := "this is tw_for_role_binding, a test workspace for a role binding"
 
@@ -87,28 +88,5 @@ resource "tharsis_workspace_role_binding" "twrb" {
 	role_name    = "%s"
 }
 
-	`, createRootGroup(testGroupPath, "this is a test root group"), createName, createDescription, testDeployerRoleName)
-}
-
-func testWorkspaceRoleBindingConfigurationUpdate() string {
-	createName := "tw_for_role_binding"
-	createDescription := "this is tw_for_role_binding, a test workspace for a role binding"
-
-	return fmt.Sprintf(`
-
-%s
-
-resource "tharsis_workspace" "tw" {
-	name                 = "%s"
-	description          = "%s"
-	group_path           = tharsis_group.root-group.full_path
-	prevent_destroy_plan = false
-}
-
-resource "tharsis_workspace_role_binding" "twrb" {
-	workspace_id = tharsis_workspace.tw.id
-	role_name    = "%s"
-}
-
-	`, createRootGroup(testGroupPath, "this is a test root group"), createName, createDescription, testViewerRoleName)
+	`, createRootGroup(testGroupPath, "this is a test root group"), createName, createDescription, roleName)
 }
