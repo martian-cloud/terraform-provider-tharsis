@@ -1,0 +1,65 @@
+---
+page_title: "{{ .ProviderShortName }} Provider"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{ .ProviderShortName }} Provider
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile .ExampleFile }}
+
+## Installation
+
+```terraform
+terraform {
+  required_providers {
+    tharsis = {
+      source = "martian-cloud/tharsis"
+    }
+  }
+}
+```
+
+## Using the provider in a Tharsis job
+
+When Terraform runs in a Tharsis job, the provider is configured automatically. The job's environment supplies the API host (`THARSIS_ENDPOINT`) and an authentication token (`THARSIS_STATIC_TOKEN`), so an empty `provider "tharsis" {}` block is all that is required.
+
+The token belongs to the job, so the job is limited in what it can do:
+
+- By default, a job can read the resources of the groups its workspace sits under.
+- To create or modify resources, bind a role to the workspace that runs the configuration. A role binding applies to the workspace's direct parent group and everything beneath it. See the `tharsis_workspace_role_binding` resource.
+
+## Using the provider outside Tharsis
+
+Outside a Tharsis job, provide the API host and credentials, either in the `provider` block or with environment variables.
+
+The host is taken from the `host` argument, or from `THARSIS_ENDPOINT` if `host` is not set. If the host has no scheme, `https://` is assumed.
+
+### Authentication
+
+Credentials are resolved in the following order:
+
+1. A service account, when both a service account ID and a service account token are provided.
+2. A static token.
+3. The `TF_TOKEN_<host>` environment variable, which is used as a static token. For example, the host `tharsis.example.com` uses `TF_TOKEN_tharsis_example_com`. This has the lowest priority.
+
+For credentials, environment variables take precedence over the values in the `provider` block, so a CI/CD system can supply them without changing the configuration. The one exception is the host: the `host` argument takes precedence over `THARSIS_ENDPOINT`.
+
+| Environment variable | Provider argument |
+| --- | --- |
+| `THARSIS_ENDPOINT` | `host` |
+| `THARSIS_STATIC_TOKEN` | `static_token` |
+| `THARSIS_SERVICE_ACCOUNT_ID` | `service_account_id` |
+| `THARSIS_SERVICE_ACCOUNT_TOKEN` | `service_account_token` |
+
+The service account token is typically an OIDC token issued by an identity provider that the service account trusts. See `tharsis_service_account` for how to configure trust policies.
+
+## Resource identifiers
+
+Arguments that refer to another Tharsis resource, such as `group_id` or `workspace_id`, accept either the resource's ID or its TRN (Tharsis Resource Name).
+
+{{ .SchemaMarkdown | trimspace }}
