@@ -1,0 +1,45 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## When to use this data source
+
+Use `tharsis_workspace_outputs_json` when the workspace has outputs that are lists, maps, objects, or other non-primitive types, or when you want every output regardless of type. Every value is JSON-encoded, so decode it with `jsondecode` before use.
+
+- A string output includes its surrounding quotes until decoded.
+- Bool and number outputs decode to bool and number values.
+- Lists, maps, and objects decode to the corresponding Terraform types.
+
+```terraform
+data "tharsis_workspace_outputs_json" "network" {
+  path = "my-group/network"
+}
+
+locals {
+  subnet_ids = jsondecode(data.tharsis_workspace_outputs_json.network.outputs.subnet_ids)
+  vpc_name   = jsondecode(data.tharsis_workspace_outputs_json.network.outputs.vpc_name)
+}
+```
+
+If every output you need is a string, bool, or number, `tharsis_workspace_outputs` avoids the decoding step.
+
+## Selecting the workspace
+
+Specify the workspace with either `path` or `id`, but not both. When running in a Tharsis workspace, `path` may be relative to the current workspace, for example `../sub-group/workspace`. `id` accepts a workspace ID or TRN.
+
+If the workspace has no state yet, `outputs` is empty.
+
+{{ .SchemaMarkdown | trimspace }}

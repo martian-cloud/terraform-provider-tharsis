@@ -109,8 +109,8 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				},
 			},
 			"group_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the parent group.",
-				Description:         "The ID of the parent group.",
+				MarkdownDescription: "The ID or TRN of the parent group.",
+				Description:         "The ID or TRN of the parent group.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
@@ -171,8 +171,8 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				// This value is available immediately after a resource is created but will not be set after import.
 			},
 			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when this VCS provider was most recently updated.",
-				Description:         "Timestamp when this VCS provider was most recently updated.",
+				MarkdownDescription: "Timestamp when this VCS provider was most recently updated by Terraform.",
+				Description:         "Timestamp when this VCS provider was most recently updated by Terraform.",
 				Computed:            true,
 			},
 		},
@@ -234,6 +234,9 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 	t.copyVCSProvider(createResponse.VcsProvider, &vcsProvider)
 	vcsProvider.OAuthAuthorizationURL = types.StringValue(createResponse.OauthAuthorizationUrl)
 
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	vcsProvider.LastUpdated = types.StringValue(createResponse.VcsProvider.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, vcsProvider)...)
 }
@@ -268,6 +271,12 @@ func (t *vcsProviderResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyVCSProvider(found, &state)
+
+	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
+	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
+	if state.LastUpdated.IsNull() {
+		state.LastUpdated = types.StringValue(found.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+	}
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -308,6 +317,9 @@ func (t *vcsProviderResource) Update(ctx context.Context,
 
 	// Copy all fields returned by Tharsis back into the plan.
 	t.copyVCSProvider(updated, &plan)
+
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -369,7 +381,4 @@ func (t *vcsProviderResource) copyVCSProvider(src *pb.VCSProvider, dest *VCSProv
 	// For the create operation, the OAuthAuthorizationURL field must be assigned by the caller.
 	// This just makes it not unknown, because Terraform requires computed fields to be known after apply.
 	dest.OAuthAuthorizationURL = types.StringValue("")
-
-	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

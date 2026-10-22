@@ -1,0 +1,32 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- A workspace can be linked to only one VCS provider, although a VCS provider can be linked to many workspaces.
+- `repository_path` is the path portion of the repository URL (for example `my-org/my-repo`), not the full URL. It cannot be changed after creation.
+- Linking a different VCS provider replaces the existing link.
+- If unset, `branch` defaults to the repository's default branch and `module_directory` defaults to the repository's base directory.
+
+## Triggering runs
+
+- A run is triggered automatically by a push to the tracked branch, or by a tag matching `tag_regex`. If `tag_regex` is unset, tagged commits are ignored.
+- Automatic runs are limited to commits that change files matching any of the `glob_patterns`.
+- With `auto_speculative_plan`, speculative plans are created for pull or merge requests that target the branch.
+- When `webhook_disabled` is true, all webhook events are ignored. Runs can still be started manually.
+
+{{ .SchemaMarkdown | trimspace }}

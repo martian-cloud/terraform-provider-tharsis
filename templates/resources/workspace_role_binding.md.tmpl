@@ -1,0 +1,25 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- A workspace role binding confers a role on a workspace. The role's permissions become available to the workspace's job caller at the workspace's direct parent group and its descendants.
+- A job is read-only by default. Create a workspace role binding to allow the workspace's jobs to create or change resources, such as with this provider running inside a Tharsis job.
+- The role is limited to what the role itself permits. Choose the least privileged role that covers what the job needs to do.
+- `role_name` can be changed in place. Changing `workspace_id` replaces the role binding.
+
+{{ .SchemaMarkdown | trimspace }}

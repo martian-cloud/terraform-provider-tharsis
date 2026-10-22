@@ -1,0 +1,25 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- GPG keys are group-level and are used to verify the signatures of Terraform provider versions uploaded to the Tharsis provider registry.
+- `ascii_armor` is the ASCII-armored public key.
+- A GPG key cannot be updated in place. Changing any attribute replaces the key.
+- Uploading provider versions requires that a key has already been added to the group by an owner or deployer.
+
+{{ .SchemaMarkdown | trimspace }}

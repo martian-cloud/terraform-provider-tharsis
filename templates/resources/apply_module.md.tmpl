@@ -1,0 +1,28 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- Creating the resource runs a plan and apply of the module in the target workspace and waits for the run to finish.
+- Destroying the resource launches a destroy run, which removes the deployed resources without deleting the workspace.
+- `variables` are passed to the run. The variables the run actually used, including inherited ones, are reported in `resolved_variables`.
+
+## Permissions
+
+Only owners and deployers can launch runs.
+
+{{ .SchemaMarkdown | trimspace }}

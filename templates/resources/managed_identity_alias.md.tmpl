@@ -1,0 +1,29 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- An alias is a separate resource with its own name. It uses the source managed identity's data and access rules without duplicating them.
+- Aliases allow a managed identity to be shared with a parent or sibling group.
+- Aliases cannot be updated. They reflect changes made to the source identity.
+- An alias cannot be created in a namespace that already reaches the source identity through inheritance.
+
+## Permissions
+
+Creating an alias requires the owner role in both the source group and the alias group.
+
+{{ .SchemaMarkdown | trimspace }}

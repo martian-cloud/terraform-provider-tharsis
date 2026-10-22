@@ -77,8 +77,8 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				},
 			},
 			"workspace_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the workspace.",
-				Description:         "The ID of the workspace.",
+				MarkdownDescription: "The ID or TRN of the workspace.",
+				Description:         "The ID or TRN of the workspace.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
@@ -96,8 +96,8 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				},
 			},
 			"vcs_provider_id": schema.StringAttribute{
-				MarkdownDescription: "The string identifier of the  VCS provider.",
-				Description:         "The string identifier of the  VCS provider.",
+				MarkdownDescription: "The ID or TRN of the VCS provider.",
+				Description:         "The ID or TRN of the VCS provider.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -159,8 +159,8 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when this workspace VCS provider link was most recently updated.",
-				Description:         "Timestamp when this workspace VCS provider link was most recently updated.",
+				MarkdownDescription: "Timestamp when this workspace VCS provider link was most recently updated by Terraform.",
+				Description:         "Timestamp when this workspace VCS provider link was most recently updated by Terraform.",
 				Computed:            true,
 			},
 		},
@@ -234,6 +234,9 @@ func (t *workspaceVCSProviderLinkResource) Create(ctx context.Context,
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	t.copyWorkspaceVCSProviderLink(createResponse.VcsProviderLink, &link)
 
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	link.LastUpdated = types.StringValue(createResponse.VcsProviderLink.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, link)...)
 }
@@ -268,6 +271,12 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyWorkspaceVCSProviderLink(found, &state)
+
+	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
+	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
+	if state.LastUpdated.IsNull() {
+		state.LastUpdated = types.StringValue(found.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+	}
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -318,6 +327,9 @@ func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
 
 	// Copy all fields returned by Tharsis back into the plan.
 	t.copyWorkspaceVCSProviderLink(updated, &plan)
+
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -390,7 +402,4 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src *pb.
 	}
 	dest.AutoSpeculativePlan = types.BoolValue(src.AutoSpeculativePlan)
 	dest.WebhookDisabled = types.BoolValue(src.WebhookDisabled)
-
-	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

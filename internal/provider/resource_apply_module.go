@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,6 +52,16 @@ type RunVariableModel struct {
 	NamespacePath string `tfsdk:"namespace_path"`
 	Key           string `tfsdk:"key"`
 	Category      string `tfsdk:"category"`
+}
+
+// enumToDomain renders a generated proto enum as the lowercase domain value Tharsis uses
+// elsewhere, e.g. RunStatus_PLANNED_AND_FINISHED -> "planned_and_finished".
+//
+// The API used to send these statuses as plain lowercase strings and now sends typed
+// enums. Converting at the boundary keeps the status comparisons in this file reading as
+// the domain vocabulary rather than as generated constants.
+func enumToDomain[E interface{ String() string }](v E) string {
+	return strings.ToLower(v.String())
 }
 
 // FromTerraform5Value converts a RunVariable from Terraform values to Go equivalent.
@@ -143,8 +154,8 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				},
 			},
 			"workspace_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the workspace.",
-				Description:         "The ID of the workspace.",
+				MarkdownDescription: "The ID or TRN of the workspace.",
+				Description:         "The ID or TRN of the workspace.",
 				Optional:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -450,7 +461,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		IsDestroy:     input.doDestroy,
 		ModuleSource:  new(input.model.ModuleSource.ValueString()),
 		ModuleVersion: moduleVersion,
-		Refresh:       input.model.Refresh.ValueBool(),
+		Refresh:       new(input.model.Refresh.ValueBool()),
 		Variables:     vars,
 	})
 	if err != nil {
@@ -465,7 +476,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		if pErr != nil {
 			return "", pErr
 		}
-		return plan.Status, nil
+		return enumToDomain(plan.Status), nil
 	}, planJobReady); err != nil {
 		diags.AddError("Failed waiting for plan job", err.Error())
 		return nil, diags
@@ -492,10 +503,9 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		return nil, diags
 	}
 
-	// Plan status arrives as the lowercased proto status value on the wire.
-	switch plan.Status {
+	switch enumToDomain(plan.Status) {
 	case "canceled":
-		diags.AddError("Plan was canceled", plan.Status)
+		diags.AddError("Plan was canceled", enumToDomain(plan.Status))
 		return nil, diags
 	case "errored":
 		msg := "Plan failed with unknown error"
@@ -516,7 +526,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		return nil, diags
 	}
 
-	if createdRun.Status == "planned_and_finished" {
+	if enumToDomain(createdRun.Status) == "planned_and_finished" {
 		result := &createRunOutput{
 			resolvedVariables: resolvedPlanVarsResp.Variables,
 		}
@@ -543,7 +553,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		if aErr != nil {
 			return "", aErr
 		}
-		return apply.Status, nil
+		return enumToDomain(apply.Status), nil
 	}, applyJobReady); err != nil {
 		diags.AddError("Failed waiting for apply job", err.Error())
 		return nil, diags
@@ -570,10 +580,9 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		return nil, diags
 	}
 
-	// Apply status arrives as the lowercased proto status value on the wire.
-	switch apply.Status {
+	switch enumToDomain(apply.Status) {
 	case "canceled":
-		diags.AddError("Apply was canceled", apply.Status)
+		diags.AddError("Apply was canceled", enumToDomain(apply.Status))
 		return nil, diags
 	case "errored":
 		msg := "Apply failed with unknown error"
@@ -776,7 +785,7 @@ func (t *applyModuleResource) getCurrentApplied(ctx context.Context,
 			if latestRun.ModuleVersion != nil {
 				moduleInfoOutput.moduleVersion = latestRun.ModuleVersion
 			}
-			if latestRun.IsDestroy && latestRun.Status == "applied" {
+			if latestRun.IsDestroy && enumToDomain(latestRun.Status) == "applied" {
 				moduleInfoOutput.wasSuccessfulDestroy = true
 			}
 		} else {

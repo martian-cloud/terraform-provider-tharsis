@@ -1,0 +1,29 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- Groups organize workspaces hierarchically. A group can contain subgroups and workspaces.
+- Variables, managed identities, memberships, service accounts, runner agents, Terraform modules, and VCS providers set on a group are inherited by its child groups and workspaces.
+- The parent is given with either `parent_id` or `parent_path`. Omit both to create a top-level group, which only system administrators can do.
+- A name may contain only numerals, lowercase letters, hyphens, and underscores, and cannot start or end with a hyphen or underscore. It cannot be changed after creation.
+
+## Deletion
+
+Deleting a group is irreversible. It also deletes all nested groups and workspaces, along with their state.
+
+{{ .SchemaMarkdown | trimspace }}

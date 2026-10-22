@@ -147,8 +147,8 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"group_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the parent group.",
-				Description:         "The ID of the parent group.",
+				MarkdownDescription: "The ID or TRN of the parent group.",
+				Description:         "The ID or TRN of the parent group.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
@@ -186,8 +186,8 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				Computed:            true,
 			},
 			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when this managed identity was most recently updated.",
-				Description:         "Timestamp when this managed identity was most recently updated.",
+				MarkdownDescription: "Timestamp when this managed identity was most recently updated by Terraform.",
+				Description:         "Timestamp when this managed identity was most recently updated by Terraform.",
 				Computed:            true,
 			},
 		},
@@ -266,6 +266,9 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 		return
 	}
 
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	managedIdentity.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, managedIdentity)...)
 }
@@ -305,6 +308,12 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 			err.Error(),
 		)
 		return
+	}
+
+	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
+	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
+	if state.LastUpdated.IsNull() {
+		state.LastUpdated = types.StringValue(found.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 	}
 
 	// Set the refreshed state, whether or not there is an error.
@@ -361,6 +370,9 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 		)
 		return
 	}
+
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -434,9 +446,6 @@ func (t *managedIdentityResource) copyManagedIdentity(src *pb.ManagedIdentity, d
 		dest.TharsisServiceAccountPath = types.StringValue(*decodedData.TharsisServiceAccountPath)
 	}
 	dest.Subject = types.StringValue(decodedData.Subject)
-
-	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	return nil
 }

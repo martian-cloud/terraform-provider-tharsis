@@ -50,21 +50,28 @@ func (t workspaceOutputsDataSource) Metadata(_ context.Context,
 }
 
 func (t workspaceOutputsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
-	description := "Tharsis Workspace Outputs data source is used to retrieve outputs from workspace under a given path."
+	description := "Retrieves the string, bool, and number outputs of a workspace. Use tharsis_workspace_outputs_json for other types."
+	outputsDescription := "The outputs of the workspace, keyed by output name. String values are returned as-is, " +
+		"and bool and number values are returned as their string form (for example \"true\" or \"42\")."
+	if t.isJSONEncoded {
+		description = "Retrieves all outputs of a workspace, of any type, as JSON-encoded values."
+		outputsDescription = "The outputs of the workspace, keyed by output name. Each value is JSON-encoded, " +
+			"so strings include their surrounding quotes. Use jsondecode to convert a value back to its original type."
+	}
 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: description,
 		Description:         description,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "The ID (UUID or TRN) of the workspace to retrieve outputs.",
-				Description:         "The ID (UUID or TRN) of the workspace to retrieve outputs.",
+				MarkdownDescription: "The ID or TRN of the workspace to retrieve outputs. Either id or path must be specified, but not both.",
+				Description:         "The ID or TRN of the workspace to retrieve outputs. Either id or path must be specified, but not both.",
 				Optional:            true,
 				Computed:            true,
 			},
 			"path": schema.StringAttribute{
-				MarkdownDescription: "The path of the workspace to retrieve outputs.",
-				Description:         "The path of the workspace to retrieve outputs.",
+				MarkdownDescription: "The path of the workspace to retrieve outputs. Relative paths are supported when running in a Tharsis workspace. Either id or path must be specified, but not both.",
+				Description:         "The path of the workspace to retrieve outputs. Relative paths are supported when running in a Tharsis workspace. Either id or path must be specified, but not both.",
 				Optional:            true,
 			},
 			"full_path": schema.StringAttribute{
@@ -84,8 +91,8 @@ func (t workspaceOutputsDataSource) Schema(_ context.Context, _ datasource.Schem
 			},
 			"outputs": schema.MapAttribute{
 				ElementType:         types.StringType,
-				MarkdownDescription: "The outputs of the workspace specified by the path.",
-				Description:         "The outputs of the workspace specified by the path.",
+				MarkdownDescription: outputsDescription,
+				Description:         outputsDescription,
 				Computed:            true,
 			},
 		},
@@ -128,7 +135,7 @@ func (t workspaceOutputsDataSource) Read(ctx context.Context,
 	if !hasID && !hasPath {
 		resp.Diagnostics.AddError(
 			"Either ID or Path is required",
-			"Either 'id' (UUID or TRN) or 'path' must be provided",
+			"Either 'id' (ID or TRN) or 'path' must be provided",
 		)
 		return
 	}

@@ -1,0 +1,34 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile .ExampleFile }}
+{{- end }}
+
+## Behavior
+
+- The supported types are `github` and `gitlab`.
+- A VCS provider is created within a group and inherited by its child groups.
+- `url` is optional. If omitted, the public API URL for the provider type is used.
+- `url` and `auto_create_webhooks` cannot be changed after creation.
+- If `auto_create_webhooks` is false, webhooks must be configured manually in the repository.
+
+## OAuth
+
+The OAuth client ID and secret are never displayed by Tharsis. After the provider is created, complete the OAuth flow using the `oauth_authorization_url` attribute.
+
+## Deletion
+
+Deleting a VCS provider is irreversible and severs the connection to the OAuth application.
+
+{{ .SchemaMarkdown | trimspace }}

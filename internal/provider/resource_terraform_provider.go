@@ -89,8 +89,8 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				},
 			},
 			"group_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the parent group.",
-				Description:         "The ID of the parent group.",
+				MarkdownDescription: "The ID or TRN of the parent group.",
+				Description:         "The ID or TRN of the parent group.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
@@ -129,8 +129,8 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when this Terraform provider was most recently updated.",
-				Description:         "Timestamp when this Terraform provider was most recently updated.",
+				MarkdownDescription: "Timestamp when this Terraform provider was most recently updated by Terraform.",
+				Description:         "Timestamp when this Terraform provider was most recently updated by Terraform.",
 				Computed:            true,
 			},
 		},
@@ -186,6 +186,9 @@ func (t *terraformProviderResource) Create(ctx context.Context,
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	t.copyTerraformProvider(created, &terraformProvider)
 
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	terraformProvider.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, terraformProvider)...)
 }
@@ -221,6 +224,12 @@ func (t *terraformProviderResource) Read(ctx context.Context,
 	// Copy the from-Tharsis struct to the state.
 	t.copyTerraformProvider(found, &state)
 
+	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
+	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
+	if state.LastUpdated.IsNull() {
+		state.LastUpdated = types.StringValue(found.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+	}
+
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -253,6 +262,9 @@ func (t *terraformProviderResource) Update(ctx context.Context,
 
 	// Copy all fields returned by Tharsis back into the plan.
 	t.copyTerraformProvider(updated, &plan)
+
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -310,7 +322,4 @@ func (t *terraformProviderResource) copyTerraformProvider(src *pb.TerraformProvi
 	}
 	dest.RepositoryURL = types.StringValue(src.RepositoryUrl)
 	dest.Private = types.BoolValue(src.Private)
-
-	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }
