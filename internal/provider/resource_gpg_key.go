@@ -73,8 +73,8 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				},
 			},
 			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when this GPG key was most recently updated.",
-				Description:         "Timestamp when this GPG key was most recently updated.",
+				MarkdownDescription: "Timestamp when this GPG key was most recently updated by Terraform.",
+				Description:         "Timestamp when this GPG key was most recently updated by Terraform.",
 				Computed:            true,
 			},
 			"created_by": schema.StringAttribute{
@@ -190,6 +190,9 @@ func (t *gpgKeyResource) Create(ctx context.Context,
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	t.copyGPGKey(created, &gpgKey)
 
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	gpgKey.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, gpgKey)...)
 }
@@ -292,7 +295,4 @@ func (t *gpgKeyResource) copyGPGKey(src *pb.GPGKey, dest *GPGKeyModel) {
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
 	dest.GroupID = types.StringValue(src.GroupId)
 	dest.ResourcePath = types.StringValue(parsed.Path())
-
-	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

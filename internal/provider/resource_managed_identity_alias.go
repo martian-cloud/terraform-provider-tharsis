@@ -107,8 +107,8 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				},
 			},
 			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when this managed identity alias was most recently updated.",
-				Description:         "Timestamp when this managed identity alias was most recently updated.",
+				MarkdownDescription: "Timestamp when this managed identity alias was most recently updated by Terraform.",
+				Description:         "Timestamp when this managed identity alias was most recently updated by Terraform.",
 				Computed:            true,
 			},
 			"alias_source_id": schema.StringAttribute{
@@ -194,6 +194,9 @@ func (t *managedIdentityAliasResource) Create(ctx context.Context,
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
 	t.copyManagedIdentityAlias(created, &managedIdentityAlias)
+
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	managedIdentityAlias.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, managedIdentityAlias)...)
@@ -307,7 +310,4 @@ func (t *managedIdentityAliasResource) copyManagedIdentityAlias(src *pb.ManagedI
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
 	dest.GroupID = types.StringValue(src.GroupId)
 	dest.AliasSourceID = types.StringValue(*src.AliasSourceId)
-
-	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

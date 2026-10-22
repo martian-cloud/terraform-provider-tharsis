@@ -129,8 +129,8 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when this Terraform provider was most recently updated.",
-				Description:         "Timestamp when this Terraform provider was most recently updated.",
+				MarkdownDescription: "Timestamp when this Terraform provider was most recently updated by Terraform.",
+				Description:         "Timestamp when this Terraform provider was most recently updated by Terraform.",
 				Computed:            true,
 			},
 		},
@@ -185,6 +185,9 @@ func (t *terraformProviderResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	t.copyTerraformProvider(created, &terraformProvider)
+
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	terraformProvider.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, terraformProvider)...)
@@ -254,6 +257,9 @@ func (t *terraformProviderResource) Update(ctx context.Context,
 	// Copy all fields returned by Tharsis back into the plan.
 	t.copyTerraformProvider(updated, &plan)
 
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
@@ -310,7 +316,4 @@ func (t *terraformProviderResource) copyTerraformProvider(src *pb.TerraformProvi
 	}
 	dest.RepositoryURL = types.StringValue(src.RepositoryUrl)
 	dest.Private = types.BoolValue(src.Private)
-
-	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

@@ -171,8 +171,8 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				// This value is available immediately after a resource is created but will not be set after import.
 			},
 			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when this VCS provider was most recently updated.",
-				Description:         "Timestamp when this VCS provider was most recently updated.",
+				MarkdownDescription: "Timestamp when this VCS provider was most recently updated by Terraform.",
+				Description:         "Timestamp when this VCS provider was most recently updated by Terraform.",
 				Computed:            true,
 			},
 		},
@@ -233,6 +233,9 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	t.copyVCSProvider(createResponse.VcsProvider, &vcsProvider)
 	vcsProvider.OAuthAuthorizationURL = types.StringValue(createResponse.OauthAuthorizationUrl)
+
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	vcsProvider.LastUpdated = types.StringValue(createResponse.VcsProvider.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, vcsProvider)...)
@@ -309,6 +312,9 @@ func (t *vcsProviderResource) Update(ctx context.Context,
 	// Copy all fields returned by Tharsis back into the plan.
 	t.copyVCSProvider(updated, &plan)
 
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
@@ -369,7 +375,4 @@ func (t *vcsProviderResource) copyVCSProvider(src *pb.VCSProvider, dest *VCSProv
 	// For the create operation, the OAuthAuthorizationURL field must be assigned by the caller.
 	// This just makes it not unknown, because Terraform requires computed fields to be known after apply.
 	dest.OAuthAuthorizationURL = types.StringValue("")
-
-	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

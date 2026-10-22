@@ -135,8 +135,8 @@ func (t *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when this workspace was most recently updated.",
-				Description:         "Timestamp when this workspace was most recently updated.",
+				MarkdownDescription: "Timestamp when this workspace was most recently updated by Terraform.",
+				Description:         "Timestamp when this workspace was most recently updated by Terraform.",
 				Computed:            true,
 			},
 		},
@@ -200,6 +200,9 @@ func (t *workspaceResource) Create(ctx context.Context,
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
 	t.copyWorkspace(created, &workspace)
+
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	workspace.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, workspace)...)
@@ -280,6 +283,9 @@ func (t *workspaceResource) Update(ctx context.Context,
 	// Copy all fields returned by Tharsis back into the plan.
 	t.copyWorkspace(updated, &plan)
 
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
@@ -353,7 +359,4 @@ func (t *workspaceResource) copyWorkspace(src *pb.Workspace, dest *WorkspaceMode
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
 	dest.GroupID = types.StringValue(src.GroupId)
-
-	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }

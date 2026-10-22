@@ -140,8 +140,8 @@ func (t *terraformModuleResource) Schema(_ context.Context, _ resource.SchemaReq
 			},
 			// Keep this:
 			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when this terraform module was most recently updated.",
-				Description:         "Timestamp when this terraform module was most recently updated.",
+				MarkdownDescription: "Timestamp when this terraform module was most recently updated by Terraform.",
+				Description:         "Timestamp when this terraform module was most recently updated by Terraform.",
 				Computed:            true,
 			},
 		},
@@ -196,6 +196,9 @@ func (t *terraformModuleResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	t.copyTerraformModule(created, &terraformModule)
+
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	terraformModule.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, terraformModule)...)
@@ -264,6 +267,9 @@ func (t *terraformModuleResource) Update(ctx context.Context,
 	// Copy all fields returned by Tharsis back into the plan.
 	t.copyTerraformModule(updated, &plan)
 
+	// Must use time value from SDK/API.  Using time.Now() is not reliable.
+	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
@@ -322,7 +328,4 @@ func (t *terraformModuleResource) copyTerraformModule(src *pb.TerraformModule, d
 	}
 	dest.RepositoryURL = types.StringValue(src.RepositoryUrl)
 	dest.Private = types.BoolValue(src.Private)
-
-	// Must use time value from SDK/API.  Using time.Now() is not reliable.
-	dest.LastUpdated = types.StringValue(src.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
 }
