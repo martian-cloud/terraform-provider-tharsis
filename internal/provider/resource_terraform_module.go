@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -312,8 +311,8 @@ func (t *terraformModuleResource) Delete(ctx context.Context,
 func (t *terraformModuleResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	// Retrieve import ID and save to id attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	// A Terraform module is identified by "<group_path>/<name>/<system>", a GID, or a TRN.
+	importByNormalizedID(ctx, trn.TypeTerraformModule, req, resp)
 }
 
 // copyTerraformModule copies the contents of a Terraform module.

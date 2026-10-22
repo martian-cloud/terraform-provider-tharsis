@@ -65,3 +65,21 @@ Required:
 
 - `bound_claims` (Map of String) Bound claims for this trust policy.
 - `issuer` (String) Issuer for this trust policy.
+
+## Import
+
+Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+# A service account can be imported by its path, which is the group path plus
+# the service account name.
+terraform import tharsis_service_account.this my-group/my-service-account
+
+# The service account's TRN also works.
+terraform import tharsis_service_account.this trn:service_account:my-group/my-service-account
+
+# So does its ID, shown by the "id" attribute or in the Tharsis UI.
+terraform import tharsis_service_account.this <service-account-id>
+```

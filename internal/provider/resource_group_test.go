@@ -149,10 +149,27 @@ func TestNestedGroup(t *testing.T) {
 				),
 			},
 
-			// Import the state.
+			// Import the state by full path.
 			{
 				ResourceName:      "tharsis_group.nested-group",
 				ImportStateId:     createFullPath,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Import the state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
+			{
+				ResourceName:      "tharsis_group.nested-group",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Import the state by TRN.
+			{
+				ResourceName:      "tharsis_group.nested-group",
+				ImportStateId:     "trn:group:" + createFullPath,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},

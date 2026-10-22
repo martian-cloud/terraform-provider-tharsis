@@ -245,11 +245,13 @@ func (t *workspaceRoleBindingResource) Delete(ctx context.Context,
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
 // Workspace role bindings are imported by workspace ID, since that's what identifies
-// the binding from the Tharsis API's perspective.
+// the binding from the Tharsis API's perspective. The identifier is normalized so
+// that a workspace path, GID, or TRN are all accepted.
 func (t *workspaceRoleBindingResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"),
+		trn.TypeWorkspace.Normalize(req.ID))...)
 }
 
 // copyWorkspaceRoleBinding copies the contents of a workspace role binding.

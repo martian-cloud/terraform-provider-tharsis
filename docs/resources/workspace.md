@@ -54,3 +54,21 @@ Deleting a workspace is irreversible. It permanently removes the workspace's run
 - `full_path` (String) The path of the parent namespace plus the name of the workspace.
 - `id` (String) String identifier of the workspace.
 - `last_updated` (String) Timestamp when this workspace was most recently updated by Terraform.
+
+## Import
+
+Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+# A workspace can be imported by its full path, which is the group path plus the
+# workspace name.
+terraform import tharsis_workspace.this my-group/my-workspace
+
+# The workspace's TRN also works.
+terraform import tharsis_workspace.this trn:workspace:my-group/my-workspace
+
+# So does the workspace's ID, shown by the "id" attribute or in the Tharsis UI.
+terraform import tharsis_workspace.this <workspace-id>
+```

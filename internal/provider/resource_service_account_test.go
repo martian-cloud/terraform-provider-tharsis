@@ -32,9 +32,28 @@ func TestServiceAccount(t *testing.T) {
 				),
 			},
 
-			// Import the state.
+			// Import the state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
 			{
 				ResourceName:      "tharsis_service_account.tsa",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Import the state by resource path, the form a user is most likely
+			// to have on hand for a pre-existing service account.
+			{
+				ResourceName:      "tharsis_service_account.tsa",
+				ImportStateId:     createResourcePath,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Import the state by TRN.
+			{
+				ResourceName:      "tharsis_service_account.tsa",
+				ImportStateId:     "trn:service_account:" + createResourcePath,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},

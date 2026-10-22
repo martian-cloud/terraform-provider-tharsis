@@ -53,3 +53,24 @@ Deleting a group is irreversible. It also deletes all nested groups and workspac
 - `full_path` (String) The path of the parent namespace plus the name of the group.
 - `id` (String) String identifier of the group.
 - `last_updated` (String) Timestamp when this group was most recently updated by Terraform.
+
+## Import
+
+Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+# A group can be imported by its full path, which is the parent path plus the
+# group name.
+terraform import tharsis_group.nested my-group/my-sub-group
+
+# A top-level group has no parent, so its full path is just its name.
+terraform import tharsis_group.top_level my-group
+
+# The group's TRN also works.
+terraform import tharsis_group.nested trn:group:my-group/my-sub-group
+
+# So does the group's ID, shown by the "id" attribute or in the Tharsis UI.
+terraform import tharsis_group.nested <group-id>
+```

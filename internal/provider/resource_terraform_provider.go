@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -304,8 +303,8 @@ func (t *terraformProviderResource) Delete(ctx context.Context,
 func (t *terraformProviderResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	// Retrieve import ID and save to id attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	// A Terraform provider is identified by "<group_path>/<name>", a GID, or a TRN.
+	importByNormalizedID(ctx, trn.TypeTerraformProvider, req, resp)
 }
 
 // copyTerraformProvider copies the contents of a Terraform provider.

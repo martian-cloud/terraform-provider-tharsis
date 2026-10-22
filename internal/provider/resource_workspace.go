@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -330,28 +329,13 @@ func (t *workspaceResource) Delete(ctx context.Context,
 func (t *workspaceResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	// Get the workspace by full path from Tharsis.
-	found, err := t.client.WorkspacesClient.GetWorkspaceByID(ctx, &pb.GetWorkspaceByIDRequest{
-		Id: trn.TypeWorkspace.Normalize(req.ID),
-	})
-	if err != nil {
-		if status.Code(err) == codes.NotFound {
-			resp.Diagnostics.AddError(
-				"Import workspace not found: "+req.ID,
-				"",
-			)
-			return
-		}
-
-		resp.Diagnostics.AddError(
-			"Import workspace not found: "+req.ID,
-			err.Error(),
-		)
-		return
-	}
-
-	// Import by full path.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.Id)...)
+	// A workspace is identified by its full path, a GID, or a TRN.
+	//
+	// No existence check is performed here. Terraform calls Read immediately
+	// after this method, and Read reports a missing workspace by removing it
+	// from state, which Terraform surfaces as a "Cannot import non-existent
+	// remote object" error naming the target resource address.
+	importByNormalizedID(ctx, trn.TypeWorkspace, req, resp)
 }
 
 // copyWorkspace copies the contents of a workspace.

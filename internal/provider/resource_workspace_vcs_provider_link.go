@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -369,8 +368,10 @@ func (t *workspaceVCSProviderLinkResource) Delete(ctx context.Context,
 func (t *workspaceVCSProviderLinkResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	// Retrieve import ID and save to id attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	// A link is identified by its GID, or by a TRN of the form
+	// "<workspace_path>/<link_GID>". Because the final TRN segment is itself a
+	// GID, the plain GID is the practical form to use.
+	importByNormalizedID(ctx, trn.TypeWorkspaceVCSProviderLink, req, resp)
 }
 
 // copyWorkspaceVCSProviderLink copies the contents of a workspace VCS provider link.

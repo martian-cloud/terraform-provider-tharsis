@@ -123,9 +123,28 @@ vF7bYisZMWZogpHZ39zCe8T8zjpZ0xipaOmAhvHKR+p2Tm+OwJL7qjs6dQ==
 				),
 			},
 
-			// Import the state.
+			// Import the state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
 			{
 				ResourceName:      "tharsis_gpg_key.tgk",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Import the state by resource path, which for a GPG key is
+			// "<group_path>/<fingerprint>".
+			{
+				ResourceName:      "tharsis_gpg_key.tgk",
+				ImportStateId:     createResourcePath,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Import the state by TRN.
+			{
+				ResourceName:      "tharsis_gpg_key.tgk",
+				ImportStateId:     "trn:gpg_key:" + createResourcePath,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},

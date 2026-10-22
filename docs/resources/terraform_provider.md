@@ -47,3 +47,21 @@ resource "tharsis_terraform_provider" "this" {
 - `last_updated` (String) Timestamp when this Terraform provider was most recently updated by Terraform.
 - `registry_namespace` (String, Deprecated) The top-level group where this Terraform provider resides.
 - `resource_path` (String, Deprecated) String identifier of this Terraform provider.
+
+## Import
+
+Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+# A Terraform provider can be imported by its path, which is the group path plus
+# the provider name.
+terraform import tharsis_terraform_provider.this my-group/my-provider
+
+# The provider's TRN also works.
+terraform import tharsis_terraform_provider.this trn:terraform_provider:my-group/my-provider
+
+# So does its ID, shown by the "id" attribute or in the Tharsis UI.
+terraform import tharsis_terraform_provider.this <terraform-provider-id>
+```
