@@ -310,6 +310,12 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 		return
 	}
 
+	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
+	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
+	if state.LastUpdated.IsNull() {
+		state.LastUpdated = types.StringValue(found.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
+	}
+
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
