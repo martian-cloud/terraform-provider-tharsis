@@ -39,9 +39,19 @@ func TestTerraformProvider(t *testing.T) {
 				),
 			},
 
-			// Import the state.
+			// Import the state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
 			{
 				ResourceName:      "tharsis_terraform_provider.ttp",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Import the state by TRN.
+			{
+				ResourceName:      "tharsis_terraform_provider.ttp",
+				ImportStateId:     "trn:terraform_provider:" + createResourcePath,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},

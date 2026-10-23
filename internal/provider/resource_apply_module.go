@@ -110,6 +110,11 @@ type ApplyModuleModel struct {
 var (
 	_ resource.Resource              = (*applyModuleResource)(nil)
 	_ resource.ResourceWithConfigure = (*applyModuleResource)(nil)
+
+	// This resource is deliberately not importable. It implements
+	// ResourceWithImportState only so that an import attempt returns an
+	// explanation instead of Terraform's generic unsupported-import error.
+	_ resource.ResourceWithImportState = (*applyModuleResource)(nil)
 )
 
 // NewApplyModuleResource is a helper function to simplify the provider implementation.
@@ -426,6 +431,31 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 
 	// Set the response state to be fully-populated, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+// ImportState helps the provider implement the ResourceWithImportState interface.
+//
+// This resource cannot be imported, and this method exists only to explain why
+// rather than leaving the user with Terraform's generic "resource does not
+// support import" message.
+//
+// Unlike every other resource in this provider, a tharsis_apply_module has no
+// counterpart in the Tharsis API. There is no apply module model, service, or
+// identifier; the resource instead performs an action, launching a run against a
+// workspace and waiting for it to finish. Its id attribute is a UUID this
+// provider manufactures locally. With no stored remote object to look up, there
+// is nothing an import could read back.
+func (t *applyModuleResource) ImportState(_ context.Context,
+	_ resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
+	resp.Diagnostics.AddError(
+		"tharsis_apply_module cannot be imported",
+		"This resource represents the act of applying a module to a workspace rather than a "+
+			"stored Tharsis resource, so there is no existing object for Terraform to import.\n\n"+
+			"To manage a workspace that already exists, import tharsis_workspace instead. To apply "+
+			"a module to it, add a tharsis_apply_module resource to your configuration and run "+
+			"terraform apply, which will start a new run.",
+	)
 }
 
 // createRun launches a remote run and waits for it to complete.

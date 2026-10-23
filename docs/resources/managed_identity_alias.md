@@ -49,3 +49,22 @@ Creating an alias requires the owner role in both the source group and the alias
 - `id` (String) String identifier of the managed identity alias.
 - `last_updated` (String) Timestamp when this managed identity alias was most recently updated by Terraform.
 - `resource_path` (String, Deprecated) The path of the parent group plus the name of the managed identity alias.
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+# An alias is a managed identity on the Tharsis side, so its TRN is
+# "trn:managed_identity:" followed by the path of the group that holds the alias
+# and the alias name.
+import {
+  to = tharsis_managed_identity_alias.this
+  id = "trn:managed_identity:my-group/my-sub-group/my-identity-alias"
+}
+
+# The alias's ID also works as the id, shown by the "id" attribute or in the
+# Tharsis UI.
+```

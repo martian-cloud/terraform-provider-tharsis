@@ -33,9 +33,19 @@ func TestVariable(t *testing.T) {
 				),
 			},
 
-			// Import the state.
+			// Import the state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
 			{
 				ResourceName:      "tharsis_variable.tnv",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Import the state by TRN.
+			{
+				ResourceName:      "tharsis_variable.tnv",
+				ImportStateId:     "trn:variable:" + createNamespacePath + "/" + createCategory + "/" + createKey,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},

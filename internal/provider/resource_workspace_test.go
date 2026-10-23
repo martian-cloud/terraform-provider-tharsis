@@ -33,10 +33,33 @@ func TestWorkspace(t *testing.T) {
 				),
 			},
 
-			// Import the state.
+			// Import the state by full path.
+			//
+			// max_job_duration, prevent_destroy_plan, and terraform_version are
+			// ignored because the Tharsis API does not return them when a
+			// workspace is read, so there is nothing to compare them against.
 			{
 				ResourceName:            "tharsis_workspace.tw",
 				ImportStateId:           createFullPath,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"max_job_duration", "prevent_destroy_plan", "terraform_version"},
+			},
+
+			// Import the state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
+			{
+				ResourceName:            "tharsis_workspace.tw",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"max_job_duration", "prevent_destroy_plan", "terraform_version"},
+			},
+
+			// Import the state by TRN.
+			{
+				ResourceName:            "tharsis_workspace.tw",
+				ImportStateId:           "trn:workspace:" + createFullPath,
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"max_job_duration", "prevent_destroy_plan", "terraform_version"},

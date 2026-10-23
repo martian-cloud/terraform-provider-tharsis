@@ -2,8 +2,11 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -24,8 +27,9 @@ type AssignedManagedIdentityModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource              = (*assignedManagedIdentityResource)(nil)
-	_ resource.ResourceWithConfigure = (*assignedManagedIdentityResource)(nil)
+	_ resource.Resource                = (*assignedManagedIdentityResource)(nil)
+	_ resource.ResourceWithConfigure   = (*assignedManagedIdentityResource)(nil)
+	_ resource.ResourceWithImportState = (*assignedManagedIdentityResource)(nil)
 )
 
 // NewAssignedManagedIdentityResource is a helper function to simplify the provider implementation.
@@ -124,6 +128,72 @@ func (t *assignedManagedIdentityResource) Create(ctx context.Context,
 		ManagedIdentityID: types.StringValue(managedIdentityID),
 		WorkspaceID:       types.StringValue(workspaceID),
 	})...)
+}
+
+// assignedManagedIdentityImportIDParts is the number of slash-separated
+// segments expected in an assigned managed identity import ID.
+const assignedManagedIdentityImportIDParts = 2
+
+// trnPrefix is the leading marker of a Tharsis Resource Name.
+const trnPrefix = "trn:"
+
+// parseAssignedManagedIdentityImportID splits a composite import ID of the form
+// "<workspace_id>/<managed_identity_id>" into its two GIDs.
+//
+// Only GIDs are accepted. A GID is base64url encoded and therefore never
+// contains a forward slash, which makes splitting on "/" unambiguous. TRNs do
+// contain forward slashes (for example "trn:workspace:my-group/my-workspace"),
+// so a pair of TRNs could not be split reliably and is rejected with an
+// explanatory error rather than being silently mis-parsed.
+func parseAssignedManagedIdentityImportID(importID string) (workspaceID, managedIdentityID string, err error) {
+	if strings.Contains(importID, trnPrefix) {
+		return "", "", fmt.Errorf(
+			"TRNs cannot be used to import this resource because they contain forward slashes, " +
+				"which makes the two halves of the identifier ambiguous; use the workspace GID " +
+				"and managed identity GID instead")
+	}
+
+	parts := strings.Split(importID, "/")
+	if len(parts) != assignedManagedIdentityImportIDParts {
+		return "", "", fmt.Errorf(
+			"expected %d forward-slash separated parts but got %d",
+			assignedManagedIdentityImportIDParts, len(parts))
+	}
+
+	if parts[0] == "" || parts[1] == "" {
+		return "", "", fmt.Errorf("neither the workspace ID nor the managed identity ID may be empty")
+	}
+
+	return parts[0], parts[1], nil
+}
+
+// ImportState helps the provider implement the ResourceWithImportState interface.
+func (t *assignedManagedIdentityResource) ImportState(ctx context.Context,
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
+	// An assignment has no identifier of its own in Tharsis. It is identified by
+	// the pair of resources it joins, so the import ID is composite.
+	workspaceID, managedIdentityID, err := parseAssignedManagedIdentityImportID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Invalid import ID for tharsis_assigned_managed_identity: "+req.ID,
+			"An assigned managed identity is imported as \"<workspace_id>/<managed_identity_id>\", "+
+				"where both halves are GIDs: "+err.Error(),
+		)
+		return
+	}
+
+	// The id attribute is generated rather than read from Tharsis. It is a
+	// value this provider manufactures to give the resource a Terraform
+	// identity, and it carries no meaning to the API, so a fresh one is as
+	// correct on import as the one minted during create.
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), uuid.New().String())...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), workspaceID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("managed_identity_id"), managedIdentityID)...)
+
+	// Read runs next and confirms the assignment actually exists, removing it
+	// from state if it does not, which Terraform reports as an attempt to
+	// import a non-existent object.
 }
 
 func (t *assignedManagedIdentityResource) Read(ctx context.Context,

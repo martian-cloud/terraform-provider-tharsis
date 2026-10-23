@@ -45,3 +45,21 @@ resource "tharsis_gpg_key" "this" {
 - `id` (String) String identifier of the GPG key.
 - `last_updated` (String) Timestamp when this GPG key was most recently updated by Terraform.
 - `resource_path` (String, Deprecated) Path of this GPG key.
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+# A GPG key can be imported by its TRN, which is "trn:gpg_key:" followed by the
+# group path and the key's fingerprint.
+import {
+  to = tharsis_gpg_key.this
+  id = "trn:gpg_key:my-group/C48F7F19B14E59433DF9402341F57AB6741F92F1"
+}
+
+# The key's ID also works as the id, shown by the "id" attribute or in the
+# Tharsis UI.
+```

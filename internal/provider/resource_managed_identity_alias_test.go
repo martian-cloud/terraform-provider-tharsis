@@ -32,9 +32,20 @@ func TestManagedIdentityAliasWithSourceID(t *testing.T) {
 				),
 			},
 
-			// Import state.
+			// Import state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
 			{
 				ResourceName:      "tharsis_managed_identity_alias.tmi_alias",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Import state by TRN. Aliases are managed identities on the API
+			// side, so they carry the managed identity TRN type.
+			{
+				ResourceName:      "tharsis_managed_identity_alias.tmi_alias",
+				ImportStateId:     "trn:managed_identity:" + createResourcePath,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -87,9 +98,25 @@ func TestManagedIdentityAliasWithSourcePath(t *testing.T) {
 				),
 			},
 
-			// Import state.
+			// Import state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
+			//
+			// alias_source_path is ignored here because the API identifies the
+			// alias source by ID rather than path, so the path is not available
+			// to compare against.
 			{
 				ResourceName:            "tharsis_managed_identity_alias.tmi_alias",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"alias_source_path"},
+			},
+
+			// Import state by TRN. Aliases are managed identities on the API
+			// side, so they carry the managed identity TRN type.
+			{
+				ResourceName:            "tharsis_managed_identity_alias.tmi_alias",
+				ImportStateId:           "trn:managed_identity:" + createResourcePath,
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"alias_source_path"},

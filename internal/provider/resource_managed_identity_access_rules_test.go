@@ -58,7 +58,14 @@ func TestManagedIdentityAccessRules(t *testing.T) {
 				),
 			},
 
-			// Import state.
+			// Import state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
+			//
+			// An access rule has no fully human-readable identifier. Its TRN is
+			// "<group_path>/<managed_identity_name>/<rule_GID>", whose final
+			// segment is itself a GID, so the plain GID is the practical import
+			// form and the only one exercised here.
 			{
 				ResourceName:      "tharsis_managed_identity_access_rule.rule01",
 				ImportState:       true,

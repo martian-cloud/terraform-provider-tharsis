@@ -77,3 +77,21 @@ Only the owner role can create, update, or delete managed identities.
 - `last_updated` (String) Timestamp when this managed identity was most recently updated by Terraform.
 - `resource_path` (String, Deprecated) The path of the parent group plus the name of the managed identity.
 - `subject` (String) subject string for AWS, Azure, and Tharsis
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+# A managed identity can be imported by its TRN, which is "trn:managed_identity:"
+# followed by the group path and the identity name.
+import {
+  to = tharsis_managed_identity.aws
+  id = "trn:managed_identity:my-group/my-aws-identity"
+}
+
+# The identity's ID also works as the id, shown by the "id" attribute or in the
+# Tharsis UI.
+```

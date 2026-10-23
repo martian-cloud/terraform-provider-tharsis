@@ -27,3 +27,14 @@ description: |-
 Deleting a workspace is irreversible. It permanently removes the workspace's runs, state files, and outputs.
 
 {{ .SchemaMarkdown | trimspace }}
+
+{{- if .HasImportIDConfig }}
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+{{ tffile .ImportIDConfigFile }}
+{{- end }}

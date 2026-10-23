@@ -40,10 +40,19 @@ func TestTerraformModule(t *testing.T) {
 				),
 			},
 
-			// Import the state.
-			// The import state ID is the resource path, which is group path / module name / system.
+			// Import the state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
 			{
 				ResourceName:      "tharsis_terraform_module.ttm",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Import the state by TRN.
+			{
+				ResourceName:      "tharsis_terraform_module.ttm",
+				ImportStateId:     "trn:terraform_module:" + createGroupPath + "/" + createName + "/" + createSystem,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
