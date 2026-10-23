@@ -48,14 +48,6 @@ func TestTerraformProvider(t *testing.T) {
 				ImportStateVerify: true,
 			},
 
-			// Import the state by resource path, which is "<group_path>/<name>".
-			{
-				ResourceName:      "tharsis_terraform_provider.ttp",
-				ImportStateId:     createResourcePath,
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-
 			// Import the state by TRN.
 			{
 				ResourceName:      "tharsis_terraform_provider.ttp",

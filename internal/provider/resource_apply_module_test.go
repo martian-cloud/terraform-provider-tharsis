@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
@@ -231,5 +234,21 @@ func TestApplyModuleImportStateIsRejected(t *testing.T) {
 				t.Errorf("diagnostic detail %q does not suggest an alternative", detail)
 			}
 		})
+	}
+}
+
+// newTestImportState builds an empty single-attribute state suitable for
+// exercising an ImportState implementation in a unit test.
+func newTestImportState() tfsdk.State {
+	return tfsdk.State{
+		Schema: schema.Schema{
+			Attributes: map[string]schema.Attribute{
+				"id": schema.StringAttribute{Computed: true},
+			},
+		},
+		Raw: tftypes.NewValue(
+			tftypes.Object{AttributeTypes: map[string]tftypes.Type{"id": tftypes.String}},
+			map[string]tftypes.Value{"id": tftypes.NewValue(tftypes.String, nil)},
+		),
 	}
 }

@@ -41,15 +41,6 @@ func TestServiceAccount(t *testing.T) {
 				ImportStateVerify: true,
 			},
 
-			// Import the state by resource path, the form a user is most likely
-			// to have on hand for a pre-existing service account.
-			{
-				ResourceName:      "tharsis_service_account.tsa",
-				ImportStateId:     createResourcePath,
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-
 			// Import the state by TRN.
 			{
 				ResourceName:      "tharsis_service_account.tsa",

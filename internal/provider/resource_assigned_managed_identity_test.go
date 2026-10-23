@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"encoding/base64"
 	"fmt"
 	"testing"
 
@@ -105,6 +106,14 @@ func testAssignedManagedIdentityImportStateCheck(states []*terraform.InstanceSta
 	}
 
 	return nil
+}
+
+// testGID returns a syntactically valid GID for the supplied type code. A GID is
+// the base64url encoding of "<code>_<uuid>", and contains no forward slash.
+func testGID(code string) string {
+	return base64.RawURLEncoding.EncodeToString(
+		[]byte(code + "_1f8e5a92-7c41-4d6b-9b3a-2e5d8c7f1a04"),
+	)
 }
 
 // TestParseAssignedManagedIdentityImportID covers the composite import ID parser

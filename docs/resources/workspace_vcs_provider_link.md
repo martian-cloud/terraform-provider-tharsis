@@ -67,14 +67,16 @@ resource "tharsis_workspace_vcs_provider_link" "this" {
 
 Import is supported using the following syntax:
 
-The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
 
-```shell
-# A link has no human-readable name, so import it by its ID, shown by the "id"
-# attribute or in the Tharsis UI.
-terraform import tharsis_workspace_vcs_provider_link.this <link-id>
+```terraform
+# A link has no human-readable name, so it is imported by its ID, shown by the
+# "id" attribute or in the Tharsis UI.
+import {
+  to = tharsis_workspace_vcs_provider_link.this
+  id = "<link-id>"
+}
 
-# A TRN works too, but its last segment is the same link ID, so it offers no
-# advantage over using the ID on its own.
-terraform import tharsis_workspace_vcs_provider_link.this trn:workspace_vcs_provider_link:my-group/my-workspace/<link-id>
+# A TRN also works, but its last segment is the same link ID, so it offers no
+# advantage: "trn:workspace_vcs_provider_link:my-group/my-workspace/<link-id>".
 ```

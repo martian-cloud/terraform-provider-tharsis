@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -298,8 +299,8 @@ func (t *serviceAccountResource) Delete(ctx context.Context,
 func (t *serviceAccountResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	// A service account is identified by "<group_path>/<name>", a GID, or a TRN.
-	importByNormalizedID(ctx, trn.TypeServiceAccount, req, resp)
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // copyServiceAccount copies the contents of a service account.

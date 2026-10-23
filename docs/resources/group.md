@@ -58,19 +58,17 @@ Deleting a group is irreversible. It also deletes all nested groups and workspac
 
 Import is supported using the following syntax:
 
-The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
 
-```shell
-# A group can be imported by its full path, which is the parent path plus the
-# group name.
-terraform import tharsis_group.nested my-group/my-sub-group
+```terraform
+# A group can be imported by its TRN, which is "trn:group:" followed by the
+# group's full path. A top-level group is just its name, for example
+# "trn:group:my-group".
+import {
+  to = tharsis_group.nested
+  id = "trn:group:my-group/my-sub-group"
+}
 
-# A top-level group has no parent, so its full path is just its name.
-terraform import tharsis_group.top_level my-group
-
-# The group's TRN also works.
-terraform import tharsis_group.nested trn:group:my-group/my-sub-group
-
-# So does the group's ID, shown by the "id" attribute or in the Tharsis UI.
-terraform import tharsis_group.nested <group-id>
+# The group's ID also works as the id, shown by the "id" attribute or in the
+# Tharsis UI.
 ```

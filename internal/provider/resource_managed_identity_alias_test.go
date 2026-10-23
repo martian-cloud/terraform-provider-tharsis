@@ -41,14 +41,6 @@ func TestManagedIdentityAliasWithSourceID(t *testing.T) {
 				ImportStateVerify: true,
 			},
 
-			// Import state by resource path, which is "<group_path>/<alias_name>".
-			{
-				ResourceName:      "tharsis_managed_identity_alias.tmi_alias",
-				ImportStateId:     createResourcePath,
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-
 			// Import state by TRN. Aliases are managed identities on the API
 			// side, so they carry the managed identity TRN type.
 			{
@@ -115,15 +107,6 @@ func TestManagedIdentityAliasWithSourcePath(t *testing.T) {
 			// to compare against.
 			{
 				ResourceName:            "tharsis_managed_identity_alias.tmi_alias",
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"alias_source_path"},
-			},
-
-			// Import state by resource path, which is "<group_path>/<alias_name>".
-			{
-				ResourceName:            "tharsis_managed_identity_alias.tmi_alias",
-				ImportStateId:           createResourcePath,
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"alias_source_path"},

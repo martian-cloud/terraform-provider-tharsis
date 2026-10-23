@@ -1,11 +1,14 @@
 # An assignment has no identifier of its own in Tharsis. It is identified by the
-# pair of resources it joins, so the import ID is the workspace ID and the
-# managed identity ID separated by a forward slash.
+# pair of resources it joins, so the id is the workspace ID and the managed
+# identity ID separated by a forward slash.
 #
-# Both halves must be IDs rather than paths or TRNs. A TRN contains forward
-# slashes of its own, which would make the two halves ambiguous, so TRNs are
-# rejected with an explanatory error.
-terraform import tharsis_assigned_managed_identity.this <workspace-id>/<managed-identity-id>
+# Both halves must be IDs rather than TRNs. A TRN contains forward slashes of its
+# own, which would make the two halves ambiguous, so TRNs are rejected with an
+# explanatory error.
+import {
+  to = tharsis_assigned_managed_identity.this
+  id = "<workspace-id>/<managed-identity-id>"
+}
 
 # The workspace ID is shown by the "id" attribute of a tharsis_workspace
 # resource, and the managed identity ID by the "id" attribute of a

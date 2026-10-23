@@ -82,16 +82,16 @@ Only the owner role can create, update, or delete managed identities.
 
 Import is supported using the following syntax:
 
-The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
 
-```shell
-# A managed identity can be imported by its path, which is the group path plus
-# the identity name.
-terraform import tharsis_managed_identity.aws my-group/my-aws-identity
+```terraform
+# A managed identity can be imported by its TRN, which is "trn:managed_identity:"
+# followed by the group path and the identity name.
+import {
+  to = tharsis_managed_identity.aws
+  id = "trn:managed_identity:my-group/my-aws-identity"
+}
 
-# The identity's TRN also works.
-terraform import tharsis_managed_identity.aws trn:managed_identity:my-group/my-aws-identity
-
-# So does the identity's ID, shown by the "id" attribute or in the Tharsis UI.
-terraform import tharsis_managed_identity.aws <managed-identity-id>
+# The identity's ID also works as the id, shown by the "id" attribute or in the
+# Tharsis UI.
 ```

@@ -42,15 +42,6 @@ func TestVariable(t *testing.T) {
 				ImportStateVerify: true,
 			},
 
-			// Import the state by path, which for a namespace variable is
-			// "<namespace_path>/<category>/<key>".
-			{
-				ResourceName:      "tharsis_variable.tnv",
-				ImportStateId:     createNamespacePath + "/" + createCategory + "/" + createKey,
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-
 			// Import the state by TRN.
 			{
 				ResourceName:      "tharsis_variable.tnv",

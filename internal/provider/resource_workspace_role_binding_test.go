@@ -40,15 +40,6 @@ func TestWorkspaceRoleBinding(t *testing.T) {
 				ImportStateIdFunc: testAccWorkspaceRoleBindingImportStateIDFunc,
 			},
 
-			// Import state by workspace path, the form a user is most likely to
-			// have on hand for a workspace that already exists.
-			{
-				ResourceName:      "tharsis_workspace_role_binding.twrb",
-				ImportState:       true,
-				ImportStateVerify: true,
-				ImportStateId:     testGroupPath + "/tw_for_role_binding",
-			},
-
 			// Import state by workspace TRN.
 			{
 				ResourceName:      "tharsis_workspace_role_binding.twrb",

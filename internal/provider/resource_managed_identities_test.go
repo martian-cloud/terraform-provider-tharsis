@@ -53,14 +53,6 @@ func TestManagedIdentityAWS(t *testing.T) {
 				ImportStateVerify: true,
 			},
 
-			// Import state by resource path, which is "<group_path>/<name>".
-			{
-				ResourceName:      "tharsis_managed_identity.tmi_aws",
-				ImportStateId:     createResourcePath,
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-
 			// Import state by TRN.
 			{
 				ResourceName:      "tharsis_managed_identity.tmi_aws",
@@ -141,14 +133,6 @@ func TestManagedIdentityAzure(t *testing.T) {
 				ImportStateVerify: true,
 			},
 
-			// Import state by resource path, which is "<group_path>/<name>".
-			{
-				ResourceName:      "tharsis_managed_identity.tmi_azure",
-				ImportStateId:     createResourcePath,
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-
 			// Import state by TRN.
 			{
 				ResourceName:      "tharsis_managed_identity.tmi_azure",
@@ -223,14 +207,6 @@ func TestManagedIdentityTharsis(t *testing.T) {
 			// state, which is the GID returned by the API during create.
 			{
 				ResourceName:      "tharsis_managed_identity.tmi_tharsis",
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-
-			// Import state by resource path, which is "<group_path>/<name>".
-			{
-				ResourceName:      "tharsis_managed_identity.tmi_tharsis",
-				ImportStateId:     createResourcePath,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},

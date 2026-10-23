@@ -52,16 +52,16 @@ resource "tharsis_terraform_provider" "this" {
 
 Import is supported using the following syntax:
 
-The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
 
-```shell
-# A Terraform provider can be imported by its path, which is the group path plus
-# the provider name.
-terraform import tharsis_terraform_provider.this my-group/my-provider
+```terraform
+# A Terraform provider can be imported by its TRN, which is
+# "trn:terraform_provider:" followed by the group path and the provider name.
+import {
+  to = tharsis_terraform_provider.this
+  id = "trn:terraform_provider:my-group/my-provider"
+}
 
-# The provider's TRN also works.
-terraform import tharsis_terraform_provider.this trn:terraform_provider:my-group/my-provider
-
-# So does its ID, shown by the "id" attribute or in the Tharsis UI.
-terraform import tharsis_terraform_provider.this <terraform-provider-id>
+# The provider's ID also works as the id, shown by the "id" attribute or in the
+# Tharsis UI.
 ```

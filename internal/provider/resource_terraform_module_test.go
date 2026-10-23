@@ -49,15 +49,6 @@ func TestTerraformModule(t *testing.T) {
 				ImportStateVerify: true,
 			},
 
-			// Import the state by resource path, which is
-			// "<group_path>/<module_name>/<system>".
-			{
-				ResourceName:      "tharsis_terraform_module.ttm",
-				ImportStateId:     createGroupPath + "/" + createName + "/" + createSystem,
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-
 			// Import the state by TRN.
 			{
 				ResourceName:      "tharsis_terraform_module.ttm",

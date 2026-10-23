@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -301,10 +302,8 @@ func (t *managedIdentityAliasResource) Delete(ctx context.Context,
 func (t *managedIdentityAliasResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 
-	// An alias is identified by "<group_path>/<alias_name>", a GID, or a TRN.
-	// Aliases are managed identities on the API side, so they resolve through
-	// the managed identity TRN type.
-	importByNormalizedID(ctx, trn.TypeManagedIdentity, req, resp)
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // copyManagedIdentityAlias copies the contents of a managed identity alias.

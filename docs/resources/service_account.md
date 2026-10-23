@@ -70,16 +70,16 @@ Required:
 
 Import is supported using the following syntax:
 
-The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
 
-```shell
-# A service account can be imported by its path, which is the group path plus
-# the service account name.
-terraform import tharsis_service_account.this my-group/my-service-account
+```terraform
+# A service account can be imported by its TRN, which is "trn:service_account:"
+# followed by the group path and the service account name.
+import {
+  to = tharsis_service_account.this
+  id = "trn:service_account:my-group/my-service-account"
+}
 
-# The service account's TRN also works.
-terraform import tharsis_service_account.this trn:service_account:my-group/my-service-account
-
-# So does its ID, shown by the "id" attribute or in the Tharsis UI.
-terraform import tharsis_service_account.this <service-account-id>
+# The service account's ID also works as the id, shown by the "id" attribute or
+# in the Tharsis UI.
 ```

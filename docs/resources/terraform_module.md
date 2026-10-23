@@ -55,16 +55,16 @@ resource "tharsis_terraform_module" "this" {
 
 Import is supported using the following syntax:
 
-The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
 
-```shell
-# A Terraform module can be imported by its path, which is the group path plus
-# the module name plus the target system.
-terraform import tharsis_terraform_module.this my-group/my-module/aws
+```terraform
+# A Terraform module can be imported by its TRN, which is "trn:terraform_module:"
+# followed by the group path, the module name, and the target system.
+import {
+  to = tharsis_terraform_module.this
+  id = "trn:terraform_module:my-group/my-module/aws"
+}
 
-# The module's TRN also works.
-terraform import tharsis_terraform_module.this trn:terraform_module:my-group/my-module/aws
-
-# So does its ID, shown by the "id" attribute or in the Tharsis UI.
-terraform import tharsis_terraform_module.this <terraform-module-id>
+# The module's ID also works as the id, shown by the "id" attribute or in the
+# Tharsis UI.
 ```

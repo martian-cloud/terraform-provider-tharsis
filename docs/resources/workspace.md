@@ -59,16 +59,16 @@ Deleting a workspace is irreversible. It permanently removes the workspace's run
 
 Import is supported using the following syntax:
 
-The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
 
-```shell
-# A workspace can be imported by its full path, which is the group path plus the
-# workspace name.
-terraform import tharsis_workspace.this my-group/my-workspace
+```terraform
+# A workspace can be imported by its TRN, which is "trn:workspace:" followed by
+# the group path and the workspace name.
+import {
+  to = tharsis_workspace.this
+  id = "trn:workspace:my-group/my-workspace"
+}
 
-# The workspace's TRN also works.
-terraform import tharsis_workspace.this trn:workspace:my-group/my-workspace
-
-# So does the workspace's ID, shown by the "id" attribute or in the Tharsis UI.
-terraform import tharsis_workspace.this <workspace-id>
+# The workspace's ID also works as the id, shown by the "id" attribute or in the
+# Tharsis UI.
 ```

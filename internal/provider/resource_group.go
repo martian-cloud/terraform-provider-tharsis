@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -280,13 +281,27 @@ func (t *groupResource) Delete(ctx context.Context,
 func (t *groupResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	// A group is identified by its full path, a GID, or a TRN.
-	//
-	// No existence check is performed here. Terraform calls Read immediately
-	// after this method, and Read reports a missing group by removing it from
-	// state, which Terraform surfaces as a "Cannot import non-existent remote
-	// object" error naming the target resource address.
-	importByNormalizedID(ctx, trn.TypeGroup, req, resp)
+	// Get the group by full path from Tharsis.
+	found, err := t.client.GroupsClient.GetGroupByID(ctx, &pb.GetGroupByIDRequest{
+		Id: trn.TypeGroup.Normalize(req.ID),
+	})
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			resp.Diagnostics.AddError(
+				"Import group not found: "+req.ID,
+				"",
+			)
+			return
+		}
+		resp.Diagnostics.AddError(
+			"Import group not found: "+req.ID,
+			err.Error(),
+		)
+		return
+	}
+
+	// Import by full path.
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), found.Metadata.Id)...)
 }
 
 // copyGroup copies the contents of a group.

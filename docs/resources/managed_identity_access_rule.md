@@ -88,14 +88,16 @@ Optional:
 
 Import is supported using the following syntax:
 
-The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
 
-```shell
-# An access rule has no human-readable name, so import it by its ID, shown by
-# the "id" attribute or in the Tharsis UI.
-terraform import tharsis_managed_identity_access_rule.eligible_principals <access-rule-id>
+```terraform
+# An access rule has no human-readable name, so it is imported by its ID, shown
+# by the "id" attribute or in the Tharsis UI.
+import {
+  to = tharsis_managed_identity_access_rule.eligible_principals
+  id = "<access-rule-id>"
+}
 
-# A TRN works too, but its last segment is the same rule ID, so it offers no
-# advantage over using the ID on its own.
-terraform import tharsis_managed_identity_access_rule.eligible_principals trn:managed_identity_access_rule:my-group/my-aws-identity/<access-rule-id>
+# A TRN also works, but its last segment is the same rule ID, so it offers no
+# advantage: "trn:managed_identity_access_rule:my-group/my-aws-identity/<access-rule-id>".
 ```

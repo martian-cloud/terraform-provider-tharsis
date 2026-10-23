@@ -64,15 +64,6 @@ func TestVCSProvider(t *testing.T) {
 				ImportStateVerifyIgnore: []string{"oauth_client_id", "oauth_client_secret", "oauth_authorization_url"},
 			},
 
-			// Import the state by resource path, which is "<group_path>/<name>".
-			{
-				ResourceName:            "tharsis_vcs_provider.tvp",
-				ImportStateId:           createResourcePath,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"oauth_client_id", "oauth_client_secret", "oauth_authorization_url"},
-			},
-
 			// Import the state by TRN.
 			{
 				ResourceName:            "tharsis_vcs_provider.tvp",

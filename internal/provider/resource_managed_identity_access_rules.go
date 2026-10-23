@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -480,12 +481,10 @@ func (t *managedIdentityAccessRuleResource) Delete(ctx context.Context,
 func (t *managedIdentityAccessRuleResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	// An access rule is identified by its GID, or by a TRN of the form
-	// "<group_path>/<managed_identity_name>/<rule_GID>". Because the final TRN
-	// segment is itself a GID, the plain GID is the practical form to use.
-	//
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+
 	// Setting of the ManagedIdentityID field during import is handled in the Read method.
-	importByNormalizedID(ctx, trn.TypeManagedIdentityAccessRule, req, resp)
 }
 
 // copyAccessRuleToState copies the proto access rule to the Terraform state model.

@@ -50,16 +50,16 @@ resource "tharsis_gpg_key" "this" {
 
 Import is supported using the following syntax:
 
-The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
 
-```shell
-# A GPG key can be imported by its path, which is the group path plus the key
-# fingerprint.
-terraform import tharsis_gpg_key.this my-group/C48F7F19B14E59433DF9402341F57AB6741F92F1
+```terraform
+# A GPG key can be imported by its TRN, which is "trn:gpg_key:" followed by the
+# group path and the key's fingerprint.
+import {
+  to = tharsis_gpg_key.this
+  id = "trn:gpg_key:my-group/C48F7F19B14E59433DF9402341F57AB6741F92F1"
+}
 
-# The key's TRN also works.
-terraform import tharsis_gpg_key.this trn:gpg_key:my-group/C48F7F19B14E59433DF9402341F57AB6741F92F1
-
-# So does its ID, shown by the "id" attribute or in the Tharsis UI.
-terraform import tharsis_gpg_key.this <gpg-key-id>
+# The key's ID also works as the id, shown by the "id" attribute or in the
+# Tharsis UI.
 ```

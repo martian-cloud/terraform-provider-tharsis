@@ -134,6 +134,9 @@ func (t *assignedManagedIdentityResource) Create(ctx context.Context,
 // segments expected in an assigned managed identity import ID.
 const assignedManagedIdentityImportIDParts = 2
 
+// trnPrefix is the leading marker of a Tharsis Resource Name.
+const trnPrefix = "trn:"
+
 // parseAssignedManagedIdentityImportID splits a composite import ID of the form
 // "<workspace_id>/<managed_identity_id>" into its two GIDs.
 //

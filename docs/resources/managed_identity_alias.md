@@ -54,17 +54,17 @@ Creating an alias requires the owner role in both the source group and the alias
 
 Import is supported using the following syntax:
 
-The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
 
-```shell
-# An alias can be imported by its path, which is the path of the group holding
-# the alias plus the alias name.
-terraform import tharsis_managed_identity_alias.this my-group/my-sub-group/my-identity-alias
+```terraform
+# An alias is a managed identity on the Tharsis side, so its TRN is
+# "trn:managed_identity:" followed by the path of the group that holds the alias
+# and the alias name.
+import {
+  to = tharsis_managed_identity_alias.this
+  id = "trn:managed_identity:my-group/my-sub-group/my-identity-alias"
+}
 
-# An alias is a managed identity on the Tharsis side, so it carries a
-# managed_identity TRN rather than one of its own.
-terraform import tharsis_managed_identity_alias.this trn:managed_identity:my-group/my-sub-group/my-identity-alias
-
-# The alias ID, shown by the "id" attribute or in the Tharsis UI, also works.
-terraform import tharsis_managed_identity_alias.this <alias-id>
+# The alias's ID also works as the id, shown by the "id" attribute or in the
+# Tharsis UI.
 ```

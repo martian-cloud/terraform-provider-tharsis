@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -358,8 +359,8 @@ func (t *vcsProviderResource) Delete(ctx context.Context,
 func (t *vcsProviderResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	// A VCS provider is identified by "<group_path>/<name>", a GID, or a TRN.
-	importByNormalizedID(ctx, trn.TypeVCSProvider, req, resp)
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // copyVCSProvider copies the contents of a VCS provider.
