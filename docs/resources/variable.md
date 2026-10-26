@@ -52,3 +52,27 @@ Tharsis rejects some environment variable keys, including `TF_VAR_*`, `TF_CLI_AR
 ### Read-Only
 
 - `id` (String) String identifier of the namespace variable.
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+# A namespace variable can be imported by its TRN, which is "trn:variable:"
+# followed by the namespace path, the category ("terraform" or "environment"),
+# and the key.
+import {
+  to = tharsis_variable.region
+  id = "trn:variable:my-group/my-workspace/terraform/region"
+}
+
+# A variable set on a group rather than a workspace uses the group's path.
+import {
+  to = tharsis_variable.log_level
+  id = "trn:variable:my-group/environment/TF_LOG"
+}
+
+# The variable's ID also works as the id, shown by the "id" attribute.
+```

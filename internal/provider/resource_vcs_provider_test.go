@@ -49,11 +49,25 @@ func TestVCSProvider(t *testing.T) {
 				),
 			},
 
-			// Import the state.
-			// The OAuthClientID and OAuthClientSecret fields are write-only,
-			// so they cannot be verified during import.
+			// Import the state by GID.
+			// With no ImportStateId set, the framework reuses the id already in
+			// state, which is the GID returned by the API during create.
+			//
+			// The OAuthClientID and OAuthClientSecret fields are write-only to
+			// the Tharsis SDK and OAuthAuthorizationURL is only returned by the
+			// create call, so none of the three can be read back. These ignores
+			// reflect an intentional API constraint, not an incomplete import.
 			{
 				ResourceName:            "tharsis_vcs_provider.tvp",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"oauth_client_id", "oauth_client_secret", "oauth_authorization_url"},
+			},
+
+			// Import the state by TRN.
+			{
+				ResourceName:            "tharsis_vcs_provider.tvp",
+				ImportStateId:           "trn:vcs_provider:" + createResourcePath,
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"oauth_client_id", "oauth_client_secret", "oauth_authorization_url"},

@@ -32,3 +32,14 @@ The OAuth client ID and secret are never displayed by Tharsis. After the provide
 Deleting a VCS provider is irreversible and severs the connection to the OAuth application.
 
 {{ .SchemaMarkdown | trimspace }}
+
+{{- if .HasImportIDConfig }}
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+{{ tffile .ImportIDConfigFile }}
+{{- end }}

@@ -1,10 +1,16 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
+	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
@@ -187,4 +193,62 @@ resource "tharsis_apply_module" "tam" {
 	`,
 		ws1Path, moduleSource, varValueBase, val, varKey, varCategory,
 	)
+}
+
+// TestApplyModuleImportStateIsRejected verifies that importing a
+// tharsis_apply_module fails with an explanation rather than appearing to
+// succeed or producing Terraform's generic unsupported-import message.
+//
+// A tharsis_apply_module has no counterpart in the Tharsis API, so there is no
+// stored object an import could read back.
+func TestApplyModuleImportStateIsRejected(t *testing.T) {
+	tests := []struct {
+		name     string
+		importID string
+	}{
+		{name: "a workspace path", importID: "my-group/my-workspace"},
+		{name: "a manufactured UUID", importID: "f6b2c5d1-9a84-4c3e-8f17-0d5b6e9a2c41"},
+		{name: "an empty string", importID: ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			underTest := &applyModuleResource{}
+			resp := &fwresource.ImportStateResponse{State: newTestImportState()}
+
+			underTest.ImportState(context.Background(),
+				fwresource.ImportStateRequest{ID: test.importID}, resp)
+
+			if !resp.Diagnostics.HasError() {
+				t.Fatalf("expected an error diagnostic for import ID %q, got none", test.importID)
+			}
+
+			summary := resp.Diagnostics.Errors()[0].Summary()
+			if !strings.Contains(summary, "cannot be imported") {
+				t.Errorf("diagnostic summary %q does not explain that import is unsupported", summary)
+			}
+
+			// The detail should point the user at a usable alternative.
+			detail := resp.Diagnostics.Errors()[0].Detail()
+			if !strings.Contains(detail, "tharsis_workspace") {
+				t.Errorf("diagnostic detail %q does not suggest an alternative", detail)
+			}
+		})
+	}
+}
+
+// newTestImportState builds an empty single-attribute state suitable for
+// exercising an ImportState implementation in a unit test.
+func newTestImportState() tfsdk.State {
+	return tfsdk.State{
+		Schema: schema.Schema{
+			Attributes: map[string]schema.Attribute{
+				"id": schema.StringAttribute{Computed: true},
+			},
+		},
+		Raw: tftypes.NewValue(
+			tftypes.Object{AttributeTypes: map[string]tftypes.Type{"id": tftypes.String}},
+			map[string]tftypes.Value{"id": tftypes.NewValue(tftypes.String, nil)},
+		),
+	}
 }
