@@ -39,6 +39,7 @@ type WorkspaceVCSProviderLinkModel struct {
 var (
 	_ resource.Resource                = (*workspaceVCSProviderLinkResource)(nil)
 	_ resource.ResourceWithConfigure   = (*workspaceVCSProviderLinkResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*workspaceVCSProviderLinkResource)(nil)
 	_ resource.ResourceWithImportState = (*workspaceVCSProviderLinkResource)(nil)
 )
 
@@ -380,9 +381,12 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src *pb.
 ) {
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	dest.ID = types.StringValue(src.Metadata.Id)
-	dest.WorkspaceID = types.StringValue(src.WorkspaceId)
+	// Preserve the caller's workspace and VCS-provider references (a TRN or a Global ID);
+	// the API returns Global IDs, which would otherwise overwrite a TRN input and fail
+	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
 	dest.WorkspacePath = types.StringValue(parsed.ParentPath())
-	dest.VCSProviderID = types.StringValue(src.VcsProviderId)
+	dest.WorkspaceID = keepOrRefresh(dest.WorkspaceID, src.WorkspaceId, trn.TypeWorkspace.Build(parsed.ParentPath()))
+	dest.VCSProviderID = keepOrRefresh(dest.VCSProviderID, src.VcsProviderId, "")
 	dest.RepositoryPath = types.StringValue(src.RepositoryPath)
 	dest.WebhookID = types.StringValue(src.WebhookId)
 	if src.ModuleDirectory != nil {
@@ -402,4 +406,24 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src *pb.
 	}
 	dest.AutoSpeculativePlan = types.BoolValue(src.AutoSpeculativePlan)
 	dest.WebhookDisabled = types.BoolValue(src.WebhookDisabled)
+}
+
+// ModifyPlan keeps a reference field from forcing a replacement when the planned value
+// and the stored value name the same object in different forms (a TRN vs a Global ID,
+// e.g. after an import).
+func (t *workspaceVCSProviderLinkResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan WorkspaceVCSProviderLinkModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.WorkspaceID = planKeepPriorIfSameObject(ctx, t.client, state.WorkspaceID, plan.WorkspaceID)
+	plan.VCSProviderID = planKeepPriorIfSameObject(ctx, t.client, state.VCSProviderID, plan.VCSProviderID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

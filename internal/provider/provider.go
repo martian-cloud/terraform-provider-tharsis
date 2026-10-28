@@ -209,6 +209,8 @@ func (p *tharsisProvider) Resources(context.Context) []func() resource.Resource 
 		NewWorkspaceVCSProviderLinkResource,
 		NewAssignedManagedIdentityResource,
 		NewWorkspaceRoleBindingResource,
+		NewRunnerAgentResource,
+		NewRunnerAgentServiceAccountResource,
 	}
 }
 

@@ -33,6 +33,7 @@ type GroupModel struct {
 var (
 	_ resource.Resource                = (*groupResource)(nil)
 	_ resource.ResourceWithConfigure   = (*groupResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*groupResource)(nil)
 	_ resource.ResourceWithImportState = (*groupResource)(nil)
 )
 
@@ -311,15 +312,37 @@ func (t *groupResource) copyGroup(src *pb.Group, dest *GroupModel) {
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
 	parsed := trn.MustParseAny(src.Metadata.Trn)
+	// Preserve the caller's parent reference (a TRN or a Global ID, in either field); the
+	// API returns the Global ID, which would otherwise overwrite a TRN input and fail
+	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
 	if parsed.HasParent() {
 		dest.ParentPath = types.StringValue(parsed.ParentPath())
 	} else {
 		dest.ParentPath = types.StringNull()
 	}
-	if src.ParentId != "" {
-		dest.ParentID = types.StringValue(src.ParentId)
-	} else {
+	if src.ParentId == "" {
 		dest.ParentID = types.StringNull()
+	} else {
+		dest.ParentID = keepOrRefresh(dest.ParentID, src.ParentId, trn.TypeGroup.Build(parsed.ParentPath()))
 	}
 	dest.FullPath = types.StringValue(src.FullPath)
+}
+
+// ModifyPlan keeps a reference field from forcing a replacement when the planned value
+// and the stored value name the same object in different forms (a TRN vs a Global ID,
+// e.g. after an import).
+func (t *groupResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan GroupModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.ParentID = planKeepPriorIfSameObject(ctx, t.client, state.ParentID, plan.ParentID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

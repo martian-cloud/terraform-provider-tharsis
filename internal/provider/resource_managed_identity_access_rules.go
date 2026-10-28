@@ -71,6 +71,7 @@ type ManagedIdentityAccessRuleModel struct {
 var (
 	_ resource.Resource                = (*managedIdentityAccessRuleResource)(nil)
 	_ resource.ResourceWithConfigure   = (*managedIdentityAccessRuleResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*managedIdentityAccessRuleResource)(nil)
 	_ resource.ResourceWithImportState = (*managedIdentityAccessRuleResource)(nil)
 )
 
@@ -497,7 +498,11 @@ func (t *managedIdentityAccessRuleResource) copyAccessRuleToState(
 	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.Type = types.StringValue(src.Type)
 	dest.RunStage = types.StringValue(src.RunStage)
-	dest.ManagedIdentityID = types.StringValue(src.ManagedIdentityId)
+	// Preserve the caller's managed_identity_id input (a TRN or a Global ID); the API
+	// returns the Global ID, which would otherwise overwrite a TRN input and fail
+	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
+	dest.ManagedIdentityID = keepOrRefresh(dest.ManagedIdentityID, src.ManagedIdentityId,
+		trn.TypeManagedIdentity.Build(trn.MustParseAny(src.Metadata.Trn).ParentPath()))
 	dest.VerifyStateLineage = types.BoolValue(src.VerifyStateLineage)
 
 	var d diag.Diagnostics
@@ -673,4 +678,23 @@ func (t *managedIdentityAccessRuleResource) moduleAttestationPolicyObjectAttribu
 		"predicate_type": types.StringType,
 		"public_key":     types.StringType,
 	}
+}
+
+// ModifyPlan keeps a reference field from forcing a replacement when the planned value
+// and the stored value name the same object in different forms (a TRN vs a Global ID,
+// e.g. after an import).
+func (t *managedIdentityAccessRuleResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan ManagedIdentityAccessRuleModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.ManagedIdentityID = planKeepPriorIfSameObject(ctx, t.client, state.ManagedIdentityID, plan.ManagedIdentityID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

@@ -27,6 +27,7 @@ type WorkspaceRoleBindingModel struct {
 var (
 	_ resource.Resource                = (*workspaceRoleBindingResource)(nil)
 	_ resource.ResourceWithConfigure   = (*workspaceRoleBindingResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*workspaceRoleBindingResource)(nil)
 	_ resource.ResourceWithImportState = (*workspaceRoleBindingResource)(nil)
 )
 
@@ -249,7 +250,14 @@ func (t *workspaceRoleBindingResource) Delete(ctx context.Context,
 func (t *workspaceRoleBindingResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), req.ID)...)
+	// The import ID may be the workspace's TRN or its Global ID. Store the Global ID, so
+	// both forms import to the same state.
+	workspace, err := t.client.WorkspacesClient.GetWorkspaceByID(ctx, &pb.GetWorkspaceByIDRequest{Id: req.ID})
+	if err != nil {
+		resp.Diagnostics.AddError("Error resolving workspace for import: "+req.ID, err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), workspace.Metadata.Id)...)
 }
 
 // copyWorkspaceRoleBinding copies the contents of a workspace role binding.
@@ -266,8 +274,32 @@ func (t *workspaceRoleBindingResource) copyWorkspaceRoleBinding(ctx context.Cont
 	}
 
 	dest.ID = types.StringValue(src.Metadata.Id)
-	dest.WorkspaceID = types.StringValue(src.WorkspaceId)
+	// Keep the caller's workspace_id (a TRN or a Global ID) while it names the same
+	// workspace; otherwise take the API's Global ID so a change shows as drift. The
+	// binding's own TRN is trn:workspace_role_binding:<workspace-path>, so its full
+	// path is the workspace path; no extra lookup is needed.
+	wsTRN := trn.TypeWorkspace.Build(trn.MustParseAny(src.Metadata.Trn).Path())
+	dest.WorkspaceID = keepOrRefresh(dest.WorkspaceID, src.WorkspaceId, wsTRN)
 	dest.RoleName = types.StringValue(role.Name)
 
 	return nil
+}
+
+// ModifyPlan keeps a reference field from forcing a replacement when the planned value
+// and the stored value name the same object in different forms (a TRN vs a Global ID,
+// e.g. after an import).
+func (t *workspaceRoleBindingResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan WorkspaceRoleBindingModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.WorkspaceID = planKeepPriorIfSameObject(ctx, t.client, state.WorkspaceID, plan.WorkspaceID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
