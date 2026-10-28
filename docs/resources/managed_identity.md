@@ -36,6 +36,17 @@ resource "tharsis_managed_identity" "aws" {
 #   group_id                     = tharsis_group.top_level.id
 #   tharsis_service_account_path = "my-group/my-service-account"
 # }
+
+# A kubernetes_federated managed identity, used to give a Tharsis run short-lived
+# access to a Kubernetes cluster. The audience must match the client_id on the
+# cluster's OIDC identity provider configuration.
+resource "tharsis_managed_identity" "kubernetes" {
+  type        = "kubernetes_federated"
+  name        = "eks-cluster-access"
+  description = "Gives each run short-lived access to the EKS cluster."
+  group_id    = tharsis_group.top_level.id
+  audience    = "my-cluster"
+}
 ```
 
 ## Behavior
@@ -59,10 +70,11 @@ Only the owner role can create, update, or delete managed identities.
 ### Required
 
 - `name` (String) The name of the managed identity.
-- `type` (String) Type of managed identity: AWS, Azure, or Tharsis.
+- `type` (String) Type of managed identity: aws_federated, azure_federated, tharsis_federated, or kubernetes_federated.
 
 ### Optional
 
+- `audience` (String) Audience for a kubernetes_federated managed identity. Must match the client_id on the cluster's OIDC identity provider configuration.
 - `aws_role` (String) AWS role
 - `azure_client_id` (String) Azure client ID
 - `azure_tenant_id` (String) Azure tenant ID
