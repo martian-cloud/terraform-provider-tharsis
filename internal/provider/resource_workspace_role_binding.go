@@ -276,8 +276,9 @@ func (t *workspaceRoleBindingResource) copyWorkspaceRoleBinding(ctx context.Cont
 	dest.ID = types.StringValue(src.Metadata.Id)
 	// Keep the caller's workspace_id (a TRN or a Global ID) while it names the same
 	// workspace; otherwise take the API's Global ID so a change shows as drift. The
-	// binding's own TRN carries the workspace path, so no extra lookup is needed.
-	wsTRN := trn.TypeWorkspace.Build(trn.MustParseAny(src.Metadata.Trn).ParentPath())
+	// binding's own TRN is trn:workspace_role_binding:<workspace-path>, so its full
+	// path is the workspace path; no extra lookup is needed.
+	wsTRN := trn.TypeWorkspace.Build(trn.MustParseAny(src.Metadata.Trn).Path())
 	dest.WorkspaceID = keepOrRefresh(dest.WorkspaceID, src.WorkspaceId, wsTRN)
 	dest.RoleName = types.StringValue(role.Name)
 
