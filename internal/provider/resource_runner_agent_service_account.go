@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -102,15 +103,23 @@ func (t *runnerAgentServiceAccountResource) Configure(_ context.Context,
 func (t *runnerAgentServiceAccountResource) resolveIDs(ctx context.Context,
 	runnerInput, serviceAccountInput string,
 ) (runnerAgentID string, serviceAccountID string, runnerNamespacePath string, diags diag.Diagnostics) {
-	runner, err := t.client.RunnersClient.GetRunnerByID(ctx,
-		&pb.GetRunnerByIDRequest{Id: runnerInput})
-	if err != nil {
+	// Both reads can briefly 404 right after the referenced object is created
+	// (read-after-write lag), so retry a NotFound a few times before giving up.
+	var runner *pb.Runner
+	if err := retryOnNotFound(ctx, func() error {
+		var e error
+		runner, e = t.client.RunnersClient.GetRunnerByID(ctx, &pb.GetRunnerByIDRequest{Id: runnerInput})
+		return e
+	}); err != nil {
 		diags.AddError("Error resolving runner agent", err.Error())
 		return
 	}
-	serviceAccount, err := t.client.ServiceAccountsClient.GetServiceAccountByID(ctx,
-		&pb.GetServiceAccountByIDRequest{Id: serviceAccountInput})
-	if err != nil {
+	var serviceAccount *pb.ServiceAccount
+	if err := retryOnNotFound(ctx, func() error {
+		var e error
+		serviceAccount, e = t.client.ServiceAccountsClient.GetServiceAccountByID(ctx, &pb.GetServiceAccountByIDRequest{Id: serviceAccountInput})
+		return e
+	}); err != nil {
 		diags.AddError("Error resolving service account", err.Error())
 		return
 	}
@@ -256,4 +265,21 @@ func (t *runnerAgentServiceAccountResource) Delete(ctx context.Context,
 			err.Error(),
 		)
 	}
+}
+
+// retryOnNotFound runs fn, retrying a gRPC NotFound a few times with a short backoff
+// to absorb read-after-write lag just after a referenced object is created.
+func retryOnNotFound(ctx context.Context, fn func() error) error {
+	var err error
+	for i := 0; i < 5; i++ {
+		if err = fn(); err == nil || status.Code(err) != codes.NotFound {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(i+1) * 200 * time.Millisecond):
+		}
+	}
+	return err
 }
