@@ -39,6 +39,7 @@ var (
 	_ resource.Resource                = (*serviceAccountResource)(nil)
 	_ resource.ResourceWithConfigure   = (*serviceAccountResource)(nil)
 	_ resource.ResourceWithImportState = (*serviceAccountResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*serviceAccountResource)(nil)
 )
 
 // NewServiceAccountResource is a helper function to simplify the provider implementation.
@@ -140,6 +141,25 @@ func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 		},
 	}
+}
+
+// ModifyPlan keeps group_id from forcing a replacement when the planned value and the
+// stored value are the same group in different forms (e.g. a TRN after the state holds a
+// Global ID following an import).
+func (t *serviceAccountResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan ServiceAccountModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
@@ -311,8 +331,12 @@ func (t *serviceAccountResource) copyServiceAccount(src *pb.ServiceAccount, dest
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
+	// group_path is returned in the same form the caller writes, so copy it straight.
+	// group_id is kept as the caller wrote it (a TRN or a Global ID) while it still names
+	// the same group, so a TRN input survives; if the group changed outside Terraform the
+	// API's Global ID is taken, so the move shows up as drift.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
+	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 
 	newPolicies := []OIDCTrustPolicyModel{}
 	for _, trustPolicy := range src.OidcTrustPolicies {

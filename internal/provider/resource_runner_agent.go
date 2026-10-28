@@ -159,6 +159,12 @@ func (t *runnerAgentResource) ModifyPlan(ctx context.Context,
 		return
 	}
 
+	// Keep group_id from forcing a replacement when the planned value and the stored
+	// value are the same group in different forms (e.g. a TRN after an import stored a
+	// Global ID).
+	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+
 	// A known, empty plan set replacing a known, non-empty state set cannot be applied
 	// in place, so require replacement.
 	if !state.Tags.IsNull() && !state.Tags.IsUnknown() &&
@@ -318,12 +324,16 @@ func (t *runnerAgentResource) copyRunnerAgent(ctx context.Context,
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
-	// GroupId is a pointer on the response; fall back to the parent path if the API
-	// does not populate it, so the attribute never goes null.
-	if src.GroupId != nil && *src.GroupId != "" {
-		dest.GroupID = types.StringValue(*src.GroupId)
-	} else {
-		dest.GroupID = types.StringValue(trn.TypeGroup.Build(parsed.ParentPath()))
+	// Preserve the caller's group_id input (a TRN or a Global ID); the API returns the
+	// Global ID, which would otherwise overwrite a TRN input and fail Terraform's
+	// consistency check. On import the field is null and is populated from the API,
+	// falling back to the parent path so the attribute never goes null.
+	{
+		apiGID := trn.TypeGroup.Build(parsed.ParentPath())
+		if src.GroupId != nil && *src.GroupId != "" {
+			apiGID = *src.GroupId
+		}
+		dest.GroupID = keepOrRefresh(dest.GroupID, apiGID, trn.TypeGroup.Build(parsed.ParentPath()))
 	}
 	dest.Disabled = types.BoolValue(src.Disabled)
 	dest.RunUntaggedJobs = types.BoolValue(src.RunUntaggedJobs)

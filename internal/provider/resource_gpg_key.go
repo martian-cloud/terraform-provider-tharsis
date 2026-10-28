@@ -37,6 +37,7 @@ type GPGKeyModel struct {
 var (
 	_ resource.Resource                = (*gpgKeyResource)(nil)
 	_ resource.ResourceWithConfigure   = (*gpgKeyResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*gpgKeyResource)(nil)
 	_ resource.ResourceWithImportState = (*gpgKeyResource)(nil)
 )
 
@@ -298,7 +299,29 @@ func (t *gpgKeyResource) copyGPGKey(src *pb.GPGKey, dest *GPGKeyModel) {
 	dest.ASCIIArmor = types.StringValue(src.AsciiArmor)
 	dest.Fingerprint = types.StringValue(src.Fingerprint)
 	dest.GPGKeyID = types.StringValue(src.GpgKeyId)
+	// Preserve the caller's group reference (a TRN or a Global ID, in either field); the
+	// API returns the Global ID, which would otherwise overwrite a TRN input and fail
+	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
+	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 	dest.ResourcePath = types.StringValue(parsed.Path())
+}
+
+// ModifyPlan keeps a reference field from forcing a replacement when the planned value
+// and the stored value name the same object in different forms (a TRN vs a Global ID,
+// e.g. after an import).
+func (t *gpgKeyResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan GPGKeyModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

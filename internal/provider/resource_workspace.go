@@ -38,6 +38,7 @@ type WorkspaceModel struct {
 var (
 	_ resource.Resource                = (*workspaceResource)(nil)
 	_ resource.ResourceWithConfigure   = (*workspaceResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*workspaceResource)(nil)
 	_ resource.ResourceWithImportState = (*workspaceResource)(nil)
 )
 
@@ -363,6 +364,29 @@ func (t *workspaceResource) copyWorkspace(src *pb.Workspace, dest *WorkspaceMode
 	dest.FullPath = types.StringValue(src.FullPath)
 
 	parsed := trn.MustParseAny(src.Metadata.Trn)
+	// group_path is the same form the caller writes, so copy it straight. group_id keeps
+	// the caller's value (a TRN or a Global ID) while it still names the same group; if the
+	// workspace is moved to another group outside Terraform the API's Global ID is taken,
+	// so the move shows up as drift.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
+	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
+}
+
+// ModifyPlan keeps a reference field from forcing a replacement when the planned value
+// and the stored value name the same object in different forms (a TRN vs a Global ID,
+// e.g. after an import).
+func (t *workspaceResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan WorkspaceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

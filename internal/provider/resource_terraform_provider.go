@@ -34,6 +34,7 @@ type TerraformProviderModel struct {
 var (
 	_ resource.Resource                = (*terraformProviderResource)(nil)
 	_ resource.ResourceWithConfigure   = (*terraformProviderResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*terraformProviderResource)(nil)
 	_ resource.ResourceWithImportState = (*terraformProviderResource)(nil)
 )
 
@@ -314,12 +315,34 @@ func (t *terraformProviderResource) copyTerraformProvider(src *pb.TerraformProvi
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.Name = types.StringValue(src.Name)
+	// Preserve the caller's group reference (a TRN or a Global ID, in either field); the
+	// API returns the Global ID, which would otherwise overwrite a TRN input and fail
+	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
+	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	if parts := parsed.PathParts(); len(parts) > 0 {
 		dest.RegistryNamespace = types.StringValue(parts[0])
 	}
 	dest.RepositoryURL = types.StringValue(src.RepositoryUrl)
 	dest.Private = types.BoolValue(src.Private)
+}
+
+// ModifyPlan keeps a reference field from forcing a replacement when the planned value
+// and the stored value name the same object in different forms (a TRN vs a Global ID,
+// e.g. after an import).
+func (t *terraformProviderResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan TerraformProviderModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

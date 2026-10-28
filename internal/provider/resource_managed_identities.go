@@ -65,6 +65,7 @@ type managedIdentityData struct {
 var (
 	_ resource.Resource                = (*managedIdentityResource)(nil)
 	_ resource.ResourceWithConfigure   = (*managedIdentityResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*managedIdentityResource)(nil)
 	_ resource.ResourceWithImportState = (*managedIdentityResource)(nil)
 )
 
@@ -442,8 +443,12 @@ func (t *managedIdentityResource) copyManagedIdentity(src *pb.ManagedIdentity, d
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
+	// Preserve the caller's group reference (a TRN or a Global ID, in either field):
+	// the API returns the Global ID, which would otherwise overwrite a TRN input and
+	// fail Terraform's consistency check. On import the field is null, so the API
+	// values populate the state as normal.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
+	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 	if decodedData.AWSRole != nil {
 		dest.AWSRole = types.StringValue(*decodedData.AWSRole)
 	}
@@ -527,4 +532,23 @@ func (t *managedIdentityResource) decodeDataString(encoded string) (*managedIden
 	}
 
 	return &result, nil
+}
+
+// ModifyPlan keeps a reference field from forcing a replacement when the planned value
+// and the stored value name the same object in different forms (a TRN vs a Global ID,
+// e.g. after an import).
+func (t *managedIdentityResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan ManagedIdentityModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

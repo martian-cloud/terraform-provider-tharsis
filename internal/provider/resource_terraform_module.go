@@ -36,6 +36,7 @@ type TerraformModuleModel struct {
 var (
 	_ resource.Resource                = (*terraformModuleResource)(nil)
 	_ resource.ResourceWithConfigure   = (*terraformModuleResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*terraformModuleResource)(nil)
 	_ resource.ResourceWithImportState = (*terraformModuleResource)(nil)
 )
 
@@ -326,12 +327,34 @@ func (t *terraformModuleResource) copyTerraformModule(src *pb.TerraformModule, d
 	// TRN path is <group_path>/<name>/<system>, strip last two segments for group path.
 	resourcePath := parsed.Path()
 	suffix := "/" + src.Name + "/" + src.System
+	// Preserve the caller's group reference (a TRN or a Global ID, in either field); the
+	// API returns the Global ID, which would otherwise overwrite a TRN input and fail
+	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
 	dest.GroupPath = types.StringValue(strings.TrimSuffix(resourcePath, suffix))
-	dest.GroupID = types.StringValue(src.GroupId)
+	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(strings.TrimSuffix(resourcePath, suffix)))
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	if parts := parsed.PathParts(); len(parts) > 0 {
 		dest.RegistryNamespace = types.StringValue(parts[0])
 	}
 	dest.RepositoryURL = types.StringValue(src.RepositoryUrl)
 	dest.Private = types.BoolValue(src.Private)
+}
+
+// ModifyPlan keeps a reference field from forcing a replacement when the planned value
+// and the stored value name the same object in different forms (a TRN vs a Global ID,
+// e.g. after an import).
+func (t *terraformModuleResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan TerraformModuleModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
