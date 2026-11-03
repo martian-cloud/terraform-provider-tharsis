@@ -101,21 +101,27 @@ func (t *runnerAgentServiceAccountResource) Configure(_ context.Context,
 // of these are written back to state.
 func (t *runnerAgentServiceAccountResource) resolveIDs(ctx context.Context,
 	runnerInput, serviceAccountInput string,
-) (runnerAgentID string, serviceAccountID string, runnerNamespacePath string, diags diag.Diagnostics) {
+) (runnerAgentID string, serviceAccountID string, runnerNamespacePath string, notFound bool, diags diag.Diagnostics) {
 	runner, err := t.client.RunnersClient.GetRunnerByID(ctx, &pb.GetRunnerByIDRequest{Id: runnerInput})
 	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return "", "", "", true, diags
+		}
 		diags.AddError("Error resolving runner agent", err.Error())
 		return
 	}
 	serviceAccount, err := t.client.ServiceAccountsClient.GetServiceAccountByID(ctx, &pb.GetServiceAccountByIDRequest{Id: serviceAccountInput})
 	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return "", "", "", true, diags
+		}
 		diags.AddError("Error resolving service account", err.Error())
 		return
 	}
 	// The runner agent's TRN is trn:runner:<group-path>/<name>; its parent path is the
 	// group namespace the assigned service accounts live in.
 	namespacePath := trn.MustParseAny(runner.Metadata.Trn).ParentPath()
-	return runner.Metadata.Id, serviceAccount.Metadata.Id, namespacePath, diags
+	return runner.Metadata.Id, serviceAccount.Metadata.Id, namespacePath, false, diags
 }
 
 func (t *runnerAgentServiceAccountResource) Create(ctx context.Context,
@@ -158,10 +164,16 @@ func (t *runnerAgentServiceAccountResource) Read(ctx context.Context,
 
 	// state.RunnerAgentID / ServiceAccountID hold the caller's input (TRN or Global ID).
 	// Resolve both to Global IDs so the presence check compares like with like.
-	runnerAgentID, wantID, namespacePath, diags := t.resolveIDs(ctx,
+	runnerAgentID, wantID, namespacePath, notFound, diags := t.resolveIDs(ctx,
 		state.RunnerAgentID.ValueString(), state.ServiceAccountID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	// A deleted runner agent or service account means the assignment is gone; drop it
+	// from state so a plan can recreate rather than hard-failing every run.
+	if notFound {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -202,6 +214,13 @@ func (t *runnerAgentServiceAccountResource) Read(ctx context.Context,
 			}
 		}
 		if present || found.PageInfo == nil || !found.PageInfo.HasNextPage {
+			break
+		}
+		// Guard against a server that claims another page but does not advance the
+		// cursor: an empty or unchanged EndCursor would otherwise refetch page one
+		// forever. Stop instead of looping.
+		if found.PageInfo.EndCursor == nil || *found.PageInfo.EndCursor == "" ||
+			(after != nil && *found.PageInfo.EndCursor == *after) {
 			break
 		}
 		after = found.PageInfo.EndCursor
