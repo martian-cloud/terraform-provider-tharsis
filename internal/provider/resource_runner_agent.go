@@ -37,6 +37,7 @@ var (
 	_ resource.Resource                = (*runnerAgentResource)(nil)
 	_ resource.ResourceWithConfigure   = (*runnerAgentResource)(nil)
 	_ resource.ResourceWithImportState = (*runnerAgentResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*runnerAgentResource)(nil)
 )
 
 // NewRunnerAgentResource is a helper function to simplify the provider implementation.
