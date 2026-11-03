@@ -101,10 +101,10 @@ func (t *runnerAgentResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					// The API has no update for the group, so a change forces replacement.
-					// UseStateForUnknown keeps the as-returned value so a TRN input does not
-					// plan a perpetual diff against the Global ID the API returns.
+					// A TRN input does not plan a perpetual diff against the Global ID the
+					// API returns: copyRunnerAgent keeps the caller's form on read, and
+					// ModifyPlan keeps the prior value when it names the same group.
 					stringplanmodifier.RequiresReplace(),
-					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"disabled": schema.BoolAttribute{
