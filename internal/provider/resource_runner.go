@@ -18,10 +18,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// RunnerAgentModel is the model for a runner agent.
-// Fields intentionally omitted: Type (always "group" for a resource-created runner agent),
+// RunnerModel is the model for a runner.
+// Fields intentionally omitted: Type (always "group" for a resource-created runner),
 // CreatedBy, and the session/activity collections.
-type RunnerAgentModel struct {
+type RunnerModel struct {
 	ID              types.String `tfsdk:"id"`
 	ResourcePath    types.String `tfsdk:"resource_path"`
 	Name            types.String `tfsdk:"name"`
@@ -34,30 +34,30 @@ type RunnerAgentModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = (*runnerAgentResource)(nil)
-	_ resource.ResourceWithConfigure   = (*runnerAgentResource)(nil)
-	_ resource.ResourceWithImportState = (*runnerAgentResource)(nil)
-	_ resource.ResourceWithModifyPlan  = (*runnerAgentResource)(nil)
+	_ resource.Resource                = (*runnerResource)(nil)
+	_ resource.ResourceWithConfigure   = (*runnerResource)(nil)
+	_ resource.ResourceWithImportState = (*runnerResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*runnerResource)(nil)
 )
 
-// NewRunnerAgentResource is a helper function to simplify the provider implementation.
-func NewRunnerAgentResource() resource.Resource {
-	return &runnerAgentResource{}
+// NewRunnerResource is a helper function to simplify the provider implementation.
+func NewRunnerResource() resource.Resource {
+	return &runnerResource{}
 }
 
-type runnerAgentResource struct {
+type runnerResource struct {
 	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *runnerAgentResource) Metadata(_ context.Context,
+func (t *runnerResource) Metadata(_ context.Context,
 	_ resource.MetadataRequest, resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = "tharsis_runner_agent"
+	resp.TypeName = "tharsis_runner"
 }
 
-func (t *runnerAgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	description := "Defines and manages a group runner agent."
+func (t *runnerResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	description := "Defines and manages a group runner."
 
 	resp.Schema = schema.Schema{
 		Version:             1,
@@ -65,62 +65,62 @@ func (t *runnerAgentResource) Schema(_ context.Context, _ resource.SchemaRequest
 		Description:         description,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "String identifier of the runner agent.",
-				Description:         "String identifier of the runner agent.",
+				MarkdownDescription: "String identifier of the runner.",
+				Description:         "String identifier of the runner.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"resource_path": schema.StringAttribute{
-				MarkdownDescription: "The path of the parent group plus the name of the runner agent.",
-				Description:         "The path of the parent group plus the name of the runner agent.",
+				MarkdownDescription: "The path of the parent group plus the name of the runner.",
+				Description:         "The path of the parent group plus the name of the runner.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"name": schema.StringAttribute{
-				MarkdownDescription: "The name of the runner agent.",
-				Description:         "The name of the runner agent.",
+				MarkdownDescription: "The name of the runner.",
+				Description:         "The name of the runner.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"description": schema.StringAttribute{
-				MarkdownDescription: "A description of the runner agent.",
-				Description:         "A description of the runner agent.",
+				MarkdownDescription: "A description of the runner.",
+				Description:         "A description of the runner.",
 				Optional:            true,
 				Computed:            true,
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"group_id": schema.StringAttribute{
-				MarkdownDescription: "The ID or TRN of the parent group. Runner agents are group-scoped.",
-				Description:         "The ID or TRN of the parent group. Runner agents are group-scoped.",
+				MarkdownDescription: "The ID or TRN of the parent group. Runners are group-scoped.",
+				Description:         "The ID or TRN of the parent group. Runners are group-scoped.",
 				Required:            true,
 				// The API has no update for the group. ModifyPlan forces a replacement when
 				// group_id moves to a different group; a switch between the group's Global
 				// ID and its TRN is an in-place update that only changes the stored form.
 			},
 			"disabled": schema.BoolAttribute{
-				MarkdownDescription: "Whether the runner agent is prevented from claiming jobs. Defaults to false.",
-				Description:         "Whether the runner agent is prevented from claiming jobs. Defaults to false.",
+				MarkdownDescription: "Whether the runner is prevented from claiming jobs. Defaults to false.",
+				Description:         "Whether the runner is prevented from claiming jobs. Defaults to false.",
 				Optional:            true,
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 			},
 			"run_untagged_jobs": schema.BoolAttribute{
-				MarkdownDescription: "Whether the runner agent claims jobs that carry no tags. Defaults to false.",
-				Description:         "Whether the runner agent claims jobs that carry no tags. Defaults to false.",
+				MarkdownDescription: "Whether the runner claims jobs that carry no tags. Defaults to false.",
+				Description:         "Whether the runner claims jobs that carry no tags. Defaults to false.",
 				Optional:            true,
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 			},
 			"tags": schema.SetAttribute{
 				ElementType:         types.StringType,
-				MarkdownDescription: "Tags that route tagged jobs to this runner agent. Changing a non-empty set to empty forces replacement, because the API cannot clear tags through an update.",
-				Description:         "Tags that route tagged jobs to this runner agent. Changing a non-empty set to empty forces replacement, because the API cannot clear tags through an update.",
+				MarkdownDescription: "Tags that route tagged jobs to this runner. Changing a non-empty set to empty forces replacement, because the API cannot clear tags through an update.",
+				Description:         "Tags that route tagged jobs to this runner. Changing a non-empty set to empty forces replacement, because the API cannot clear tags through an update.",
 				Optional:            true,
 				Computed:            true,
 			},
@@ -129,7 +129,7 @@ func (t *runnerAgentResource) Schema(_ context.Context, _ resource.SchemaRequest
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
-func (t *runnerAgentResource) Configure(_ context.Context,
+func (t *runnerResource) Configure(_ context.Context,
 	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
 ) {
 	if req.ProviderData == nil {
@@ -141,8 +141,8 @@ func (t *runnerAgentResource) Configure(_ context.Context,
 // ModifyPlan forces a replacement when group_id moves to a different group, and when a
 // non-empty tag set is being emptied: UpdateRunner ignores an empty tags list
 // (if len(req.Tags) > 0), so the only way to actually clear tags is to recreate the
-// runner agent.
-func (t *runnerAgentResource) ModifyPlan(ctx context.Context,
+// runner.
+func (t *runnerResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
 	// Only relevant on update: no prior state on create, nothing to do on destroy.
@@ -152,7 +152,7 @@ func (t *runnerAgentResource) ModifyPlan(ctx context.Context,
 
 	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
 
-	var state, plan RunnerAgentModel
+	var state, plan RunnerModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -168,18 +168,18 @@ func (t *runnerAgentResource) ModifyPlan(ctx context.Context,
 	}
 }
 
-func (t *runnerAgentResource) Create(ctx context.Context,
+func (t *runnerResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse,
 ) {
-	var runnerAgent RunnerAgentModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &runnerAgent)...)
+	var runner RunnerModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &runner)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	var tags []string
-	if !runnerAgent.Tags.IsNull() && !runnerAgent.Tags.IsUnknown() {
-		resp.Diagnostics.Append(runnerAgent.Tags.ElementsAs(ctx, &tags, false)...)
+	if !runner.Tags.IsNull() && !runner.Tags.IsUnknown() {
+		resp.Diagnostics.Append(runner.Tags.ElementsAs(ctx, &tags, false)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -187,32 +187,32 @@ func (t *runnerAgentResource) Create(ctx context.Context,
 
 	created, err := t.client.RunnersClient.CreateRunner(ctx,
 		&pb.CreateRunnerRequest{
-			Name:            runnerAgent.Name.ValueString(),
-			Description:     runnerAgent.Description.ValueString(),
-			GroupId:         runnerAgent.GroupID.ValueString(),
-			Disabled:        new(runnerAgent.Disabled.ValueBool()),
-			RunUntaggedJobs: runnerAgent.RunUntaggedJobs.ValueBool(),
+			Name:            runner.Name.ValueString(),
+			Description:     runner.Description.ValueString(),
+			GroupId:         runner.GroupID.ValueString(),
+			Disabled:        new(runner.Disabled.ValueBool()),
+			RunUntaggedJobs: runner.RunUntaggedJobs.ValueBool(),
 			Tags:            tags,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating runner agent",
+			"Error creating runner",
 			err.Error(),
 		)
 		return
 	}
 
-	plannedGroupID := runnerAgent.GroupID
-	resp.Diagnostics.Append(t.copyRunnerAgent(ctx, created, &runnerAgent)...)
+	plannedGroupID := runner.GroupID
+	resp.Diagnostics.Append(t.copyRunner(ctx, created, &runner)...)
 	// The API acted on the planned reference, so the planned form is kept.
-	runnerAgent.GroupID = keepPlanned(plannedGroupID, runnerGroupGID(created))
-	resp.Diagnostics.Append(resp.State.Set(ctx, runnerAgent)...)
+	runner.GroupID = keepPlanned(plannedGroupID, runnerGroupGID(created))
+	resp.Diagnostics.Append(resp.State.Set(ctx, runner)...)
 }
 
-func (t *runnerAgentResource) Read(ctx context.Context,
+func (t *runnerResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse,
 ) {
-	var state RunnerAgentModel
+	var state RunnerModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -229,17 +229,17 @@ func (t *runnerAgentResource) Read(ctx context.Context,
 		}
 
 		resp.Diagnostics.AddError(
-			"Error reading runner agent",
+			"Error reading runner",
 			err.Error(),
 		)
 		return
 	}
 
-	resp.Diagnostics.Append(t.copyRunnerAgent(ctx, found, &state)...)
+	resp.Diagnostics.Append(t.copyRunner(ctx, found, &state)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *runnerAgentResource) Update(ctx context.Context,
+func (t *runnerResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
 	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
@@ -251,7 +251,7 @@ func (t *runnerAgentResource) Update(ctx context.Context,
 		return
 	}
 
-	var plan RunnerAgentModel
+	var plan RunnerModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -277,23 +277,23 @@ func (t *runnerAgentResource) Update(ctx context.Context,
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error updating runner agent",
+			"Error updating runner",
 			err.Error(),
 		)
 		return
 	}
 
 	plannedGroupID := plan.GroupID
-	resp.Diagnostics.Append(t.copyRunnerAgent(ctx, updated, &plan)...)
+	resp.Diagnostics.Append(t.copyRunner(ctx, updated, &plan)...)
 	// The API acted on the planned reference, so the planned form is kept.
 	plan.GroupID = keepPlanned(plannedGroupID, runnerGroupGID(updated))
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (t *runnerAgentResource) Delete(ctx context.Context,
+func (t *runnerResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse,
 ) {
-	var state RunnerAgentModel
+	var state RunnerModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -310,23 +310,23 @@ func (t *runnerAgentResource) Delete(ctx context.Context,
 		}
 
 		resp.Diagnostics.AddError(
-			"Error deleting runner agent",
+			"Error deleting runner",
 			err.Error(),
 		)
 	}
 }
 
 // ImportState helps the provider implement the ResourceWithImportState interface.
-func (t *runnerAgentResource) ImportState(ctx context.Context,
+func (t *runnerResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-// copyRunnerAgent copies the contents of a runner agent returned by Tharsis into a
+// copyRunner copies the contents of a runner returned by Tharsis into a
 // Terraform plan or state.
-func (t *runnerAgentResource) copyRunnerAgent(ctx context.Context,
-	src *pb.Runner, dest *RunnerAgentModel,
+func (t *runnerResource) copyRunner(ctx context.Context,
+	src *pb.Runner, dest *RunnerModel,
 ) (diags diag.Diagnostics) {
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	dest.ID = types.StringValue(src.Metadata.Id)
@@ -354,7 +354,7 @@ func (t *runnerAgentResource) copyRunnerAgent(ctx context.Context,
 	return diags
 }
 
-// runnerGroupGID returns the runner agent's parent group as the API reports it: its Global
+// runnerGroupGID returns the runner's parent group as the API reports it: its Global
 // ID, or the group TRN when the response carries no Global ID.
 func runnerGroupGID(src *pb.Runner) string {
 	if src.GroupId != nil && *src.GroupId != "" {

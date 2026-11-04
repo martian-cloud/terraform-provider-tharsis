@@ -18,41 +18,41 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// RunnerAgentServiceAccountModel is the model for a runner-agent service-account
+// RunnerServiceAccountModel is the model for a runner service-account
 // assignment. The two input IDs are stored exactly as the caller supplied them (a TRN
 // or a Global ID); they are resolved to Global IDs only transiently for the API calls,
 // so the state value of a Required attribute never changes during apply.
-type RunnerAgentServiceAccountModel struct {
+type RunnerServiceAccountModel struct {
 	ID               types.String `tfsdk:"id"`
-	RunnerAgentID    types.String `tfsdk:"runner_agent_id"`
+	RunnerID         types.String `tfsdk:"runner_id"`
 	ServiceAccountID types.String `tfsdk:"service_account_id"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource               = (*runnerAgentServiceAccountResource)(nil)
-	_ resource.ResourceWithConfigure  = (*runnerAgentServiceAccountResource)(nil)
-	_ resource.ResourceWithModifyPlan = (*runnerAgentServiceAccountResource)(nil)
+	_ resource.Resource               = (*runnerServiceAccountResource)(nil)
+	_ resource.ResourceWithConfigure  = (*runnerServiceAccountResource)(nil)
+	_ resource.ResourceWithModifyPlan = (*runnerServiceAccountResource)(nil)
 )
 
-// NewRunnerAgentServiceAccountResource is a helper function to simplify the provider implementation.
-func NewRunnerAgentServiceAccountResource() resource.Resource {
-	return &runnerAgentServiceAccountResource{}
+// NewRunnerServiceAccountResource is a helper function to simplify the provider implementation.
+func NewRunnerServiceAccountResource() resource.Resource {
+	return &runnerServiceAccountResource{}
 }
 
-type runnerAgentServiceAccountResource struct {
+type runnerServiceAccountResource struct {
 	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *runnerAgentServiceAccountResource) Metadata(_ context.Context,
+func (t *runnerServiceAccountResource) Metadata(_ context.Context,
 	_ resource.MetadataRequest, resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = "tharsis_runner_agent_service_account"
+	resp.TypeName = "tharsis_runner_service_account"
 }
 
-func (t *runnerAgentServiceAccountResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	description := "Assigns a service account to a runner agent, letting the runner agent authenticate as it."
+func (t *runnerServiceAccountResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	description := "Assigns a service account to a runner, letting the runner authenticate as it."
 
 	resp.Schema = schema.Schema{
 		Version:             1,
@@ -60,16 +60,16 @@ func (t *runnerAgentServiceAccountResource) Schema(_ context.Context, _ resource
 		Description:         description,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "An ID for this tharsis_runner_agent_service_account resource.",
-				Description:         "An ID for this tharsis_runner_agent_service_account resource.",
+				MarkdownDescription: "An ID for this tharsis_runner_service_account resource.",
+				Description:         "An ID for this tharsis_runner_service_account resource.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(), // set once during create, kept in state thereafter
 				},
 			},
-			"runner_agent_id": schema.StringAttribute{
-				MarkdownDescription: "The ID or TRN of the runner agent.",
-				Description:         "The ID or TRN of the runner agent.",
+			"runner_id": schema.StringAttribute{
+				MarkdownDescription: "The ID or TRN of the runner.",
+				Description:         "The ID or TRN of the runner.",
 				Required:            true,
 			},
 			"service_account_id": schema.StringAttribute{
@@ -82,7 +82,7 @@ func (t *runnerAgentServiceAccountResource) Schema(_ context.Context, _ resource
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
-func (t *runnerAgentServiceAccountResource) Configure(_ context.Context,
+func (t *runnerServiceAccountResource) Configure(_ context.Context,
 	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
 ) {
 	if req.ProviderData == nil {
@@ -91,19 +91,19 @@ func (t *runnerAgentServiceAccountResource) Configure(_ context.Context,
 	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
-// resolveIDs turns a runner agent and service account input (each a TRN or a Global ID)
-// into their Global IDs, and returns the runner agent's group namespace path. The IDs
+// resolveIDs turns a runner and service account input (each a TRN or a Global ID)
+// into their Global IDs, and returns the runner's group namespace path. The IDs
 // are used for the API calls; the namespace path scopes the Read presence lookup. None
 // of these are written back to state.
-func (t *runnerAgentServiceAccountResource) resolveIDs(ctx context.Context,
+func (t *runnerServiceAccountResource) resolveIDs(ctx context.Context,
 	runnerInput, serviceAccountInput string,
-) (runnerAgentID string, serviceAccountID string, runnerNamespacePath string, notFound bool, diags diag.Diagnostics) {
+) (runnerID string, serviceAccountID string, runnerNamespacePath string, notFound bool, diags diag.Diagnostics) {
 	runner, err := t.client.RunnersClient.GetRunnerByID(ctx, &pb.GetRunnerByIDRequest{Id: runnerInput})
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return "", "", "", true, diags
 		}
-		diags.AddError("Error resolving runner agent", err.Error())
+		diags.AddError("Error resolving runner", err.Error())
 		return
 	}
 	serviceAccount, err := t.client.ServiceAccountsClient.GetServiceAccountByID(ctx, &pb.GetServiceAccountByIDRequest{Id: serviceAccountInput})
@@ -114,16 +114,16 @@ func (t *runnerAgentServiceAccountResource) resolveIDs(ctx context.Context,
 		diags.AddError("Error resolving service account", err.Error())
 		return
 	}
-	// The runner agent's TRN is trn:runner:<group-path>/<name>; its parent path is the
+	// The runner's TRN is trn:runner:<group-path>/<name>; its parent path is the
 	// group namespace the assigned service accounts live in.
 	namespacePath := trn.MustParseAny(runner.Metadata.Trn).ParentPath()
 	return runner.Metadata.Id, serviceAccount.Metadata.Id, namespacePath, false, diags
 }
 
-func (t *runnerAgentServiceAccountResource) Create(ctx context.Context,
+func (t *runnerServiceAccountResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse,
 ) {
-	var assignment RunnerAgentServiceAccountModel
+	var assignment RunnerServiceAccountModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &assignment)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -133,12 +133,12 @@ func (t *runnerAgentServiceAccountResource) Create(ctx context.Context,
 	// internally, so the caller's inputs are passed through as-is.
 	_, err := t.client.RunnersClient.AssignServiceAccountToRunner(ctx,
 		&pb.AssignServiceAccountToRunnerRequest{
-			RunnerId:         assignment.RunnerAgentID.ValueString(),
+			RunnerId:         assignment.RunnerID.ValueString(),
 			ServiceAccountId: assignment.ServiceAccountID.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error assigning service account to runner agent",
+			"Error assigning service account to runner",
 			err.Error(),
 		)
 		return
@@ -149,24 +149,24 @@ func (t *runnerAgentServiceAccountResource) Create(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &assignment)...)
 }
 
-func (t *runnerAgentServiceAccountResource) Read(ctx context.Context,
+func (t *runnerServiceAccountResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse,
 ) {
-	var state RunnerAgentServiceAccountModel
+	var state RunnerServiceAccountModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// state.RunnerAgentID / ServiceAccountID hold the caller's input (TRN or Global ID).
+	// state.RunnerID / ServiceAccountID hold the caller's input (TRN or Global ID).
 	// Resolve both to Global IDs so the presence check compares like with like.
-	runnerAgentID, wantID, namespacePath, notFound, diags := t.resolveIDs(ctx,
-		state.RunnerAgentID.ValueString(), state.ServiceAccountID.ValueString())
+	runnerID, wantID, namespacePath, notFound, diags := t.resolveIDs(ctx,
+		state.RunnerID.ValueString(), state.ServiceAccountID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// A deleted runner agent or service account means the assignment is gone; drop it
+	// A deleted runner or service account means the assignment is gone; drop it
 	// from state so a plan can recreate rather than hard-failing every run.
 	if notFound {
 		resp.State.RemoveResource(ctx)
@@ -175,7 +175,7 @@ func (t *runnerAgentServiceAccountResource) Read(ctx context.Context,
 
 	// The API always applies a namespace filter, so scope the lookup to the runner
 	// agent's group and its ancestors (IncludeInherited) where assigned service accounts
-	// may live. RunnerId then narrows the result to this runner agent's assignments.
+	// may live. RunnerId then narrows the result to this runner's assignments.
 	// Page through all results: a match on a later page must not be missed, or Read
 	// would wrongly drop the resource and plan a recreate.
 	var present bool
@@ -185,7 +185,7 @@ func (t *runnerAgentServiceAccountResource) Read(ctx context.Context,
 	for {
 		found, err := t.client.ServiceAccountsClient.GetServiceAccounts(ctx,
 			&pb.GetServiceAccountsRequest{
-				RunnerId:          &runnerAgentID,
+				RunnerId:          &runnerID,
 				NamespacePath:     namespacePath,
 				IncludeInherited:  true,
 				PaginationOptions: &pb.PaginationOptions{First: &pageSize, After: after},
@@ -197,7 +197,7 @@ func (t *runnerAgentServiceAccountResource) Read(ctx context.Context,
 			}
 
 			resp.Diagnostics.AddError(
-				"Error reading runner agent service account assignments",
+				"Error reading runner service account assignments",
 				err.Error(),
 			)
 			return
@@ -232,35 +232,35 @@ func (t *runnerAgentServiceAccountResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *runnerAgentServiceAccountResource) Update(ctx context.Context,
+func (t *runnerServiceAccountResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
 	// Every other input forces a replacement, so this is reached only for a switch between an
 	// object's Global ID and its TRN. Nothing changes in Tharsis: only the stored form.
-	if formOnly, d := formOnlyUpdate(ctx, req, []string{"runner_agent_id", "service_account_id"}); d.HasError() || !formOnly {
+	if formOnly, d := formOnlyUpdate(ctx, req, []string{"runner_id", "service_account_id"}); d.HasError() || !formOnly {
 		resp.Diagnostics.Append(d...)
 		if !d.HasError() {
 			resp.Diagnostics.AddError("Unexpected in-place update", "only a reference form change can be applied in place")
 		}
 		return
 	}
-	applyFormOnlyUpdate(ctx, req, resp, []string{"runner_agent_id", "service_account_id"})
+	applyFormOnlyUpdate(ctx, req, resp, []string{"runner_id", "service_account_id"})
 }
 
-// ModifyPlan forces a replacement only when either runner_agent_id or service_account_id moves to a
+// ModifyPlan forces a replacement only when either runner_id or service_account_id moves to a
 // different object. A switch between a Global ID and a TRN of the same object is an
 // in-place update.
-func (t *runnerAgentServiceAccountResource) ModifyPlan(ctx context.Context,
+func (t *runnerServiceAccountResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
-	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("runner_agent_id"), trn.TypeRunner)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("runner_id"), trn.TypeRunner)
 	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("service_account_id"), trn.TypeServiceAccount)
 }
 
-func (t *runnerAgentServiceAccountResource) Delete(ctx context.Context,
+func (t *runnerServiceAccountResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse,
 ) {
-	var state RunnerAgentServiceAccountModel
+	var state RunnerServiceAccountModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -268,7 +268,7 @@ func (t *runnerAgentServiceAccountResource) Delete(ctx context.Context,
 
 	_, err := t.client.RunnersClient.UnassignServiceAccountFromRunner(ctx,
 		&pb.UnassignServiceAccountFromRunnerRequest{
-			RunnerId:         state.RunnerAgentID.ValueString(),
+			RunnerId:         state.RunnerID.ValueString(),
 			ServiceAccountId: state.ServiceAccountID.ValueString(),
 		})
 	if err != nil {
@@ -278,7 +278,7 @@ func (t *runnerAgentServiceAccountResource) Delete(ctx context.Context,
 		}
 
 		resp.Diagnostics.AddError(
-			"Error unassigning service account from runner agent",
+			"Error unassigning service account from runner",
 			err.Error(),
 		)
 	}

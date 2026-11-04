@@ -72,21 +72,21 @@ resource "tharsis_assigned_managed_identity" "trn_target" {
 	managed_identity_id = tharsis_managed_identity.trn_mi.id
 	workspace_id        = %s
 }`)},
-		{"RunnerAssignmentRunner", "tharsis_runner_agent_service_account.trn_target", "runner_agent_id", "tharsis_runner_agent.trn_ra.id",
-			ra, ra2, "tharsis_runner_agent.trn_ra", assignment(`
-resource "tharsis_runner_agent_service_account" "trn_target" {
-	runner_agent_id    = %s
+		{"RunnerAssignmentRunner", "tharsis_runner_service_account.trn_target", "runner_id", "tharsis_runner.trn_ra.id",
+			ra, ra2, "tharsis_runner.trn_ra", assignment(`
+resource "tharsis_runner_service_account" "trn_target" {
+	runner_id    = %s
 	service_account_id = tharsis_service_account.trn_sa.id
 }`)},
-		{"RunnerAssignmentServiceAccount", "tharsis_runner_agent_service_account.trn_target", "service_account_id", "tharsis_service_account.trn_sa.id",
+		{"RunnerAssignmentServiceAccount", "tharsis_runner_service_account.trn_target", "service_account_id", "tharsis_service_account.trn_sa.id",
 			sa, sa2, "tharsis_service_account.trn_sa", assignment(`
-resource "tharsis_runner_agent_service_account" "trn_target" {
-	runner_agent_id    = tharsis_runner_agent.trn_ra.id
+resource "tharsis_runner_service_account" "trn_target" {
+	runner_id    = tharsis_runner.trn_ra.id
 	service_account_id = %s
 }`)},
-		{"RunnerAgent", "tharsis_runner_agent.trn_target", "group_id", "tharsis_group.root-group.id", root, other,
+		{"Runner", "tharsis_runner.trn_target", "group_id", "tharsis_group.root-group.id", root, other,
 			"tharsis_group.root-group", groupRef(`
-resource "tharsis_runner_agent" "trn_target" {
+resource "tharsis_runner" "trn_target" {
 	name        = "trn_target"
 	description = "TRN reference test"
 	group_id    = %s
@@ -207,7 +207,7 @@ const trnRefAliasGroup = "provider-test-trn-reference-alias"
 
 // trnRefBase declares the root group and a second group, plus the named extra parts a
 // case references: "mi" (two managed identities), "ws" (two workspaces), "runner" (two
-// runner agents and two service accounts) and "alias" (the alias namespace). Each case
+// runners and two service accounts) and "alias" (the alias namespace). Each case
 // declares only what it uses, to keep refreshes under the API's rate limit.
 func trnRefBase(parts ...string) string {
 	var b strings.Builder
@@ -253,12 +253,12 @@ resource "tharsis_workspace" "%[1]s" {
 	return b.String()
 }
 
-// trnRefRunnerBase declares two runner agents and two service accounts to assign.
+// trnRefRunnerBase declares two runners and two service accounts to assign.
 func trnRefRunnerBase() string {
 	var b strings.Builder
 	for _, n := range []string{"trn_ra", "trn_ra2"} {
 		fmt.Fprintf(&b, `
-resource "tharsis_runner_agent" "%[1]s" {
+resource "tharsis_runner" "%[1]s" {
 	name     = "%[1]s"
 	group_id = tharsis_group.root-group.id
 	tags     = ["trn"]
@@ -523,7 +523,7 @@ func TestTRNReferenceFormSwitchWithRemoval(t *testing.T) {
 	var id string
 	cfg := func(groupRef, descLine string) string {
 		return trnRefBase() + fmt.Sprintf(`
-resource "tharsis_runner_agent" "trn_target" {
+resource "tharsis_runner" "trn_target" {
 	name     = "trn_target"
 	group_id = %s
 	tags     = ["trn"]
@@ -538,25 +538,25 @@ resource "tharsis_runner_agent" "trn_target" {
 			{
 				Config: cfg("tharsis_group.root-group.id", `description = "to be removed"`),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					testCaptureAttr("tharsis_runner_agent.trn_target", "id", &id),
-					resource.TestCheckResourceAttr("tharsis_runner_agent.trn_target", "description", "to be removed"),
+					testCaptureAttr("tharsis_runner.trn_target", "id", &id),
+					resource.TestCheckResourceAttr("tharsis_runner.trn_target", "description", "to be removed"),
 				),
 			},
 			{
 				Config: cfg(trnRef, ""),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					testCheckAttrUnchanged("tharsis_runner_agent.trn_target", "id", &id),
-					resource.TestCheckResourceAttr("tharsis_runner_agent.trn_target", "group_id", "trn:group:"+trnRefGroupPath),
-					resource.TestCheckResourceAttr("tharsis_runner_agent.trn_target", "description", ""),
+					testCheckAttrUnchanged("tharsis_runner.trn_target", "id", &id),
+					resource.TestCheckResourceAttr("tharsis_runner.trn_target", "group_id", "trn:group:"+trnRefGroupPath),
+					resource.TestCheckResourceAttr("tharsis_runner.trn_target", "description", ""),
 				),
 			},
 			{
 				Config: cfg("tharsis_group.root-group.id", ""),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					testCheckAttrUnchanged("tharsis_runner_agent.trn_target", "id", &id),
-					resource.TestCheckResourceAttrPair("tharsis_runner_agent.trn_target", "group_id",
+					testCheckAttrUnchanged("tharsis_runner.trn_target", "id", &id),
+					resource.TestCheckResourceAttrPair("tharsis_runner.trn_target", "group_id",
 						"tharsis_group.root-group", "id"),
-					resource.TestCheckResourceAttr("tharsis_runner_agent.trn_target", "description", ""),
+					resource.TestCheckResourceAttr("tharsis_runner.trn_target", "description", ""),
 				),
 			},
 		},
