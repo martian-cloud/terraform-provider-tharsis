@@ -69,9 +69,6 @@ func (t *workspaceRoleBindingResource) Schema(_ context.Context, _ resource.Sche
 				MarkdownDescription: "The ID or TRN of the workspace this role binding applies to.",
 				Description:         "The ID or TRN of the workspace this role binding applies to.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"role_name": schema.StringAttribute{
 				MarkdownDescription: "The name of the role bound to the workspace.",
@@ -285,21 +282,10 @@ func (t *workspaceRoleBindingResource) copyWorkspaceRoleBinding(ctx context.Cont
 	return nil
 }
 
-// ModifyPlan keeps a reference field from forcing a replacement when the planned value
-// and the stored value name the same object in different forms (a TRN vs a Global ID,
-// e.g. after an import).
+// ModifyPlan forces a replacement only when workspace_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
 func (t *workspaceRoleBindingResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-	var state, plan WorkspaceRoleBindingModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.WorkspaceID = planKeepPriorIfSameObject(ctx, t.client, state.WorkspaceID, plan.WorkspaceID)
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("workspace_id"), trn.TypeWorkspace)
 }

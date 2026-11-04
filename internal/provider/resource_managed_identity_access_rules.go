@@ -127,9 +127,6 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				MarkdownDescription: "The ID or TRN of the connected managed identity.",
 				Description:         "The ID or TRN of the connected managed identity.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"allowed_users": schema.SetAttribute{
 				ElementType:         types.StringType,
@@ -680,21 +677,10 @@ func (t *managedIdentityAccessRuleResource) moduleAttestationPolicyObjectAttribu
 	}
 }
 
-// ModifyPlan keeps a reference field from forcing a replacement when the planned value
-// and the stored value name the same object in different forms (a TRN vs a Global ID,
-// e.g. after an import).
+// ModifyPlan forces a replacement only when managed_identity_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
 func (t *managedIdentityAccessRuleResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-	var state, plan ManagedIdentityAccessRuleModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.ManagedIdentityID = planKeepPriorIfSameObject(ctx, t.client, state.ManagedIdentityID, plan.ManagedIdentityID)
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("managed_identity_id"), trn.TypeManagedIdentity)
 }

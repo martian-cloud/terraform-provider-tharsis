@@ -127,7 +127,6 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -238,18 +237,21 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *gpgKeyResource) Update(_ context.Context,
-	_ resource.UpdateRequest, resp *resource.UpdateResponse,
+// Update is reached only when group_id switches between the group's Global ID and its
+// TRN: every other input forces a replacement, and so does group_id moving to a
+// different group. Nothing changes in Tharsis, so only the stored form is updated.
+func (t *gpgKeyResource) Update(ctx context.Context,
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// This method must exist to comply with the required interfaces,
-	// but all input attributes have the RequiresReplace plan modifier,
-	// so there's nothing for it to do.  It should never be called.
-	// If it is, it should error out.
+	var plan, state GPGKeyModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	resp.Diagnostics.AddError(
-		"Error updating GPG key.",
-		"GPG key should never be updated in place.",
-	)
+	state.GroupID = plan.GroupID
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (t *gpgKeyResource) Delete(ctx context.Context,
@@ -307,21 +309,10 @@ func (t *gpgKeyResource) copyGPGKey(src *pb.GPGKey, dest *GPGKeyModel) {
 	dest.ResourcePath = types.StringValue(parsed.Path())
 }
 
-// ModifyPlan keeps a reference field from forcing a replacement when the planned value
-// and the stored value name the same object in different forms (a TRN vs a Global ID,
-// e.g. after an import).
+// ModifyPlan forces a replacement only when group_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
 func (t *gpgKeyResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-	var state, plan GPGKeyModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
 }

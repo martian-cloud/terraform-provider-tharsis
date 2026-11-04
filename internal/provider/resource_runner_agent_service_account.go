@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -29,8 +30,9 @@ type RunnerAgentServiceAccountModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource              = (*runnerAgentServiceAccountResource)(nil)
-	_ resource.ResourceWithConfigure = (*runnerAgentServiceAccountResource)(nil)
+	_ resource.Resource               = (*runnerAgentServiceAccountResource)(nil)
+	_ resource.ResourceWithConfigure  = (*runnerAgentServiceAccountResource)(nil)
+	_ resource.ResourceWithModifyPlan = (*runnerAgentServiceAccountResource)(nil)
 )
 
 // NewRunnerAgentServiceAccountResource is a helper function to simplify the provider implementation.
@@ -69,17 +71,11 @@ func (t *runnerAgentServiceAccountResource) Schema(_ context.Context, _ resource
 				MarkdownDescription: "The ID or TRN of the runner agent.",
 				Description:         "The ID or TRN of the runner agent.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"service_account_id": schema.StringAttribute{
 				MarkdownDescription: "The ID or TRN of the service account to assign.",
 				Description:         "The ID or TRN of the service account to assign.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 		},
 	}
@@ -236,16 +232,32 @@ func (t *runnerAgentServiceAccountResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *runnerAgentServiceAccountResource) Update(_ context.Context,
-	_ resource.UpdateRequest, resp *resource.UpdateResponse,
+func (t *runnerAgentServiceAccountResource) Update(ctx context.Context,
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// This method must exist to comply with the required interfaces, but both input
-	// attributes have the RequiresReplace plan modifier, so there is nothing to do.
-	// It should never be called; if it is, error out.
-	resp.Diagnostics.AddError(
-		"Error updating runner agent service account assignment.",
-		"a runner agent service account assignment should never be updated in place.",
-	)
+	// Reached only when runner_agent_id or service_account_id switches between an object's Global ID and its TRN:
+	// ModifyPlan forces a replacement for any other change. Nothing changes in Tharsis, so
+	// only the stored form is updated.
+	var plan, state RunnerAgentServiceAccountModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state.RunnerAgentID = plan.RunnerAgentID
+	state.ServiceAccountID = plan.ServiceAccountID
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+// ModifyPlan forces a replacement only when either runner_agent_id or service_account_id moves to a
+// different object. A switch between a Global ID and a TRN of the same object is an
+// in-place update.
+func (t *runnerAgentServiceAccountResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("runner_agent_id"), trn.TypeRunner)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("service_account_id"), trn.TypeServiceAccount)
 }
 
 func (t *runnerAgentServiceAccountResource) Delete(ctx context.Context,

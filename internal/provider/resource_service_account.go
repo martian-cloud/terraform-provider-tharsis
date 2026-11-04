@@ -114,7 +114,6 @@ func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -143,23 +142,12 @@ func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequ
 	}
 }
 
-// ModifyPlan keeps group_id from forcing a replacement when the planned value and the
-// stored value are the same group in different forms (e.g. a TRN after the state holds a
-// Global ID following an import).
+// ModifyPlan forces a replacement only when group_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
 func (t *serviceAccountResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-	var state, plan ServiceAccountModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.

@@ -84,7 +84,6 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"workspace_path": schema.StringAttribute{
@@ -100,9 +99,6 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				MarkdownDescription: "The ID or TRN of the VCS provider.",
 				Description:         "The ID or TRN of the VCS provider.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"repository_path": schema.StringAttribute{
 				MarkdownDescription: "The path portion of the repository URL.",
@@ -233,7 +229,7 @@ func (t *workspaceVCSProviderLinkResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyWorkspaceVCSProviderLink(createResponse.VcsProviderLink, &link)
+	t.copyWorkspaceVCSProviderLink(ctx, createResponse.VcsProviderLink, &link)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	link.LastUpdated = types.StringValue(createResponse.VcsProviderLink.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -271,7 +267,7 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyWorkspaceVCSProviderLink(found, &state)
+	t.copyWorkspaceVCSProviderLink(ctx, found, &state)
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -327,7 +323,7 @@ func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyWorkspaceVCSProviderLink(updated, &plan)
+	t.copyWorkspaceVCSProviderLink(ctx, updated, &plan)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -376,7 +372,7 @@ func (t *workspaceVCSProviderLinkResource) ImportState(ctx context.Context,
 
 // copyWorkspaceVCSProviderLink copies the contents of a workspace VCS provider link.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src *pb.WorkspaceVCSProviderLink,
+func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(ctx context.Context, src *pb.WorkspaceVCSProviderLink,
 	dest *WorkspaceVCSProviderLinkModel,
 ) {
 	parsed := trn.MustParseAny(src.Metadata.Trn)
@@ -386,7 +382,9 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src *pb.
 	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
 	dest.WorkspacePath = types.StringValue(parsed.ParentPath())
 	dest.WorkspaceID = keepOrRefresh(dest.WorkspaceID, src.WorkspaceId, trn.TypeWorkspace.Build(parsed.ParentPath()))
-	dest.VCSProviderID = keepOrRefresh(dest.VCSProviderID, src.VcsProviderId, "")
+	// The response carries only the provider's Global ID, so a TRN is resolved to compare.
+	dest.VCSProviderID = keepOrRefreshResolve(ctx, t.client, dest.VCSProviderID, src.VcsProviderId,
+		trn.TypeVCSProvider)
 	dest.RepositoryPath = types.StringValue(src.RepositoryPath)
 	dest.WebhookID = types.StringValue(src.WebhookId)
 	if src.ModuleDirectory != nil {
@@ -408,22 +406,12 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src *pb.
 	dest.WebhookDisabled = types.BoolValue(src.WebhookDisabled)
 }
 
-// ModifyPlan keeps a reference field from forcing a replacement when the planned value
-// and the stored value name the same object in different forms (a TRN vs a Global ID,
-// e.g. after an import).
+// ModifyPlan forces a replacement only when either workspace_id or vcs_provider_id moves to a
+// different object. A switch between a Global ID and a TRN of the same object is an
+// in-place update.
 func (t *workspaceVCSProviderLinkResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-	var state, plan WorkspaceVCSProviderLinkModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.WorkspaceID = planKeepPriorIfSameObject(ctx, t.client, state.WorkspaceID, plan.WorkspaceID)
-	plan.VCSProviderID = planKeepPriorIfSameObject(ctx, t.client, state.VCSProviderID, plan.VCSProviderID)
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("workspace_id"), trn.TypeWorkspace)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("vcs_provider_id"), trn.TypeVCSProvider)
 }

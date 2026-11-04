@@ -95,7 +95,6 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -328,21 +327,10 @@ func (t *terraformProviderResource) copyTerraformProvider(src *pb.TerraformProvi
 	dest.Private = types.BoolValue(src.Private)
 }
 
-// ModifyPlan keeps a reference field from forcing a replacement when the planned value
-// and the stored value name the same object in different forms (a TRN vs a Global ID,
-// e.g. after an import).
+// ModifyPlan forces a replacement only when group_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
 func (t *terraformProviderResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-	var state, plan TerraformProviderModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
 }

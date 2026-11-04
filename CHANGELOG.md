@@ -31,6 +31,15 @@
 - Importing a `tharsis_apply_module` now fails with an explanation rather than Terraform's generic
   unsupported-import message. The resource represents the act of applying a module to a workspace
   rather than a stored Tharsis resource, so there is nothing for an import to read back. (#58)
+- Reference attributes (`group_id`, `parent_id`, `workspace_id`, `managed_identity_id`,
+  `alias_source_id`, `vcs_provider_id`, and the IDs on the assignment resources) keep the form written
+  in the configuration, an ID or a TRN. Switching between the two forms of the same object is an
+  in-place update; moving a reference to a different object still replaces the resource. (#59)
+
+### Fixed
+
+- `tharsis_assigned_managed_identity` was removed from state on every refresh, and re-created on every
+  apply, when `managed_identity_id` was a TRN. (#59)
 
 ## 0.0.1 (Unreleased)
 

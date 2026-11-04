@@ -101,7 +101,6 @@ func (t *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:            true, // A root group has no parent.
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -328,21 +327,10 @@ func (t *groupResource) copyGroup(src *pb.Group, dest *GroupModel) {
 	dest.FullPath = types.StringValue(src.FullPath)
 }
 
-// ModifyPlan keeps a reference field from forcing a replacement when the planned value
-// and the stored value name the same object in different forms (a TRN vs a Global ID,
-// e.g. after an import).
+// ModifyPlan forces a replacement only when parent_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
 func (t *groupResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-	var state, plan GroupModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.ParentID = planKeepPriorIfSameObject(ctx, t.client, state.ParentID, plan.ParentID)
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("parent_id"), trn.TypeGroup)
 }

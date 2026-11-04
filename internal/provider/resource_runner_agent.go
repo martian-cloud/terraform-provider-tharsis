@@ -99,13 +99,9 @@ func (t *runnerAgentResource) Schema(_ context.Context, _ resource.SchemaRequest
 				MarkdownDescription: "The ID or TRN of the parent group. Runner agents are group-scoped.",
 				Description:         "The ID or TRN of the parent group. Runner agents are group-scoped.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					// The API has no update for the group, so a change forces replacement.
-					// A TRN input does not plan a perpetual diff against the Global ID the
-					// API returns: copyRunnerAgent keeps the caller's form on read, and
-					// ModifyPlan keeps the prior value when it names the same group.
-					stringplanmodifier.RequiresReplace(),
-				},
+				// The API has no update for the group. ModifyPlan forces a replacement when
+				// group_id moves to a different group; a switch between the group's Global
+				// ID and its TRN is an in-place update that only changes the stored form.
 			},
 			"disabled": schema.BoolAttribute{
 				MarkdownDescription: "Whether the runner agent is prevented from claiming jobs. Defaults to false.",
@@ -142,9 +138,10 @@ func (t *runnerAgentResource) Configure(_ context.Context,
 	t.client = req.ProviderData.(*client.GRPCClient)
 }
 
-// ModifyPlan forces replacement when a non-empty tag set is being emptied.
-// UpdateRunner ignores an empty tags list (if len(req.Tags) > 0), so the only way
-// to actually clear tags is to recreate the runner agent.
+// ModifyPlan forces a replacement when group_id moves to a different group, and when a
+// non-empty tag set is being emptied: UpdateRunner ignores an empty tags list
+// (if len(req.Tags) > 0), so the only way to actually clear tags is to recreate the
+// runner agent.
 func (t *runnerAgentResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
@@ -153,18 +150,14 @@ func (t *runnerAgentResource) ModifyPlan(ctx context.Context,
 		return
 	}
 
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
+
 	var state, plan RunnerAgentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// Keep group_id from forcing a replacement when the planned value and the stored
-	// value are the same group in different forms (e.g. a TRN after an import stored a
-	// Global ID).
-	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 
 	// A known, empty plan set replacing a known, non-empty state set cannot be applied
 	// in place, so require replacement.

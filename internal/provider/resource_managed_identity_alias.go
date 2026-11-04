@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"reflect"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -103,7 +102,6 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -117,9 +115,6 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				Description:         "The ID or TRN of the managed identity being aliased.",
 				Optional:            true,
 				Computed:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"alias_source_path": schema.StringAttribute{
 				MarkdownDescription: "Full path of the managed identity being aliased.",
@@ -194,7 +189,7 @@ func (t *managedIdentityAliasResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
-	t.copyManagedIdentityAlias(created, &managedIdentityAlias)
+	t.copyManagedIdentityAlias(ctx, created, &managedIdentityAlias)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	managedIdentityAlias.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -232,7 +227,7 @@ func (t *managedIdentityAliasResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyManagedIdentityAlias(found, &state)
+	t.copyManagedIdentityAlias(ctx, found, &state)
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -244,28 +239,23 @@ func (t *managedIdentityAliasResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
+// Update is reached only when group_id or alias_source_id switches between an object's
+// Global ID and its TRN: every other input forces a replacement, and so does either
+// reference moving to a different object. An alias cannot be updated in Tharsis and
+// nothing changes there, so only the stored forms are updated.
 func (t *managedIdentityAliasResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
 
-	// Retrieve values from plan.
-	var plan ManagedIdentityAliasModel
+	var plan, state ManagedIdentityAliasModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	var state ManagedIdentityAliasModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if !reflect.DeepEqual(plan, state) {
-		resp.Diagnostics.AddError(
-			"Error updating managed identity alias",
-			"An alias cannot be updated",
-		)
-	}
+	state.GroupID = plan.GroupID
+	state.AliasSourceID = plan.AliasSourceID
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (t *managedIdentityAliasResource) Delete(ctx context.Context,
@@ -309,7 +299,9 @@ func (t *managedIdentityAliasResource) ImportState(ctx context.Context,
 
 // copyManagedIdentityAlias copies the contents of a managed identity alias.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *managedIdentityAliasResource) copyManagedIdentityAlias(src *pb.ManagedIdentity, dest *ManagedIdentityAliasModel) {
+func (t *managedIdentityAliasResource) copyManagedIdentityAlias(ctx context.Context, src *pb.ManagedIdentity,
+	dest *ManagedIdentityAliasModel,
+) {
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.ResourcePath = types.StringValue(parsed.Path())
@@ -319,25 +311,17 @@ func (t *managedIdentityAliasResource) copyManagedIdentityAlias(src *pb.ManagedI
 	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
 	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
-	dest.AliasSourceID = keepOrRefresh(dest.AliasSourceID, *src.AliasSourceId, "")
+	// The response carries only the source's Global ID, so a TRN is resolved to compare.
+	dest.AliasSourceID = keepOrRefreshResolve(ctx, t.client, dest.AliasSourceID, *src.AliasSourceId,
+		trn.TypeManagedIdentity)
 }
 
-// ModifyPlan keeps a reference field from forcing a replacement when the planned value
-// and the stored value name the same object in different forms (a TRN vs a Global ID,
-// e.g. after an import).
+// ModifyPlan forces a replacement only when either group_id or alias_source_id moves to a
+// different object. A switch between a Global ID and a TRN of the same object is an
+// in-place update.
 func (t *managedIdentityAliasResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-	var state, plan ManagedIdentityAliasModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.GroupID = planKeepPriorIfSameObject(ctx, t.client, state.GroupID, plan.GroupID)
-	plan.AliasSourceID = planKeepPriorIfSameObject(ctx, t.client, state.AliasSourceID, plan.AliasSourceID)
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("alias_source_id"), trn.TypeManagedIdentity)
 }
