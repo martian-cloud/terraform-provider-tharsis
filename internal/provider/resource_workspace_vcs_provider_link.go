@@ -90,9 +90,11 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				MarkdownDescription: "The resource path of the workspace.",
 				Description:         "The resource path of the workspace.",
 				Optional:            true,
+				Computed:            true,
 				DeprecationMessage:  "Use workspace_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"vcs_provider_id": schema.StringAttribute{
@@ -229,7 +231,12 @@ func (t *workspaceVCSProviderLinkResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	plannedWorkspaceID := link.WorkspaceID
+	plannedVCSProviderID := link.VCSProviderID
 	t.copyWorkspaceVCSProviderLink(ctx, createResponse.VcsProviderLink, &link)
+	// The API acted on the planned reference, so the planned form is kept.
+	link.WorkspaceID = keepPlanned(plannedWorkspaceID, createResponse.VcsProviderLink.WorkspaceId)
+	link.VCSProviderID = keepPlanned(plannedVCSProviderID, createResponse.VcsProviderLink.VcsProviderId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	link.LastUpdated = types.StringValue(createResponse.VcsProviderLink.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -282,6 +289,15 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
+	if formOnly, d := formOnlyUpdate(ctx, req, []string{"workspace_id", "vcs_provider_id"}); d.HasError() || formOnly {
+		resp.Diagnostics.Append(d...)
+		if !d.HasError() {
+			applyFormOnlyUpdate(ctx, req, resp, []string{"workspace_id", "vcs_provider_id"})
+		}
+		return
+	}
+
 	// Retrieve values from plan.
 	var plan WorkspaceVCSProviderLinkModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -323,7 +339,12 @@ func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedWorkspaceID := plan.WorkspaceID
+	plannedVCSProviderID := plan.VCSProviderID
 	t.copyWorkspaceVCSProviderLink(ctx, updated, &plan)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.WorkspaceID = keepPlanned(plannedWorkspaceID, updated.WorkspaceId)
+	plan.VCSProviderID = keepPlanned(plannedVCSProviderID, updated.VcsProviderId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))

@@ -198,7 +198,10 @@ func (t *serviceAccountResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
+	plannedGroupID := serviceAccount.GroupID
 	t.copyServiceAccount(createResp.ServiceAccount, &serviceAccount)
+	// The API acted on the planned reference, so the planned form is kept.
+	serviceAccount.GroupID = keepPlanned(plannedGroupID, createResp.ServiceAccount.GroupId)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, serviceAccount)...)
@@ -242,6 +245,15 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 func (t *serviceAccountResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
+	if formOnly, d := formOnlyUpdate(ctx, req, []string{"group_id"}); d.HasError() || formOnly {
+		resp.Diagnostics.Append(d...)
+		if !d.HasError() {
+			applyFormOnlyUpdate(ctx, req, resp, []string{"group_id"})
+		}
+		return
+	}
+
 	// Retrieve values from plan.
 	var plan ServiceAccountModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -267,7 +279,10 @@ func (t *serviceAccountResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedGroupID := plan.GroupID
 	t.copyServiceAccount(updateResp.ServiceAccount, &plan)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.GroupID = keepPlanned(plannedGroupID, updateResp.ServiceAccount.GroupId)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)

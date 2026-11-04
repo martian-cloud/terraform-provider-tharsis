@@ -235,19 +235,16 @@ func (t *runnerAgentServiceAccountResource) Read(ctx context.Context,
 func (t *runnerAgentServiceAccountResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// Reached only when runner_agent_id or service_account_id switches between an object's Global ID and its TRN:
-	// ModifyPlan forces a replacement for any other change. Nothing changes in Tharsis, so
-	// only the stored form is updated.
-	var plan, state RunnerAgentServiceAccountModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
+	// Every other input forces a replacement, so this is reached only for a switch between an
+	// object's Global ID and its TRN. Nothing changes in Tharsis: only the stored form.
+	if formOnly, d := formOnlyUpdate(ctx, req, []string{"runner_agent_id", "service_account_id"}); d.HasError() || !formOnly {
+		resp.Diagnostics.Append(d...)
+		if !d.HasError() {
+			resp.Diagnostics.AddError("Unexpected in-place update", "only a reference form change can be applied in place")
+		}
 		return
 	}
-
-	state.RunnerAgentID = plan.RunnerAgentID
-	state.ServiceAccountID = plan.ServiceAccountID
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	applyFormOnlyUpdate(ctx, req, resp, []string{"runner_agent_id", "service_account_id"})
 }
 
 // ModifyPlan forces a replacement only when either runner_agent_id or service_account_id moves to a

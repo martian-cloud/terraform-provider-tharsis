@@ -188,7 +188,10 @@ func (t *gpgKeyResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	plannedGroupID := gpgKey.GroupID
 	t.copyGPGKey(created, &gpgKey)
+	// The API acted on the planned reference, so the planned form is kept.
+	gpgKey.GroupID = keepPlanned(plannedGroupID, created.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	gpgKey.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -243,15 +246,16 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 func (t *gpgKeyResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	var plan, state GPGKeyModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
+	// Every other input forces a replacement, so this is reached only for a switch between an
+	// object's Global ID and its TRN. Nothing changes in Tharsis: only the stored form.
+	if formOnly, d := formOnlyUpdate(ctx, req, []string{"group_id"}); d.HasError() || !formOnly {
+		resp.Diagnostics.Append(d...)
+		if !d.HasError() {
+			resp.Diagnostics.AddError("Unexpected in-place update", "only a reference form change can be applied in place")
+		}
 		return
 	}
-
-	state.GroupID = plan.GroupID
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	applyFormOnlyUpdate(ctx, req, resp, []string{"group_id"})
 }
 
 func (t *gpgKeyResource) Delete(ctx context.Context,

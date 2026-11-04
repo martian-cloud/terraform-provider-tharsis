@@ -189,7 +189,12 @@ func (t *managedIdentityAliasResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
+	plannedGroupID := managedIdentityAlias.GroupID
+	plannedAliasSourceID := managedIdentityAlias.AliasSourceID
 	t.copyManagedIdentityAlias(ctx, created, &managedIdentityAlias)
+	// The API acted on the planned reference, so the planned form is kept.
+	managedIdentityAlias.GroupID = keepPlanned(plannedGroupID, created.GroupId)
+	managedIdentityAlias.AliasSourceID = keepPlanned(plannedAliasSourceID, created.GetAliasSourceId())
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	managedIdentityAlias.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -245,17 +250,16 @@ func (t *managedIdentityAliasResource) Read(ctx context.Context,
 // nothing changes there, so only the stored forms are updated.
 func (t *managedIdentityAliasResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
-	var plan, state ManagedIdentityAliasModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
+	// Every other input forces a replacement, so this is reached only for a switch between an
+	// object's Global ID and its TRN. Nothing changes in Tharsis: only the stored form.
+	if formOnly, d := formOnlyUpdate(ctx, req, []string{"group_id", "alias_source_id"}); d.HasError() || !formOnly {
+		resp.Diagnostics.Append(d...)
+		if !d.HasError() {
+			resp.Diagnostics.AddError("Unexpected in-place update", "only a reference form change can be applied in place")
+		}
 		return
 	}
-
-	state.GroupID = plan.GroupID
-	state.AliasSourceID = plan.AliasSourceID
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	applyFormOnlyUpdate(ctx, req, resp, []string{"group_id", "alias_source_id"})
 }
 
 func (t *managedIdentityAliasResource) Delete(ctx context.Context,
@@ -312,7 +316,7 @@ func (t *managedIdentityAliasResource) copyManagedIdentityAlias(ctx context.Cont
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
 	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 	// The response carries only the source's Global ID, so a TRN is resolved to compare.
-	dest.AliasSourceID = keepOrRefreshResolve(ctx, t.client, dest.AliasSourceID, *src.AliasSourceId,
+	dest.AliasSourceID = keepOrRefreshResolve(ctx, t.client, dest.AliasSourceID, src.GetAliasSourceId(),
 		trn.TypeManagedIdentity)
 }
 

@@ -128,3 +128,26 @@ func TestRequireReplaceIfDifferentObjectWithoutAPI(t *testing.T) {
 		})
 	}
 }
+
+func TestKeepPlanned(t *testing.T) {
+	cases := []struct {
+		name    string
+		planned types.String
+		apiGID  string
+		want    types.String
+	}{
+		{"known TRN is kept", types.StringValue(unitGroupTRN), unitGroupGID, types.StringValue(unitGroupTRN)},
+		{"known GID is kept", types.StringValue(unitGroupGID), unitOtherGID, types.StringValue(unitGroupGID)},
+		{"unknown takes the API ID", types.StringUnknown(), unitGroupGID, types.StringValue(unitGroupGID)},
+		{"null takes the API ID", types.StringNull(), unitGroupGID, types.StringValue(unitGroupGID)},
+		{"no reference stays null", types.StringNull(), "", types.StringNull()},
+		{"unknown with no reference is null", types.StringUnknown(), "", types.StringNull()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := keepPlanned(tc.planned, tc.apiGID); !got.Equal(tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

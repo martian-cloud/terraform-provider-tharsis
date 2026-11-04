@@ -202,7 +202,10 @@ func (t *runnerAgentResource) Create(ctx context.Context,
 		return
 	}
 
+	plannedGroupID := runnerAgent.GroupID
 	resp.Diagnostics.Append(t.copyRunnerAgent(ctx, created, &runnerAgent)...)
+	// The API acted on the planned reference, so the planned form is kept.
+	runnerAgent.GroupID = keepPlanned(plannedGroupID, runnerGroupGID(created))
 	resp.Diagnostics.Append(resp.State.Set(ctx, runnerAgent)...)
 }
 
@@ -239,6 +242,15 @@ func (t *runnerAgentResource) Read(ctx context.Context,
 func (t *runnerAgentResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
+	if formOnly, d := formOnlyUpdate(ctx, req, []string{"group_id"}); d.HasError() || formOnly {
+		resp.Diagnostics.Append(d...)
+		if !d.HasError() {
+			applyFormOnlyUpdate(ctx, req, resp, []string{"group_id"})
+		}
+		return
+	}
+
 	var plan RunnerAgentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -271,7 +283,10 @@ func (t *runnerAgentResource) Update(ctx context.Context,
 		return
 	}
 
+	plannedGroupID := plan.GroupID
 	resp.Diagnostics.Append(t.copyRunnerAgent(ctx, updated, &plan)...)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.GroupID = keepPlanned(plannedGroupID, runnerGroupGID(updated))
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
@@ -337,4 +352,13 @@ func (t *runnerAgentResource) copyRunnerAgent(ctx context.Context,
 	dest.Tags = tagSet
 
 	return diags
+}
+
+// runnerGroupGID returns the runner agent's parent group as the API reports it: its Global
+// ID, or the group TRN when the response carries no Global ID.
+func runnerGroupGID(src *pb.Runner) string {
+	if src.GroupId != nil && *src.GroupId != "" {
+		return *src.GroupId
+	}
+	return trn.TypeGroup.Build(trn.MustParseAny(src.Metadata.Trn).ParentPath())
 }

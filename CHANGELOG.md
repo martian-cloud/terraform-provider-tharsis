@@ -34,12 +34,19 @@
 - Reference attributes (`group_id`, `parent_id`, `workspace_id`, `managed_identity_id`,
   `alias_source_id`, `vcs_provider_id`, and the IDs on the assignment resources) keep the form written
   in the configuration, an ID or a TRN. Switching between the two forms of the same object is an
-  in-place update; moving a reference to a different object still replaces the resource. (#59)
+  in-place update that makes no API call; moving a reference to a different object still replaces
+  the resource. (#59)
+- `tharsis_workspace_vcs_provider_link`'s deprecated `workspace_path` is now computed, so it is
+  filled in when the link is configured by `workspace_id`. (#59)
 
 ### Fixed
 
 - `tharsis_assigned_managed_identity` was removed from state on every refresh, and re-created on every
   apply, when `managed_identity_id` was a TRN. (#59)
+- `tharsis_workspace_vcs_provider_link` could not be created with `workspace_id`: every apply failed
+  with "Provider produced inconsistent result after apply" for `workspace_path`. (#59)
+- Opt-in acceptance tests for `tharsis_workspace_vcs_provider_link` against a GitLab stand-in
+  (`internal/provider/testdata/fake_vcs`), run when `THARSIS_TEST_FAKE_VCS_URL` is set. (#59)
 
 ## 0.0.1 (Unreleased)
 

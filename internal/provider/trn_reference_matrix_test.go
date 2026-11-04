@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -86,9 +87,10 @@ resource "tharsis_runner_agent_service_account" "trn_target" {
 		{"RunnerAgent", "tharsis_runner_agent.trn_target", "group_id", "tharsis_group.root-group.id", root, other,
 			"tharsis_group.root-group", groupRef(`
 resource "tharsis_runner_agent" "trn_target" {
-	name     = "trn_target"
-	group_id = %s
-	tags     = ["trn"]
+	name        = "trn_target"
+	description = "TRN reference test"
+	group_id    = %s
+	tags        = ["trn"]
 }`)},
 		{"ServiceAccount", "tharsis_service_account.trn_target", "group_id", "tharsis_group.root-group.id", root, other,
 			"tharsis_group.root-group", groupRef(`
@@ -185,6 +187,11 @@ resource "tharsis_managed_identity_access_rule" "trn_target" {
 	allowed_users            = []
 	allowed_service_accounts = []
 	allowed_teams            = []
+	allowed_user_ids            = []
+	allowed_service_account_ids = []
+	allowed_team_ids            = []
+	verify_state_lineage     = false
+	module_attestation_policies = []
 }`)},
 		{"RoleBinding", "tharsis_workspace_role_binding.trn_target", "workspace_id", "tharsis_workspace.trn_ws.id",
 			ws, ws2, "tharsis_workspace.trn_ws", wsRef(`
@@ -307,11 +314,13 @@ var trnRefDeclared = regexp.MustCompile(`resource "(tharsis_[a-z_]+)" "([a-z0-9_
 func quoted(s string) string { return fmt.Sprintf("%q", s) }
 
 // TestTRNReferenceMatrix runs every reference attribute through create-with-TRN,
-// TRN -> Global ID -> TRN without replacement, and a move to a different object.
+// TRN -> Global ID -> TRN without replacement and without any write call to the API, and a
+// move to a different object.
 func TestTRNReferenceMatrix(t *testing.T) {
 	for _, c := range trnRefCases() {
 		t.Run(c.name, func(t *testing.T) {
 			var id string
+			calls := newWriteCallLog(t)
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 				Steps: []resource.TestStep{
@@ -320,6 +329,7 @@ func TestTRNReferenceMatrix(t *testing.T) {
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr(c.resource, c.attr, c.trn),
 							testCaptureAttr(c.resource, "id", &id),
+							calls.mark(),
 						),
 					},
 					{
@@ -327,6 +337,7 @@ func TestTRNReferenceMatrix(t *testing.T) {
 						Check: resource.ComposeAggregateTestCheckFunc(
 							testCheckAttrUnchanged(c.resource, "id", &id),
 							resource.TestCheckResourceAttrPair(c.resource, c.attr, c.gidAddr, "id"),
+							calls.checkNoneSinceMark(),
 						),
 					},
 					{
@@ -334,6 +345,7 @@ func TestTRNReferenceMatrix(t *testing.T) {
 						Check: resource.ComposeAggregateTestCheckFunc(
 							testCheckAttrUnchanged(c.resource, "id", &id),
 							resource.TestCheckResourceAttr(c.resource, c.attr, c.trn),
+							calls.checkNoneSinceMark(),
 						),
 					},
 					{
@@ -450,4 +462,197 @@ resource "tharsis_assigned_managed_identity" "trn_target" {
 			},
 		},
 	})
+}
+
+// writeCallLog counts the provider's write calls to the Tharsis API. The gRPC client logs
+// every request at debug level; the test sets Terraform's log for the whole test case to a
+// file of its own and reads the "gRPC request" lines back.
+type writeCallLog struct {
+	path   string
+	offset int64
+}
+
+// writeMethod matches the gRPC methods that change something in Tharsis.
+var writeMethod = regexp.MustCompile(`gRPC request: .*method=((?:Create|Update|Delete|Set|Assign|Remove|Unassign)[A-Za-z]+)`)
+
+func newWriteCallLog(t *testing.T) *writeCallLog {
+	t.Helper()
+	p := t.TempDir() + "/terraform.log"
+	t.Setenv("TF_ACC_LOG_PATH", p)
+	t.Setenv("TF_LOG_PROVIDER", "DEBUG")
+	return &writeCallLog{path: p}
+}
+
+// mark remembers how far the log has been read, so the next check sees only later steps.
+func (l *writeCallLog) mark() resource.TestCheckFunc {
+	return func(*terraform.State) error {
+		st, err := os.Stat(l.path)
+		if err != nil {
+			return fmt.Errorf("reading the Terraform log: %w", err)
+		}
+		l.offset = st.Size()
+		return nil
+	}
+}
+
+// checkNoneSinceMark fails if any write call was made since the last mark, then marks again.
+func (l *writeCallLog) checkNoneSinceMark() resource.TestCheckFunc {
+	return func(_ *terraform.State) error {
+		b, err := os.ReadFile(l.path)
+		if err != nil {
+			return fmt.Errorf("reading the Terraform log: %w", err)
+		}
+		var writes []string
+		for _, m := range writeMethod.FindAllSubmatch(b[l.offset:], -1) {
+			writes = append(writes, string(m[1]))
+		}
+		l.offset = int64(len(b))
+		if len(writes) > 0 {
+			return fmt.Errorf("a form-only change made API write calls: %v", writes)
+		}
+		return nil
+	}
+}
+
+// TestTRNReferenceFormSwitchWithRemoval switches group_id between forms in the same apply
+// that removes the description. Terraform plans an unset Optional+Computed input as
+// unknown, which looks the same as a value the user is not touching, so the provider must
+// run the normal update rather than skip it: the description must be cleared. A later form
+// switch with the description still unset also runs the normal update and changes nothing.
+func TestTRNReferenceFormSwitchWithRemoval(t *testing.T) {
+	var id string
+	cfg := func(groupRef, descLine string) string {
+		return trnRefBase() + fmt.Sprintf(`
+resource "tharsis_runner_agent" "trn_target" {
+	name     = "trn_target"
+	group_id = %s
+	tags     = ["trn"]
+	%s
+	depends_on = [tharsis_group.root-group, tharsis_group.trn_other]
+}`, groupRef, descLine)
+	}
+	trnRef := quoted("trn:group:" + trnRefGroupPath)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: cfg("tharsis_group.root-group.id", `description = "to be removed"`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCaptureAttr("tharsis_runner_agent.trn_target", "id", &id),
+					resource.TestCheckResourceAttr("tharsis_runner_agent.trn_target", "description", "to be removed"),
+				),
+			},
+			{
+				Config: cfg(trnRef, ""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged("tharsis_runner_agent.trn_target", "id", &id),
+					resource.TestCheckResourceAttr("tharsis_runner_agent.trn_target", "group_id", "trn:group:"+trnRefGroupPath),
+					resource.TestCheckResourceAttr("tharsis_runner_agent.trn_target", "description", ""),
+				),
+			},
+			{
+				Config: cfg("tharsis_group.root-group.id", ""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged("tharsis_runner_agent.trn_target", "id", &id),
+					resource.TestCheckResourceAttrPair("tharsis_runner_agent.trn_target", "group_id",
+						"tharsis_group.root-group", "id"),
+					resource.TestCheckResourceAttr("tharsis_runner_agent.trn_target", "description", ""),
+				),
+			},
+		},
+	})
+}
+
+// trnRefImportIDs gives the import ID form for each matrix case; cases not listed have no
+// import (the VCS provider link) or import a different object than they create.
+var trnRefImportIDs = map[string]func(map[string]string) string{
+	"AssignedIdentity":  func(a map[string]string) string { return a["workspace_id"] + "/" + a["managed_identity_id"] },
+	"AssignedWorkspace": func(a map[string]string) string { return a["workspace_id"] + "/" + a["managed_identity_id"] },
+	"RoleBinding":       func(a map[string]string) string { return a["workspace_id"] },
+}
+
+func trnRefImportID(c trnRefCase) func(map[string]string) string {
+	if f, ok := trnRefImportIDs[c.name]; ok {
+		return f
+	}
+	switch c.name {
+	case "RunnerAssignmentRunner", "RunnerAssignmentServiceAccount", "AliasGroup":
+		return nil // no import support, or one config would hold two aliases of one name
+	}
+	return func(a map[string]string) string { return a["id"] }
+}
+
+// TestTRNReferenceAfterImport covers the import case: an object imported by ID has its
+// reference stored as a Global ID. A configuration that then uses the TRN of the same
+// object must be an in-place update with no replacement and no write call to the API.
+//
+// The object is created by Terraform under one address and imported into a second one,
+// which keeps the test on the import blocks of Terraform 1.0. Only the imported copy then
+// switches to the TRN. Teardown deletes the object twice; every Delete ignores NotFound.
+func TestTRNReferenceAfterImport(t *testing.T) {
+	for _, c := range trnRefCases() {
+		importID := trnRefImportID(c)
+		if importID == nil {
+			continue
+		}
+		t.Run(c.name, func(t *testing.T) {
+			var id, impID, impStateID string
+			calls := newWriteCallLog(t)
+			kind, name := splitAddr(c.resource)
+			imported := kind + ".trn_import"
+			// twice declares the resource under its own address and again as trn_import, the
+			// latter with the reference set to impRef.
+			twice := func(ref, impRef string) string {
+				own := c.withDependsOn(ref)
+				block := c.withDependsOn(impRef)
+				block = block[strings.Index(block, `resource "`+kind+`" "`+name+`"`):]
+				return own + "\n" + strings.Replace(block, `"`+name+`"`, `"trn_import"`, 1)
+			}
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					{
+						Config: c.withDependsOn(c.gid),
+						Check: resource.ComposeAggregateTestCheckFunc(
+							testCaptureAttr(c.resource, "id", &id),
+							func(s *terraform.State) error {
+								impID = importID(s.RootModule().Resources[c.resource].Primary.Attributes)
+								return nil
+							},
+						),
+					},
+					{
+						Config:             twice(c.gid, c.gid),
+						ResourceName:       imported,
+						ImportState:        true,
+						ImportStatePersist: true,
+						ImportStateIdFunc:  func(*terraform.State) (string, error) { return impID, nil },
+					},
+					{
+						Config: twice(c.gid, c.gid),
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttrPair(imported, c.attr, c.gidAddr, "id"),
+							testCaptureAttr(imported, "id", &impStateID),
+							calls.mark(),
+						),
+					},
+					{
+						Config: twice(c.gid, quoted(c.trn)),
+						Check: resource.ComposeAggregateTestCheckFunc(
+							// Unchanged id = no replacement. (The assignment resources mint a fresh id on
+							// import, so the comparison is with the imported copy, not the original.)
+							testCheckAttrUnchanged(imported, "id", &impStateID),
+							resource.TestCheckResourceAttr(imported, c.attr, c.trn),
+							calls.checkNoneSinceMark(),
+						),
+					},
+				},
+			})
+		})
+	}
+}
+
+func splitAddr(addr string) (kind, name string) {
+	i := strings.Index(addr, ".")
+	return addr[:i], addr[i+1:]
 }

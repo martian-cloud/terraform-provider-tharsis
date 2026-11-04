@@ -311,7 +311,10 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	plannedManagedIdentityID := accessRule.ManagedIdentityID
 	t.copyAccessRuleToState(ctx, created, &accessRule, &resp.Diagnostics)
+	// The API acted on the planned reference, so the planned form is kept.
+	accessRule.ManagedIdentityID = keepPlanned(plannedManagedIdentityID, created.ManagedIdentityId)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -368,6 +371,15 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
+	if formOnly, d := formOnlyUpdate(ctx, req, []string{"managed_identity_id"}); d.HasError() || formOnly {
+		resp.Diagnostics.Append(d...)
+		if !d.HasError() {
+			applyFormOnlyUpdate(ctx, req, resp, []string{"managed_identity_id"})
+		}
+		return
+	}
+
 	// Retrieve values from plan for the fields to modify.
 	var plan ManagedIdentityAccessRuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -435,7 +447,10 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		return
 	}
 
+	plannedManagedIdentityID := plan.ManagedIdentityID
 	t.copyAccessRuleToState(ctx, updated, &plan, &resp.Diagnostics)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.ManagedIdentityID = keepPlanned(plannedManagedIdentityID, updated.ManagedIdentityId)
 	if resp.Diagnostics.HasError() {
 		return
 	}

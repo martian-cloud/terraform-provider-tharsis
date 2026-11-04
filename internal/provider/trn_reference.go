@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
 	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
@@ -189,4 +191,75 @@ func requireReplaceIfDifferentObject(ctx context.Context, c *client.GRPCClient,
 // isKnownValue reports whether v is neither null nor unknown.
 func isKnownValue(v types.String) bool {
 	return !v.IsNull() && !v.IsUnknown()
+}
+
+// formOnlyUpdate reports whether an update changes nothing but the form of the given
+// reference attributes. Every other attribute must equal its prior state value, except a
+// computed-only one (no Optional or Required), which the user cannot set and the update
+// would only refresh. Reaching Update with a changed reference already means ModifyPlan
+// proved it names the same object.
+//
+// An Optional+Computed input left unset in the configuration is planned as unknown on every
+// update. That is indistinguishable from the user removing a value, so it counts as a change
+// and the normal update runs: skipping it would silently ignore a removal.
+//
+// When it returns true, the caller stores the planned reference values in prior state and
+// makes no API call: nothing changes in Tharsis.
+func formOnlyUpdate(_ context.Context, req resource.UpdateRequest, refs []string) (bool, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	skip := map[string]bool{}
+	for _, a := range refs {
+		skip[a] = true
+	}
+	for name, a := range req.Plan.Schema.GetAttributes() {
+		if a.IsComputed() && !a.IsOptional() && !a.IsRequired() {
+			skip[name] = true
+		}
+	}
+	var planVals, stateVals map[string]tftypes.Value
+	if err := req.Plan.Raw.As(&planVals); err != nil {
+		diags.AddError("Error reading the plan", err.Error())
+		return false, diags
+	}
+	if err := req.State.Raw.As(&stateVals); err != nil {
+		diags.AddError("Error reading the prior state", err.Error())
+		return false, diags
+	}
+	for name, pv := range planVals {
+		if skip[name] {
+			continue
+		}
+		if sv, found := stateVals[name]; !found || !pv.Equal(sv) {
+			return false, diags
+		}
+	}
+	return true, diags
+}
+
+// applyFormOnlyUpdate stores the planned values of refs in prior state, leaving every
+// other attribute (including last_updated: Tharsis is not changed) as it was.
+func applyFormOnlyUpdate(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
+	refs []string,
+) {
+	resp.State.Raw = req.State.Raw.Copy()
+	for _, a := range refs {
+		var v types.String
+		resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root(a), &v)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(a), v)...)
+	}
+}
+
+// keepPlanned returns the reference value to store after Create or Update. A known planned
+// value is kept: the API acted on exactly that object, so it is correct by definition and
+// no comparison is needed. Otherwise (an Optional+Computed reference set through its path
+// counterpart, or left unset) the API's Global ID is taken, and an empty one means there is
+// no reference, as for a root group's parent.
+func keepPlanned(planned types.String, apiGID string) types.String {
+	if isKnownValue(planned) {
+		return planned
+	}
+	if apiGID == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(apiGID)
 }

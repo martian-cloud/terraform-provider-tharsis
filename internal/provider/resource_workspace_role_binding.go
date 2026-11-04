@@ -117,6 +117,7 @@ func (t *workspaceRoleBindingResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	plannedWorkspaceID := binding.WorkspaceID
 	if err = t.copyWorkspaceRoleBinding(ctx, created, &binding); err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading back the bound role",
@@ -124,6 +125,8 @@ func (t *workspaceRoleBindingResource) Create(ctx context.Context,
 		)
 		return
 	}
+	// The API acted on the planned reference, so the planned form is kept.
+	binding.WorkspaceID = keepPlanned(plannedWorkspaceID, created.WorkspaceId)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, binding)...)
@@ -173,6 +176,15 @@ func (t *workspaceRoleBindingResource) Read(ctx context.Context,
 func (t *workspaceRoleBindingResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
+	if formOnly, d := formOnlyUpdate(ctx, req, []string{"workspace_id"}); d.HasError() || formOnly {
+		resp.Diagnostics.Append(d...)
+		if !d.HasError() {
+			applyFormOnlyUpdate(ctx, req, resp, []string{"workspace_id"})
+		}
+		return
+	}
+
 	// Retrieve values from plan.
 	var plan WorkspaceRoleBindingModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -198,6 +210,7 @@ func (t *workspaceRoleBindingResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedWorkspaceID := plan.WorkspaceID
 	if err = t.copyWorkspaceRoleBinding(ctx, updated, &plan); err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading back the bound role",
@@ -205,6 +218,8 @@ func (t *workspaceRoleBindingResource) Update(ctx context.Context,
 		)
 		return
 	}
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.WorkspaceID = keepPlanned(plannedWorkspaceID, updated.WorkspaceId)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)

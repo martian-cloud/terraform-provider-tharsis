@@ -231,7 +231,10 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	plannedGroupID := vcsProvider.GroupID
 	t.copyVCSProvider(createResponse.VcsProvider, &vcsProvider)
+	// The API acted on the planned reference, so the planned form is kept.
+	vcsProvider.GroupID = keepPlanned(plannedGroupID, createResponse.VcsProvider.GroupId)
 	vcsProvider.OAuthAuthorizationURL = types.StringValue(createResponse.OauthAuthorizationUrl)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
@@ -285,6 +288,15 @@ func (t *vcsProviderResource) Read(ctx context.Context,
 func (t *vcsProviderResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
+	if formOnly, d := formOnlyUpdate(ctx, req, []string{"group_id"}); d.HasError() || formOnly {
+		resp.Diagnostics.Append(d...)
+		if !d.HasError() {
+			applyFormOnlyUpdate(ctx, req, resp, []string{"group_id"})
+		}
+		return
+	}
+
 	// Retrieve values from plan.
 	var plan VCSProviderModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -316,7 +328,10 @@ func (t *vcsProviderResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedGroupID := plan.GroupID
 	t.copyVCSProvider(updated, &plan)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.GroupID = keepPlanned(plannedGroupID, updated.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
