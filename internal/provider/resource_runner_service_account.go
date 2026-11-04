@@ -173,8 +173,8 @@ func (t *runnerServiceAccountResource) Read(ctx context.Context,
 		return
 	}
 
-	// The API always applies a namespace filter, so scope the lookup to the runner
-	// agent's group and its ancestors (IncludeInherited) where assigned service accounts
+	// The API always applies a namespace filter, so scope the lookup to the runner's
+	// group and its ancestors (IncludeInherited) where assigned service accounts
 	// may live. RunnerId then narrows the result to this runner's assignments.
 	// Page through all results: a match on a later page must not be missed, or Read
 	// would wrongly drop the resource and plan a recreate.
