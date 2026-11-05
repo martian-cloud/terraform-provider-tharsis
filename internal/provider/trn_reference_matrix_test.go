@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -318,6 +319,7 @@ func quoted(s string) string { return fmt.Sprintf("%q", s) }
 // move to a different object.
 func TestTRNReferenceMatrix(t *testing.T) {
 	for _, c := range trnRefCases() {
+		pauseForRateLimit()
 		t.Run(c.name, func(t *testing.T) {
 			var id string
 			calls := newWriteCallLog(t)
@@ -595,6 +597,7 @@ func TestTRNReferenceAfterImport(t *testing.T) {
 		if importID == nil {
 			continue
 		}
+		pauseForRateLimit()
 		t.Run(c.name, func(t *testing.T) {
 			var id, impID, impStateID string
 			calls := newWriteCallLog(t)
@@ -655,4 +658,11 @@ func TestTRNReferenceAfterImport(t *testing.T) {
 func splitAddr(addr string) (kind, name string) {
 	i := strings.Index(addr, ".")
 	return addr[:i], addr[i+1:]
+}
+
+// pauseForRateLimit spaces out the cases: the Tharsis API rejects more than 60 requests a
+// second (ResourceExhausted), and one case's destroy followed at once by the next case's
+// create and refresh can exceed that.
+func pauseForRateLimit() {
+	time.Sleep(time.Second)
 }
