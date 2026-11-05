@@ -103,6 +103,7 @@ func TestRequireReplaceIfDifferentObjectWithoutAPI(t *testing.T) {
 		{"destroy", obj(str(unitGroupGID)), null, false, false},
 		{"unchanged", obj(str(unitGroupGID)), obj(str(unitGroupGID)), false, false},
 		{"changed, cannot resolve", obj(str(unitGroupGID)), obj(str(unitGroupTRN)), true, true},
+		{"two different Global IDs", obj(str(unitGroupGID)), obj(str(unitGroupGID + "x")), true, false},
 		{"planned unknown", obj(str(unitGroupGID)), obj(tftypes.NewValue(tftypes.String, tftypes.UnknownValue)), true, false},
 		{"null to a value", obj(tftypes.NewValue(tftypes.String, nil)), obj(str(unitGroupGID)), true, false},
 		{"a value to null", obj(str(unitGroupGID)), obj(tftypes.NewValue(tftypes.String, nil)), true, false},

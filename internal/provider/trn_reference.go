@@ -138,6 +138,15 @@ func resolveObjectGID(ctx context.Context, c *client.GRPCClient, ref string, t t
 	}
 }
 
+// referenceGID returns the Global ID a reference names. A Global ID is already the
+// object's one canonical ID and is returned as is; only a TRN is looked up.
+func referenceGID(ctx context.Context, c *client.GRPCClient, ref string, t trn.Type) (string, error) {
+	if !trn.IsTRN(ref) {
+		return ref, nil
+	}
+	return resolveObjectGID(ctx, c, ref, t)
+}
+
 // requireReplaceIfDifferentObject is called from ModifyPlan for a reference attribute the
 // API cannot update in place. It forces a replacement only when the prior and planned
 // values name different objects of type t. Two forms of the same object (a Global ID and
@@ -165,8 +174,8 @@ func requireReplaceIfDifferentObject(ctx context.Context, c *client.GRPCClient,
 		return
 	}
 	if isKnownValue(prior) && isKnownValue(planned) {
-		priorGID, priorErr := resolveObjectGID(ctx, c, prior.ValueString(), t)
-		plannedGID, plannedErr := resolveObjectGID(ctx, c, planned.ValueString(), t)
+		priorGID, priorErr := referenceGID(ctx, c, prior.ValueString(), t)
+		plannedGID, plannedErr := referenceGID(ctx, c, planned.ValueString(), t)
 		if priorErr == nil && plannedErr == nil && priorGID == plannedGID {
 			return
 		}
