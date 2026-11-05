@@ -662,7 +662,9 @@ func splitAddr(addr string) (kind, name string) {
 
 // pauseForRateLimit spaces out the cases: the Tharsis API rejects more than 60 requests a
 // second (ResourceExhausted), and one case's destroy followed at once by the next case's
-// create and refresh can exceed that.
+// create and refresh can exceed that. Only acceptance runs call the API.
 func pauseForRateLimit() {
-	time.Sleep(time.Second)
+	if os.Getenv("TF_ACC") != "" {
+		time.Sleep(time.Second)
+	}
 }
