@@ -20,7 +20,6 @@
 # Custom Ignore
 ## Enter your project specific ignores here
 terraform-provider-tharsis
-.dev/
 **/.terraform.lock.hcl
 
 
