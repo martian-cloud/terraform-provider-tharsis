@@ -46,7 +46,7 @@ resource "tharsis_vcs_provider" "%[1]s" {
 }
 `, n, fakeURL)
 	}
-	base := trnRefBase("ws") + providers
+	base := trnRefBase("ws", "ws2") + providers
 	link := func(wsRef, vcsRef string) string {
 		return base + fmt.Sprintf(`
 resource "tharsis_workspace_vcs_provider_link" "trn_target" {

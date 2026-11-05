@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -48,43 +47,55 @@ func trnRefCases() []trnRefCase {
 	mi2 := "trn:managed_identity:" + trnRefGroupPath + "/trn_mi2"
 	ws := "trn:workspace:" + trnRefGroupPath + "/trn_ws"
 	ws2 := "trn:workspace:" + trnRefGroupPath + "/trn_ws2"
+	// withParts builds a case's config from the objects it uses. A part marked with
+	// onMove is the case's alternate object; it is declared only in the step whose
+	// reference names it, so the earlier steps do not read it on every command.
 	withParts := func(body string, parts ...string) func(string) string {
-		return func(ref string) string { return trnRefBase(parts...) + fmt.Sprintf(body, ref) }
+		return func(ref string) string {
+			var use []string
+			for _, p := range parts {
+				if alt, ok := strings.CutPrefix(p, "move:"); ok {
+					if !strings.HasSuffix(ref, "/trn_"+alt+`"`) {
+						continue
+					}
+					p = alt
+				}
+				use = append(use, p)
+			}
+			return trnRefBase(use...) + fmt.Sprintf(body, ref)
+		}
 	}
-	groupRef := func(body string) func(string) string { return withParts(body) }
+	onMove := func(part string) string { return "move:" + part }
+	groupRef := func(body string) func(string) string { return withParts(body, onMove("other")) }
 	ra := "trn:runner:" + trnRefGroupPath + "/trn_ra"
 	ra2 := "trn:runner:" + trnRefGroupPath + "/trn_ra2"
 	sa := "trn:service_account:" + trnRefGroupPath + "/trn_sa"
 	sa2 := "trn:service_account:" + trnRefGroupPath + "/trn_sa2"
-	assignment := func(body string) func(string) string { return withParts(body, "runner") }
-	miRef := func(body string) func(string) string { return withParts(body, "mi") }
-	wsRef := func(body string) func(string) string { return withParts(body, "ws") }
-	miWSRef := func(body string) func(string) string { return withParts(body, "mi", "ws") }
 	return []trnRefCase{
 		{"AssignedIdentity", "tharsis_assigned_managed_identity.trn_target", "managed_identity_id", "tharsis_managed_identity.trn_mi.id",
-			mi, mi2, "tharsis_managed_identity.trn_mi", miWSRef(`
+			mi, mi2, "tharsis_managed_identity.trn_mi", withParts(`
 resource "tharsis_assigned_managed_identity" "trn_target" {
 	managed_identity_id = %s
 	workspace_id        = tharsis_workspace.trn_ws.id
-}`)},
+}`, "mi", onMove("mi2"), "ws")},
 		{"AssignedWorkspace", "tharsis_assigned_managed_identity.trn_target", "workspace_id", "tharsis_workspace.trn_ws.id",
-			ws, ws2, "tharsis_workspace.trn_ws", miWSRef(`
+			ws, ws2, "tharsis_workspace.trn_ws", withParts(`
 resource "tharsis_assigned_managed_identity" "trn_target" {
 	managed_identity_id = tharsis_managed_identity.trn_mi.id
 	workspace_id        = %s
-}`)},
+}`, "mi", "ws", onMove("ws2"))},
 		{"RunnerAssignmentRunner", "tharsis_runner_service_account.trn_target", "runner_id", "tharsis_runner.trn_ra.id",
-			ra, ra2, "tharsis_runner.trn_ra", assignment(`
+			ra, ra2, "tharsis_runner.trn_ra", withParts(`
 resource "tharsis_runner_service_account" "trn_target" {
 	runner_id    = %s
 	service_account_id = tharsis_service_account.trn_sa.id
-}`)},
+}`, "ra", onMove("ra2"), "sa")},
 		{"RunnerAssignmentServiceAccount", "tharsis_runner_service_account.trn_target", "service_account_id", "tharsis_service_account.trn_sa.id",
-			sa, sa2, "tharsis_service_account.trn_sa", assignment(`
+			sa, sa2, "tharsis_service_account.trn_sa", withParts(`
 resource "tharsis_runner_service_account" "trn_target" {
 	runner_id    = tharsis_runner.trn_ra.id
 	service_account_id = %s
-}`)},
+}`, "ra", "sa", onMove("sa2"))},
 		{"Runner", "tharsis_runner.trn_target", "group_id", "tharsis_group.root-group.id", root, other,
 			"tharsis_group.root-group", groupRef(`
 resource "tharsis_runner" "trn_target" {
@@ -162,25 +173,21 @@ resource "tharsis_gpg_key" "trn_target" {
 }`)},
 		{"AliasGroup", "tharsis_managed_identity_alias.trn_target", "group_id", "tharsis_group.trn_alias_group.id",
 			"trn:group:" + trnRefAliasGroup, "trn:group:" + trnRefAliasGroup + "/trn_other_alias",
-			"tharsis_group.trn_alias_group", func(ref string) string {
-				return trnRefBase("mi", "alias") + fmt.Sprintf(`
+			"tharsis_group.trn_alias_group", withParts(`
 resource "tharsis_managed_identity_alias" "trn_target" {
 	name            = "trn_target"
 	group_id        = %s
 	alias_source_id = tharsis_managed_identity.trn_mi.id
-}`, ref)
-			}},
+}`, "mi", "alias", onMove("other_alias"))},
 		{"AliasSource", "tharsis_managed_identity_alias.trn_target", "alias_source_id", "tharsis_managed_identity.trn_mi.id",
-			mi, mi2, "tharsis_managed_identity.trn_mi", func(ref string) string {
-				return trnRefBase("mi", "alias") + fmt.Sprintf(`
+			mi, mi2, "tharsis_managed_identity.trn_mi", withParts(`
 resource "tharsis_managed_identity_alias" "trn_target" {
 	name            = "trn_target"
 	group_path      = tharsis_group.trn_alias_group.full_path
 	alias_source_id = %s
-}`, ref)
-			}},
+}`, "mi", onMove("mi2"), "alias")},
 		{"AccessRule", "tharsis_managed_identity_access_rule.trn_target", "managed_identity_id", "tharsis_managed_identity.trn_mi.id",
-			mi, mi2, "tharsis_managed_identity.trn_mi", miRef(`
+			mi, mi2, "tharsis_managed_identity.trn_mi", withParts(`
 resource "tharsis_managed_identity_access_rule" "trn_target" {
 	type                     = "eligible_principals"
 	run_stage                = "plan"
@@ -193,106 +200,93 @@ resource "tharsis_managed_identity_access_rule" "trn_target" {
 	allowed_team_ids            = []
 	verify_state_lineage     = false
 	module_attestation_policies = []
-}`)},
+}`, "mi", onMove("mi2"))},
 		{"RoleBinding", "tharsis_workspace_role_binding.trn_target", "workspace_id", "tharsis_workspace.trn_ws.id",
-			ws, ws2, "tharsis_workspace.trn_ws", wsRef(`
+			ws, ws2, "tharsis_workspace.trn_ws", withParts(`
 resource "tharsis_workspace_role_binding" "trn_target" {
 	workspace_id = %s
-	role_name    = "` + testDeployerRoleName + `"
-}`)},
+	role_name    = "`+testDeployerRoleName+`"
+}`, "ws", onMove("ws2"))},
 	}
 }
 
 // trnRefAliasGroup is the root group aliases live in; an alias must be in another namespace.
 const trnRefAliasGroup = "provider-test-trn-reference-alias"
 
-// trnRefBase declares the root group and a second group, plus the named extra parts a
-// case references: "mi" (two managed identities), "ws" (two workspaces), "runner" (two
-// runners and two service accounts) and "alias" (the alias namespace). Each case
-// declares only what it uses, to keep refreshes under the API's rate limit.
+// trnRefBase declares the root group plus the named objects a case uses: "other" (a second
+// group), "mi"/"mi2" (managed identities), "ws"/"ws2" (workspaces), "ra"/"ra2" (runners),
+// "sa"/"sa2" (service accounts), "alias" and "other_alias" (the alias namespace and a group
+// in it). Every Terraform command reads every declared object, so a case that declares
+// more than it uses sends bursts of reads that approach the API's 60 requests a second.
 func trnRefBase(parts ...string) string {
 	var b strings.Builder
 	b.WriteString(createRootGroup(trnRefGroupPath, "root group for the TRN reference tests"))
-	b.WriteString(`
+	for _, part := range parts {
+		switch part {
+		case "other":
+			b.WriteString(`
 resource "tharsis_group" "trn_other" {
 	name        = "trn_other"
 	description = "second group for the TRN reference tests"
 	parent_path = tharsis_group.root-group.full_path
 }
 `)
-	for _, part := range parts {
-		switch part {
-		case "mi":
-			for _, n := range []string{"trn_mi", "trn_mi2"} {
-				fmt.Fprintf(&b, `
-resource "tharsis_managed_identity" "%[1]s" {
+		case "mi", "mi2":
+			fmt.Fprintf(&b, `
+resource "tharsis_managed_identity" "trn_%[1]s" {
 	type        = "%[2]s"
-	name        = "%[1]s"
+	name        = "trn_%[1]s"
 	description = "managed identity for the TRN reference tests"
 	group_path  = tharsis_group.root-group.full_path
 	aws_role    = "some-iam-role"
 }
-`, n, pb.ManagedIdentityType_aws_federated.String())
-			}
-		case "ws":
-			for _, n := range []string{"trn_ws", "trn_ws2"} {
-				fmt.Fprintf(&b, `
-resource "tharsis_workspace" "%[1]s" {
-	name                 = "%[1]s"
+`, part, pb.ManagedIdentityType_aws_federated.String())
+		case "ws", "ws2":
+			fmt.Fprintf(&b, `
+resource "tharsis_workspace" "trn_%[1]s" {
+	name                 = "trn_%[1]s"
 	description          = "workspace for the TRN reference tests"
 	group_path           = tharsis_group.root-group.full_path
 	prevent_destroy_plan = false
 }
-`, n)
-			}
-		case "runner":
-			b.WriteString(trnRefRunnerBase())
-		case "alias":
-			b.WriteString(trnRefAliasBase())
-		}
-	}
-	return b.String()
-}
-
-// trnRefRunnerBase declares two runners and two service accounts to assign.
-func trnRefRunnerBase() string {
-	var b strings.Builder
-	for _, n := range []string{"trn_ra", "trn_ra2"} {
-		fmt.Fprintf(&b, `
-resource "tharsis_runner" "%[1]s" {
-	name     = "%[1]s"
+`, part)
+		case "ra", "ra2":
+			fmt.Fprintf(&b, `
+resource "tharsis_runner" "trn_%[1]s" {
+	name     = "trn_%[1]s"
 	group_id = tharsis_group.root-group.id
 	tags     = ["trn"]
 }
-`, n)
-	}
-	for _, n := range []string{"trn_sa", "trn_sa2"} {
-		fmt.Fprintf(&b, `
-resource "tharsis_service_account" "%[1]s" {
-	name                = "%[1]s"
+`, part)
+		case "sa", "sa2":
+			fmt.Fprintf(&b, `
+resource "tharsis_service_account" "trn_%[1]s" {
+	name                = "trn_%[1]s"
 	description         = "service account for the TRN reference tests"
 	group_path          = tharsis_group.root-group.full_path
 	oidc_trust_policies = [{bound_claims = {"key" = "value"}, issuer = "https://trn-test-issuer/"}]
 }
-`, n)
-	}
-	return b.String()
-}
-
-// trnRefAliasBase declares the alias namespace and a second group inside it.
-func trnRefAliasBase() string {
-	return fmt.Sprintf(`
+`, part)
+		case "alias":
+			fmt.Fprintf(&b, `
 resource "tharsis_group" "trn_alias_group" {
 	name        = "%s"
 	description = "alias group for the TRN reference tests"
 }
-
+`, trnRefAliasGroup)
+		case "other_alias":
+			b.WriteString(`
 resource "tharsis_group" "trn_other_alias" {
 	name        = "trn_other_alias"
 	description = "second alias group for the TRN reference tests"
 	parent_path = tharsis_group.trn_alias_group.full_path
 }
-`, trnRefAliasGroup)
+`)
+		default:
+			panic("trnRefBase: unknown part " + part)
+		}
+	}
+	return b.String()
 }
 
 // withDependsOn adds depends_on on every other declared resource to the case's resource,
@@ -319,7 +313,6 @@ func quoted(s string) string { return fmt.Sprintf("%q", s) }
 // move to a different object.
 func TestTRNReferenceMatrix(t *testing.T) {
 	for _, c := range trnRefCases() {
-		pauseForRateLimit()
 		t.Run(c.name, func(t *testing.T) {
 			var id string
 			calls := newWriteCallLog(t)
@@ -530,7 +523,7 @@ resource "tharsis_runner" "trn_target" {
 	group_id = %s
 	tags     = ["trn"]
 	%s
-	depends_on = [tharsis_group.root-group, tharsis_group.trn_other]
+	depends_on = [tharsis_group.root-group]
 }`, groupRef, descLine)
 	}
 	trnRef := quoted("trn:group:" + trnRefGroupPath)
@@ -597,7 +590,6 @@ func TestTRNReferenceAfterImport(t *testing.T) {
 		if importID == nil {
 			continue
 		}
-		pauseForRateLimit()
 		t.Run(c.name, func(t *testing.T) {
 			var id, impID, impStateID string
 			calls := newWriteCallLog(t)
@@ -658,13 +650,4 @@ func TestTRNReferenceAfterImport(t *testing.T) {
 func splitAddr(addr string) (kind, name string) {
 	i := strings.Index(addr, ".")
 	return addr[:i], addr[i+1:]
-}
-
-// pauseForRateLimit spaces out the cases: the Tharsis API rejects more than 60 requests a
-// second (ResourceExhausted), and one case's destroy followed at once by the next case's
-// create and refresh can exceed that. Only acceptance runs call the API.
-func pauseForRateLimit() {
-	if os.Getenv("TF_ACC") != "" {
-		time.Sleep(time.Second)
-	}
 }

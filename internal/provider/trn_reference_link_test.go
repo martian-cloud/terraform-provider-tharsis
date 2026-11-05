@@ -26,7 +26,7 @@ func TestTRNReferenceLinkHelpers(t *testing.T) {
 	vcsTRN := "trn:vcs_provider:" + trnRefGroupPath + "/trn_vcs"
 	wsTRN := "trn:workspace:" + trnRefGroupPath + "/trn_ws"
 
-	cfg := trnRefBase("ws") + `
+	cfg := trnRefBase("ws", "ws2") + `
 resource "tharsis_vcs_provider" "trn_vcs" {
 	name                 = "trn_vcs"
 	description          = "VCS provider for the TRN reference tests"
