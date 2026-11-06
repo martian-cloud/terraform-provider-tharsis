@@ -251,15 +251,8 @@ func (t *gpgKeyResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
 	// Every other input forces a replacement, so this is reached only for a switch between an
-	// object's Global ID and its TRN. Nothing changes in Tharsis: only the stored form.
-	if formOnly, d := formOnlyUpdate(ctx, req, []string{"group_id"}); d.HasError() || !formOnly {
-		resp.Diagnostics.Append(d...)
-		if !d.HasError() {
-			resp.Diagnostics.AddError("Unexpected in-place update", "only a reference form change can be applied in place")
-		}
-		return
-	}
-	applyFormOnlyUpdate(ctx, req, resp, []string{"group_id"})
+	// object's Global ID and its TRN.
+	applyFormOnlyOrError(ctx, req, resp, []string{"group_id"})
 }
 
 func (t *gpgKeyResource) Delete(ctx context.Context,

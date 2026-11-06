@@ -237,15 +237,8 @@ func (t *runnerServiceAccountResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
 	// Every other input forces a replacement, so this is reached only for a switch between an
-	// object's Global ID and its TRN. Nothing changes in Tharsis: only the stored form.
-	if formOnly, d := formOnlyUpdate(ctx, req, []string{"runner_id", "service_account_id"}); d.HasError() || !formOnly {
-		resp.Diagnostics.Append(d...)
-		if !d.HasError() {
-			resp.Diagnostics.AddError("Unexpected in-place update", "only a reference form change can be applied in place")
-		}
-		return
-	}
-	applyFormOnlyUpdate(ctx, req, resp, []string{"runner_id", "service_account_id"})
+	// object's Global ID and its TRN.
+	applyFormOnlyOrError(ctx, req, resp, []string{"runner_id", "service_account_id"})
 }
 
 // ModifyPlan forces a replacement only when either runner_id or service_account_id moves to a

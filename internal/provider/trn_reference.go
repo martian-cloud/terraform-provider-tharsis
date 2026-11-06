@@ -245,6 +245,25 @@ func formOnlyUpdate(_ context.Context, req resource.UpdateRequest, refs []string
 	return true, diags
 }
 
+// applyFormOnlyOrError is the whole Update of a resource with no update RPC, where every
+// input other than the references in refs forces a replacement. Update is then reached only
+// for a switch between an object's Global ID and its TRN: it stores the planned form with no
+// API call. Any other in-place change is an error, because nothing could apply it.
+func applyFormOnlyOrError(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
+	refs []string,
+) {
+	formOnly, d := formOnlyUpdate(ctx, req, refs)
+	resp.Diagnostics.Append(d...)
+	if d.HasError() {
+		return
+	}
+	if !formOnly {
+		resp.Diagnostics.AddError("Unexpected in-place update", "only a reference form change can be applied in place")
+		return
+	}
+	applyFormOnlyUpdate(ctx, req, resp, refs)
+}
+
 // applyFormOnlyUpdate stores the planned values of refs in prior state, leaving every
 // other attribute (including last_updated: Tharsis is not changed) as it was.
 func applyFormOnlyUpdate(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
