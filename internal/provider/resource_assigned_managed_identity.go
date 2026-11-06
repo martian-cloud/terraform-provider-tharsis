@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
 	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -30,6 +31,7 @@ var (
 	_ resource.Resource                = (*assignedManagedIdentityResource)(nil)
 	_ resource.ResourceWithConfigure   = (*assignedManagedIdentityResource)(nil)
 	_ resource.ResourceWithImportState = (*assignedManagedIdentityResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*assignedManagedIdentityResource)(nil)
 )
 
 // NewAssignedManagedIdentityResource is a helper function to simplify the provider implementation.
@@ -68,17 +70,11 @@ func (t *assignedManagedIdentityResource) Schema(_ context.Context, _ resource.S
 				MarkdownDescription: "The ID or TRN of the assigned managed identity.",
 				Description:         "The ID or TRN of the assigned managed identity.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"workspace_id": schema.StringAttribute{
 				MarkdownDescription: "The ID or TRN of the assigned-to workspace.",
 				Description:         "The ID or TRN of the assigned-to workspace.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 		},
 	}
@@ -130,9 +126,9 @@ func (t *assignedManagedIdentityResource) Create(ctx context.Context,
 	})...)
 }
 
-// assignedManagedIdentityImportIDParts is the number of slash-separated
-// segments expected in an assigned managed identity import ID.
-const assignedManagedIdentityImportIDParts = 2
+// importIDPairParts is the number of slash-separated segments in the composite import ID
+// of a resource that joins two objects.
+const importIDPairParts = 2
 
 // trnPrefix is the leading marker of a Tharsis Resource Name.
 const trnPrefix = "trn:"
@@ -146,22 +142,30 @@ const trnPrefix = "trn:"
 // so a pair of TRNs could not be split reliably and is rejected with an
 // explanatory error rather than being silently mis-parsed.
 func parseAssignedManagedIdentityImportID(importID string) (workspaceID, managedIdentityID string, err error) {
+	return parseImportIDPair(importID, "workspace", "managed identity")
+}
+
+// parseImportIDPair splits a composite import ID of the form "<first>/<second>" into two
+// GIDs, for a resource that joins two objects and has no identifier of its own. first
+// and second name the two objects in error messages. TRNs are rejected for the reason
+// given on parseAssignedManagedIdentityImportID.
+func parseImportIDPair(importID, first, second string) (string, string, error) {
 	if strings.Contains(importID, trnPrefix) {
 		return "", "", fmt.Errorf(
-			"TRNs cannot be used to import this resource because they contain forward slashes, " +
-				"which makes the two halves of the identifier ambiguous; use the workspace GID " +
-				"and managed identity GID instead")
+			"TRNs cannot be used to import this resource because they contain forward slashes, "+
+				"which makes the two halves of the identifier ambiguous; use the %s GID "+
+				"and %s GID instead", first, second)
 	}
 
 	parts := strings.Split(importID, "/")
-	if len(parts) != assignedManagedIdentityImportIDParts {
+	if len(parts) != importIDPairParts {
 		return "", "", fmt.Errorf(
 			"expected %d forward-slash separated parts but got %d",
-			assignedManagedIdentityImportIDParts, len(parts))
+			importIDPairParts, len(parts))
 	}
 
 	if parts[0] == "" || parts[1] == "" {
-		return "", "", fmt.Errorf("neither the workspace ID nor the managed identity ID may be empty")
+		return "", "", fmt.Errorf("neither the %s ID nor the %s ID may be empty", first, second)
 	}
 
 	return parts[0], parts[1], nil
@@ -228,44 +232,71 @@ func (t *assignedManagedIdentityResource) Read(ctx context.Context,
 		return
 	}
 
-	// Find the assigned managed identity by ID.
+	// Find the assigned managed identity. The stored value may be a TRN; the list holds Global
+	// IDs, so a TRN is resolved first. If it no longer names a managed identity the
+	// assignment is gone.
 	wantID := state.ManagedIdentityID.ValueString()
-	var found *AssignedManagedIdentityModel
+	if trn.IsTRN(wantID) {
+		gid, rErr := resolveObjectGID(ctx, t.client, wantID, trn.TypeManagedIdentity)
+		if rErr != nil {
+			if status.Code(rErr) == codes.NotFound {
+				resp.State.RemoveResource(ctx)
+				return
+			}
+			resp.Diagnostics.AddError("Error resolving managed identity", rErr.Error())
+			return
+		}
+		wantID = gid
+	}
+	present := false
 	for _, candidate := range identitiesResp.ManagedIdentities {
 		if candidate.Metadata.Id == wantID {
-			found = &AssignedManagedIdentityModel{
-				ManagedIdentityID: types.StringValue(candidate.Metadata.Id),
-				WorkspaceID:       state.WorkspaceID,
-			}
+			present = true
 			break
 		}
 	}
-	if found == nil {
+	if !present {
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
-	// Copy the from-Tharsis struct to the state.
-	// Do NOT copy the ID.	It is computed and set once during create, and kept in state thereafter.
-	state.ManagedIdentityID = found.ManagedIdentityID
-	state.WorkspaceID = found.WorkspaceID
+	// Keep the stored managed_identity_id and workspace_id: the caller's form (a TRN or a
+	// Global ID) still names the assigned object. The ID is computed and set once during
+	// create, and kept in state thereafter.
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *assignedManagedIdentityResource) Update(_ context.Context,
-	_ resource.UpdateRequest, resp *resource.UpdateResponse,
+func (t *assignedManagedIdentityResource) Update(ctx context.Context,
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// This method must exist to comply with the required interfaces,
-	// but all input attributes have the RequiresReplace plan modifier,
-	// so there's nothing for it to do.  It should never be called.
-	// If it is, it should error out.
+	// Every other input forces a replacement, so Update is reached only for a switch between
+	// an object's Global ID and its TRN, which changes nothing in Tharsis. Store the planned
+	// form and keep everything else as it was; an unknown planned value keeps the stored one.
+	var state, plan AssignedManagedIdentityModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if isKnownValue(plan.ManagedIdentityID) {
+		state.ManagedIdentityID = plan.ManagedIdentityID
+	}
+	if isKnownValue(plan.WorkspaceID) {
+		state.WorkspaceID = plan.WorkspaceID
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
 
-	resp.Diagnostics.AddError(
-		"Error updating assigned managed identity.",
-		"assigned managed identity should never be updated in place.",
-	)
+// ModifyPlan forces a replacement only when either managed_identity_id or workspace_id moves to a
+// different object. A switch between a Global ID and a TRN of the same object is an
+// in-place update.
+func (t *assignedManagedIdentityResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("managed_identity_id"), trn.TypeManagedIdentity)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("workspace_id"), trn.TypeWorkspace)
 }
 
 func (t *assignedManagedIdentityResource) Delete(ctx context.Context,

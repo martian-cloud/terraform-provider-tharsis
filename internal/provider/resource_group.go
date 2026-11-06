@@ -33,6 +33,7 @@ type GroupModel struct {
 var (
 	_ resource.Resource                = (*groupResource)(nil)
 	_ resource.ResourceWithConfigure   = (*groupResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*groupResource)(nil)
 	_ resource.ResourceWithImportState = (*groupResource)(nil)
 )
 
@@ -100,7 +101,6 @@ func (t *groupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:            true, // A root group has no parent.
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -164,7 +164,10 @@ func (t *groupResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
+	plannedParentID := group.ParentID
 	t.copyGroup(created, &group)
+	// The API acted on the planned reference, so the planned form is kept.
+	group.ParentID = keepPlanned(plannedParentID, created.ParentId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	group.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -201,6 +204,14 @@ func (t *groupResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyGroup(found, &state)
+	// parent_id is set here, not in copyGroup, so Create and Update keep the planned value
+	// and only Read keeps or refreshes the stored form. A root group has no parent.
+	if found.ParentId == "" {
+		state.ParentID = types.StringNull()
+	} else {
+		parsed := trn.MustParseAny(found.Metadata.Trn)
+		state.ParentID = keepOrRefresh(state.ParentID, found.ParentId, trn.TypeGroup.Build(parsed.ParentPath()))
+	}
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -215,6 +226,7 @@ func (t *groupResource) Read(ctx context.Context,
 func (t *groupResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+
 	// Retrieve values from plan.
 	var plan GroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -239,7 +251,10 @@ func (t *groupResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedParentID := plan.ParentID
 	t.copyGroup(updated, &plan)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.ParentID = keepPlanned(plannedParentID, updated.ParentId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -311,15 +326,20 @@ func (t *groupResource) copyGroup(src *pb.Group, dest *GroupModel) {
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
 	parsed := trn.MustParseAny(src.Metadata.Trn)
+	// parent_path is derived from the TRN here. parent_id is set by each caller instead of
+	// here: Read keeps or refreshes the stored form, Create and Update keep the planned value.
 	if parsed.HasParent() {
 		dest.ParentPath = types.StringValue(parsed.ParentPath())
 	} else {
 		dest.ParentPath = types.StringNull()
 	}
-	if src.ParentId != "" {
-		dest.ParentID = types.StringValue(src.ParentId)
-	} else {
-		dest.ParentID = types.StringNull()
-	}
 	dest.FullPath = types.StringValue(src.FullPath)
+}
+
+// ModifyPlan forces a replacement only when parent_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
+func (t *groupResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("parent_id"), trn.TypeGroup)
 }

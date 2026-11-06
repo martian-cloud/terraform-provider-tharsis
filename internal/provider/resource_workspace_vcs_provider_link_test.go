@@ -44,10 +44,8 @@ const (
 // The workspace is created inside the VCS provider's group, because Tharsis
 // requires the workspace path to sit within the provider's group hierarchy.
 //
-// The configuration supplies workspace_path rather than workspace_id, because
-// the provider always populates workspace_path from the link's TRN on read.
-// Omitting it from the configuration would leave Terraform comparing a null
-// configuration value against a populated result and rejecting the apply.
+// The configuration supplies the deprecated workspace_path, so that path stays covered;
+// workspace_id is covered by TestTRNReferenceLinkEndToEnd.
 func TestWorkspaceVCSProviderLink(t *testing.T) {
 	vcsProviderID := os.Getenv(testVCSProviderIDEnvVar)
 	vcsGroupPath := os.Getenv(testVCSProviderGroupPathEnvVar)

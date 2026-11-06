@@ -36,6 +36,17 @@ resource "tharsis_managed_identity" "aws" {
 #   group_id                     = tharsis_group.top_level.id
 #   tharsis_service_account_path = "my-group/my-service-account"
 # }
+
+# A kubernetes_federated managed identity, used to give a Tharsis run short-lived
+# access to a Kubernetes cluster. The audience must match the client_id on the
+# cluster's OIDC identity provider configuration.
+resource "tharsis_managed_identity" "kubernetes" {
+  type        = "kubernetes_federated"
+  name        = "eks-cluster-access"
+  description = "Gives each run short-lived access to the EKS cluster."
+  group_id    = tharsis_group.top_level.id
+  audience    = "my-cluster"
+}
 ```
 
 ## Behavior
@@ -45,6 +56,7 @@ resource "tharsis_managed_identity" "aws" {
   - `aws_federated` requires `aws_role`.
   - `azure_federated` requires `azure_client_id` and `azure_tenant_id`.
   - `tharsis_federated` requires `tharsis_service_account_path`.
+  - `kubernetes_federated` requires `audience`.
 - A managed identity is created in a group and inherited by its child groups. Inheritance does not assign it: each workspace must be assigned the identity, for example with `tharsis_assigned_managed_identity`.
 - By default, anyone with deployer access to the identity can assume it. Use `tharsis_managed_identity_access_rule` to restrict this.
 - A name cannot be changed after creation. Only the description and provider configuration can be edited.
@@ -59,10 +71,11 @@ Only the owner role can create, update, or delete managed identities.
 ### Required
 
 - `name` (String) The name of the managed identity.
-- `type` (String) Type of managed identity: AWS, Azure, or Tharsis.
+- `type` (String) Type of managed identity: aws_federated, azure_federated, tharsis_federated, or kubernetes_federated.
 
 ### Optional
 
+- `audience` (String) Audience for a kubernetes_federated managed identity. Must match the client_id on the cluster's OIDC identity provider configuration.
 - `aws_role` (String) AWS role
 - `azure_client_id` (String) Azure client ID
 - `azure_tenant_id` (String) Azure tenant ID

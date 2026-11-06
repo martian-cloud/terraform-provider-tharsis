@@ -39,6 +39,7 @@ var (
 	_ resource.Resource                = (*serviceAccountResource)(nil)
 	_ resource.ResourceWithConfigure   = (*serviceAccountResource)(nil)
 	_ resource.ResourceWithImportState = (*serviceAccountResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*serviceAccountResource)(nil)
 )
 
 // NewServiceAccountResource is a helper function to simplify the provider implementation.
@@ -113,7 +114,6 @@ func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -140,6 +140,14 @@ func (t *serviceAccountResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 		},
 	}
+}
+
+// ModifyPlan forces a replacement only when group_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
+func (t *serviceAccountResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
@@ -190,7 +198,10 @@ func (t *serviceAccountResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
+	plannedGroupID := serviceAccount.GroupID
 	t.copyServiceAccount(createResp.ServiceAccount, &serviceAccount)
+	// The API acted on the planned reference, so the planned form is kept.
+	serviceAccount.GroupID = keepPlanned(plannedGroupID, createResp.ServiceAccount.GroupId)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, serviceAccount)...)
@@ -226,6 +237,10 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyServiceAccount(found, &state)
+	// group_id is set here, not in the copy helper: Read keeps or refreshes the stored
+	// form, Create and Update keep the planned value.
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId,
+		trn.TypeGroup.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -234,6 +249,7 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 func (t *serviceAccountResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+
 	// Retrieve values from plan.
 	var plan ServiceAccountModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -259,7 +275,10 @@ func (t *serviceAccountResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedGroupID := plan.GroupID
 	t.copyServiceAccount(updateResp.ServiceAccount, &plan)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.GroupID = keepPlanned(plannedGroupID, updateResp.ServiceAccount.GroupId)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -311,8 +330,11 @@ func (t *serviceAccountResource) copyServiceAccount(src *pb.ServiceAccount, dest
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
+	// group_path is returned in the same form the caller writes, so copy it straight.
+	// group_id is kept as the caller wrote it (a TRN or a Global ID) while it still names
+	// the same group, so a TRN input survives; if the group changed outside Terraform the
+	// API's Global ID is taken, so the move shows up as drift.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
 
 	newPolicies := []OIDCTrustPolicyModel{}
 	for _, trustPolicy := range src.OidcTrustPolicies {

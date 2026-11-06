@@ -37,6 +37,7 @@ type GPGKeyModel struct {
 var (
 	_ resource.Resource                = (*gpgKeyResource)(nil)
 	_ resource.ResourceWithConfigure   = (*gpgKeyResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*gpgKeyResource)(nil)
 	_ resource.ResourceWithImportState = (*gpgKeyResource)(nil)
 )
 
@@ -126,7 +127,6 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -188,7 +188,10 @@ func (t *gpgKeyResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	plannedGroupID := gpgKey.GroupID
 	t.copyGPGKey(created, &gpgKey)
+	// The API acted on the planned reference, so the planned form is kept.
+	gpgKey.GroupID = keepPlanned(plannedGroupID, created.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	gpgKey.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -226,6 +229,10 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyGPGKey(found, &state)
+	// Keep the stored group_id form while it still names the group; otherwise take the API's
+	// Global ID so a change made outside Terraform shows as drift.
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId,
+		trn.TypeGroup.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -237,18 +244,25 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *gpgKeyResource) Update(_ context.Context,
-	_ resource.UpdateRequest, resp *resource.UpdateResponse,
+// Update is reached only when group_id switches between the group's Global ID and its
+// TRN: every other input forces a replacement, and so does group_id moving to a
+// different group. Nothing changes in Tharsis, so only the stored form is updated.
+func (t *gpgKeyResource) Update(ctx context.Context,
+	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// This method must exist to comply with the required interfaces,
-	// but all input attributes have the RequiresReplace plan modifier,
-	// so there's nothing for it to do.  It should never be called.
-	// If it is, it should error out.
-
-	resp.Diagnostics.AddError(
-		"Error updating GPG key.",
-		"GPG key should never be updated in place.",
-	)
+	// Every other input forces a replacement, so Update is reached only for a switch between
+	// an object's Global ID and its TRN, which changes nothing in Tharsis. Store the planned
+	// form and keep everything else as it was; an unknown planned value keeps the stored one.
+	var state, plan GPGKeyModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if isKnownValue(plan.GroupID) {
+		state.GroupID = plan.GroupID
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (t *gpgKeyResource) Delete(ctx context.Context,
@@ -298,7 +312,16 @@ func (t *gpgKeyResource) copyGPGKey(src *pb.GPGKey, dest *GPGKeyModel) {
 	dest.ASCIIArmor = types.StringValue(src.AsciiArmor)
 	dest.Fingerprint = types.StringValue(src.Fingerprint)
 	dest.GPGKeyID = types.StringValue(src.GpgKeyId)
+	// group_id is set by the callers: Read keeps or refreshes the stored form, Create keeps
+	// the planned value.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
 	dest.ResourcePath = types.StringValue(parsed.Path())
+}
+
+// ModifyPlan forces a replacement only when group_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
+func (t *gpgKeyResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
 }

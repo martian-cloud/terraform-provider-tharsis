@@ -38,6 +38,7 @@ type WorkspaceModel struct {
 var (
 	_ resource.Resource                = (*workspaceResource)(nil)
 	_ resource.ResourceWithConfigure   = (*workspaceResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*workspaceResource)(nil)
 	_ resource.ResourceWithImportState = (*workspaceResource)(nil)
 )
 
@@ -111,7 +112,6 @@ func (t *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -199,7 +199,10 @@ func (t *workspaceResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
+	plannedGroupID := workspace.GroupID
 	t.copyWorkspace(created, &workspace)
+	// The API acted on the planned reference, so the planned form is kept.
+	workspace.GroupID = keepPlanned(plannedGroupID, created.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	workspace.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -237,6 +240,10 @@ func (t *workspaceResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyWorkspace(found, &state)
+	// Keep the stored group_id form while it still names the group; otherwise take the API's
+	// Global ID so a move made outside Terraform shows up as drift.
+	parsed := trn.MustParseAny(found.Metadata.Trn)
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -251,6 +258,7 @@ func (t *workspaceResource) Read(ctx context.Context,
 func (t *workspaceResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+
 	// Retrieve values from plan.
 	var plan WorkspaceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -287,7 +295,10 @@ func (t *workspaceResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedGroupID := plan.GroupID
 	t.copyWorkspace(updated, &plan)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.GroupID = keepPlanned(plannedGroupID, updated.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -363,6 +374,16 @@ func (t *workspaceResource) copyWorkspace(src *pb.Workspace, dest *WorkspaceMode
 	dest.FullPath = types.StringValue(src.FullPath)
 
 	parsed := trn.MustParseAny(src.Metadata.Trn)
+	// group_path is the same form the caller writes, so copy it straight. group_id is not set
+	// here: each caller sets it with the logic it needs — Read keeps or refreshes the stored
+	// form, Create and Update keep the planned value.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
+}
+
+// ModifyPlan forces a replacement only when group_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
+func (t *workspaceResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
 }

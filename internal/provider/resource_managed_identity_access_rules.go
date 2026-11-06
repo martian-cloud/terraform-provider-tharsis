@@ -71,6 +71,7 @@ type ManagedIdentityAccessRuleModel struct {
 var (
 	_ resource.Resource                = (*managedIdentityAccessRuleResource)(nil)
 	_ resource.ResourceWithConfigure   = (*managedIdentityAccessRuleResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*managedIdentityAccessRuleResource)(nil)
 	_ resource.ResourceWithImportState = (*managedIdentityAccessRuleResource)(nil)
 )
 
@@ -126,9 +127,6 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				MarkdownDescription: "The ID or TRN of the connected managed identity.",
 				Description:         "The ID or TRN of the connected managed identity.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"allowed_users": schema.SetAttribute{
 				ElementType:         types.StringType,
@@ -313,7 +311,10 @@ func (t *managedIdentityAccessRuleResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	plannedManagedIdentityID := accessRule.ManagedIdentityID
 	t.copyAccessRuleToState(ctx, created, &accessRule, &resp.Diagnostics)
+	// The API acted on the planned reference, so the planned form is kept.
+	accessRule.ManagedIdentityID = keepPlanned(plannedManagedIdentityID, created.ManagedIdentityId)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -359,6 +360,10 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 	}
 
 	t.copyAccessRuleToState(ctx, found, &state, &resp.Diagnostics)
+	// managed_identity_id is set here, not in copyAccessRuleToState: Read keeps or refreshes
+	// the stored form, Create and Update keep the planned value.
+	state.ManagedIdentityID = keepOrRefresh(state.ManagedIdentityID, found.ManagedIdentityId,
+		trn.TypeManagedIdentity.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -370,6 +375,7 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+
 	// Retrieve values from plan for the fields to modify.
 	var plan ManagedIdentityAccessRuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -437,7 +443,10 @@ func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 		return
 	}
 
+	plannedManagedIdentityID := plan.ManagedIdentityID
 	t.copyAccessRuleToState(ctx, updated, &plan, &resp.Diagnostics)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.ManagedIdentityID = keepPlanned(plannedManagedIdentityID, updated.ManagedIdentityId)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -497,7 +506,8 @@ func (t *managedIdentityAccessRuleResource) copyAccessRuleToState(
 	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.Type = types.StringValue(src.Type)
 	dest.RunStage = types.StringValue(src.RunStage)
-	dest.ManagedIdentityID = types.StringValue(src.ManagedIdentityId)
+	// managed_identity_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.VerifyStateLineage = types.BoolValue(src.VerifyStateLineage)
 
 	var d diag.Diagnostics
@@ -673,4 +683,12 @@ func (t *managedIdentityAccessRuleResource) moduleAttestationPolicyObjectAttribu
 		"predicate_type": types.StringType,
 		"public_key":     types.StringType,
 	}
+}
+
+// ModifyPlan forces a replacement only when managed_identity_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
+func (t *managedIdentityAccessRuleResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("managed_identity_id"), trn.TypeManagedIdentity)
 }

@@ -39,6 +39,7 @@ type WorkspaceVCSProviderLinkModel struct {
 var (
 	_ resource.Resource                = (*workspaceVCSProviderLinkResource)(nil)
 	_ resource.ResourceWithConfigure   = (*workspaceVCSProviderLinkResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*workspaceVCSProviderLinkResource)(nil)
 	_ resource.ResourceWithImportState = (*workspaceVCSProviderLinkResource)(nil)
 )
 
@@ -83,25 +84,23 @@ func (t *workspaceVCSProviderLinkResource) Schema(_ context.Context, _ resource.
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"workspace_path": schema.StringAttribute{
 				MarkdownDescription: "The resource path of the workspace.",
 				Description:         "The resource path of the workspace.",
 				Optional:            true,
+				Computed:            true,
 				DeprecationMessage:  "Use workspace_id instead. This field will be removed in a future version.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"vcs_provider_id": schema.StringAttribute{
 				MarkdownDescription: "The ID or TRN of the VCS provider.",
 				Description:         "The ID or TRN of the VCS provider.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"repository_path": schema.StringAttribute{
 				MarkdownDescription: "The path portion of the repository URL.",
@@ -232,7 +231,12 @@ func (t *workspaceVCSProviderLinkResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
-	t.copyWorkspaceVCSProviderLink(createResponse.VcsProviderLink, &link)
+	plannedWorkspaceID := link.WorkspaceID
+	plannedVCSProviderID := link.VCSProviderID
+	t.copyWorkspaceVCSProviderLink(ctx, createResponse.VcsProviderLink, &link)
+	// The API acted on the planned reference, so the planned form is kept.
+	link.WorkspaceID = keepPlanned(plannedWorkspaceID, createResponse.VcsProviderLink.WorkspaceId)
+	link.VCSProviderID = keepPlanned(plannedVCSProviderID, createResponse.VcsProviderLink.VcsProviderId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	link.LastUpdated = types.StringValue(createResponse.VcsProviderLink.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -270,7 +274,12 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
-	t.copyWorkspaceVCSProviderLink(found, &state)
+	t.copyWorkspaceVCSProviderLink(ctx, found, &state)
+	// workspace_id and vcs_provider_id are set here, not in the copy helper: Read keeps or
+	// refreshes the stored form, Create and Update keep the planned value.
+	state.WorkspaceID = keepOrRefresh(state.WorkspaceID, found.WorkspaceId,
+		trn.TypeWorkspace.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
+	state.VCSProviderID = keepOrRefreshResolve(ctx, t.client, state.VCSProviderID, found.VcsProviderId, trn.TypeVCSProvider)
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -285,6 +294,7 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+
 	// Retrieve values from plan.
 	var plan WorkspaceVCSProviderLinkModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -326,7 +336,12 @@ func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
-	t.copyWorkspaceVCSProviderLink(updated, &plan)
+	plannedWorkspaceID := plan.WorkspaceID
+	plannedVCSProviderID := plan.VCSProviderID
+	t.copyWorkspaceVCSProviderLink(ctx, updated, &plan)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.WorkspaceID = keepPlanned(plannedWorkspaceID, updated.WorkspaceId)
+	plan.VCSProviderID = keepPlanned(plannedVCSProviderID, updated.VcsProviderId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -375,14 +390,14 @@ func (t *workspaceVCSProviderLinkResource) ImportState(ctx context.Context,
 
 // copyWorkspaceVCSProviderLink copies the contents of a workspace VCS provider link.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src *pb.WorkspaceVCSProviderLink,
+func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(_ context.Context, src *pb.WorkspaceVCSProviderLink,
 	dest *WorkspaceVCSProviderLinkModel,
 ) {
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	dest.ID = types.StringValue(src.Metadata.Id)
-	dest.WorkspaceID = types.StringValue(src.WorkspaceId)
+	// workspace_id and vcs_provider_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.WorkspacePath = types.StringValue(parsed.ParentPath())
-	dest.VCSProviderID = types.StringValue(src.VcsProviderId)
 	dest.RepositoryPath = types.StringValue(src.RepositoryPath)
 	dest.WebhookID = types.StringValue(src.WebhookId)
 	if src.ModuleDirectory != nil {
@@ -402,4 +417,14 @@ func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(src *pb.
 	}
 	dest.AutoSpeculativePlan = types.BoolValue(src.AutoSpeculativePlan)
 	dest.WebhookDisabled = types.BoolValue(src.WebhookDisabled)
+}
+
+// ModifyPlan forces a replacement only when either workspace_id or vcs_provider_id moves to a
+// different object. A switch between a Global ID and a TRN of the same object is an
+// in-place update.
+func (t *workspaceVCSProviderLinkResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("workspace_id"), trn.TypeWorkspace)
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("vcs_provider_id"), trn.TypeVCSProvider)
 }
