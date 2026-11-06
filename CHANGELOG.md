@@ -42,8 +42,8 @@
 - Reference attributes (`group_id`, `parent_id`, `workspace_id`, `managed_identity_id`,
   `alias_source_id`, `vcs_provider_id`, and the IDs on the assignment resources) keep the form written
   in the configuration, an ID or a TRN. Switching between the two forms of the same object is an
-  in-place update that makes no API call; moving a reference to a different object still replaces
-  the resource. (#59)
+  in-place update rather than a replacement; moving a reference to a different object still
+  replaces the resource. (#59)
 - `tharsis_workspace_vcs_provider_link`'s deprecated `workspace_path` is now computed, so it is
   filled in when the link is configured by `workspace_id`. (#59)
 

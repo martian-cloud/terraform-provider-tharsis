@@ -56,6 +56,7 @@ resource "tharsis_managed_identity" "kubernetes" {
   - `aws_federated` requires `aws_role`.
   - `azure_federated` requires `azure_client_id` and `azure_tenant_id`.
   - `tharsis_federated` requires `tharsis_service_account_path`.
+  - `kubernetes_federated` requires `audience`.
 - A managed identity is created in a group and inherited by its child groups. Inheritance does not assign it: each workspace must be assigned the identity, for example with `tharsis_assigned_managed_identity`.
 - By default, anyone with deployer access to the identity can assume it. Use `tharsis_managed_identity_access_rule` to restrict this.
 - A name cannot be changed after creation. Only the description and provider configuration can be edited.
