@@ -271,9 +271,22 @@ func (t *assignedManagedIdentityResource) Read(ctx context.Context,
 func (t *assignedManagedIdentityResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// Every other input forces a replacement, so this is reached only for a switch between an
-	// object's Global ID and its TRN.
-	applyFormOnlyOrError(ctx, req, resp, []string{"managed_identity_id", "workspace_id"})
+	// Every other input forces a replacement, so Update is reached only for a switch between
+	// an object's Global ID and its TRN, which changes nothing in Tharsis. Store the planned
+	// form and keep everything else as it was; an unknown planned value keeps the stored one.
+	var state, plan AssignedManagedIdentityModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if isKnownValue(plan.ManagedIdentityID) {
+		state.ManagedIdentityID = plan.ManagedIdentityID
+	}
+	if isKnownValue(plan.WorkspaceID) {
+		state.WorkspaceID = plan.WorkspaceID
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 // ModifyPlan forces a replacement only when either managed_identity_id or workspace_id moves to a

@@ -257,9 +257,22 @@ func (t *managedIdentityAliasResource) Read(ctx context.Context,
 // nothing changes there, so only the stored forms are updated.
 func (t *managedIdentityAliasResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Every other input forces a replacement, so this is reached only for a switch between an
-	// object's Global ID and its TRN.
-	applyFormOnlyOrError(ctx, req, resp, []string{"group_id", "alias_source_id"})
+	// Every other input forces a replacement, so Update is reached only for a switch between
+	// an object's Global ID and its TRN, which changes nothing in Tharsis. Store the planned
+	// form and keep everything else as it was; an unknown planned value keeps the stored one.
+	var state, plan ManagedIdentityAliasModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if isKnownValue(plan.GroupID) {
+		state.GroupID = plan.GroupID
+	}
+	if isKnownValue(plan.AliasSourceID) {
+		state.AliasSourceID = plan.AliasSourceID
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (t *managedIdentityAliasResource) Delete(ctx context.Context,

@@ -236,9 +236,22 @@ func (t *runnerServiceAccountResource) Read(ctx context.Context,
 func (t *runnerServiceAccountResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// Every other input forces a replacement, so this is reached only for a switch between an
-	// object's Global ID and its TRN.
-	applyFormOnlyOrError(ctx, req, resp, []string{"runner_id", "service_account_id"})
+	// Every other input forces a replacement, so Update is reached only for a switch between
+	// an object's Global ID and its TRN, which changes nothing in Tharsis. Store the planned
+	// form and keep everything else as it was; an unknown planned value keeps the stored one.
+	var state, plan RunnerServiceAccountModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if isKnownValue(plan.RunnerID) {
+		state.RunnerID = plan.RunnerID
+	}
+	if isKnownValue(plan.ServiceAccountID) {
+		state.ServiceAccountID = plan.ServiceAccountID
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 // ModifyPlan forces a replacement only when either runner_id or service_account_id moves to a
