@@ -159,13 +159,22 @@ func (t *runnerResource) ModifyPlan(ctx context.Context,
 		return
 	}
 
-	// A known, empty plan set replacing a known, non-empty state set cannot be applied
-	// in place, so require replacement.
-	if !state.Tags.IsNull() && !state.Tags.IsUnknown() &&
-		!plan.Tags.IsNull() && !plan.Tags.IsUnknown() &&
-		len(state.Tags.Elements()) > 0 && len(plan.Tags.Elements()) == 0 {
+	// The API ignores an empty tag list on update, so clearing the tags needs a replacement.
+	if isClearingNonEmptySet(state.Tags, plan.Tags) {
 		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("tags"))
 	}
+}
+
+// isClearingNonEmptySet reports whether a known, non-empty set in state is planned to
+// become a known, empty set. A null or unknown value on either side is not a clearing.
+func isClearingNonEmptySet(state, plan types.Set) bool {
+	return isKnownSet(state) && isKnownSet(plan) &&
+		len(state.Elements()) > 0 && len(plan.Elements()) == 0
+}
+
+// isKnownSet reports whether s is neither null nor unknown.
+func isKnownSet(s types.Set) bool {
+	return !s.IsNull() && !s.IsUnknown()
 }
 
 func (t *runnerResource) Create(ctx context.Context,
