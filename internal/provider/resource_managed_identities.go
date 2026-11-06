@@ -36,7 +36,7 @@ type ManagedIdentityModel struct {
 	AzureTenantID             types.String `tfsdk:"azure_tenant_id"`
 	TharsisServiceAccountPath types.String `tfsdk:"tharsis_service_account_path"`
 	Subject                   types.String `tfsdk:"subject"`
-	Audience                  types.String `tfsdk:"audience"`
+	KubernetesAudience        types.String `tfsdk:"audience"`
 	LastUpdated               types.String `tfsdk:"last_updated"`
 }
 
@@ -47,7 +47,7 @@ type managedIdentityDataInput struct {
 	AzureClientID             string `json:"clientId,omitempty"`
 	AzureTenantID             string `json:"tenantId,omitempty"`
 	TharsisServiceAccountPath string `json:"serviceAccountPath,omitempty"`
-	Audience                  string `json:"audience,omitempty"`
+	KubernetesAudience        string `json:"audience,omitempty"`
 }
 
 // managedIdentityData has all fields required for output from the encoded data string.
@@ -58,7 +58,7 @@ type managedIdentityData struct {
 	AzureTenantID             *string `json:"tenantId,omitempty"`
 	TharsisServiceAccountPath *string `json:"serviceAccountPath,omitempty"`
 	Subject                   string  `json:"subject,omitempty"`
-	Audience                  *string `json:"audience,omitempty"`
+	KubernetesAudience        *string `json:"audience,omitempty"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -229,7 +229,7 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 			AzureClientID:             managedIdentity.AzureClientID.ValueString(),
 			AzureTenantID:             managedIdentity.AzureTenantID.ValueString(),
 			TharsisServiceAccountPath: managedIdentity.TharsisServiceAccountPath.ValueString(),
-			Audience:                  managedIdentity.Audience.ValueString(),
+			KubernetesAudience:        managedIdentity.KubernetesAudience.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -358,7 +358,7 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 			AzureClientID:             plan.AzureClientID.ValueString(),
 			AzureTenantID:             plan.AzureTenantID.ValueString(),
 			TharsisServiceAccountPath: plan.TharsisServiceAccountPath.ValueString(),
-			Audience:                  plan.Audience.ValueString(),
+			KubernetesAudience:        plan.KubernetesAudience.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -476,8 +476,8 @@ func (t *managedIdentityResource) copyManagedIdentity(src *pb.ManagedIdentity, d
 		dest.TharsisServiceAccountPath = types.StringValue(*decodedData.TharsisServiceAccountPath)
 	}
 	dest.Subject = types.StringValue(decodedData.Subject)
-	if decodedData.Audience != nil {
-		dest.Audience = types.StringValue(*decodedData.Audience)
+	if decodedData.KubernetesAudience != nil {
+		dest.KubernetesAudience = types.StringValue(*decodedData.KubernetesAudience)
 	}
 
 	return nil
@@ -515,7 +515,7 @@ func (t *managedIdentityResource) encodeDataString(managedIdentityType types.Str
 			return "", fmt.Errorf("non-empty service account path is required for Tharsis managed identity")
 		}
 	case pb.ManagedIdentityType_kubernetes_federated:
-		if input.Audience == "" {
+		if input.KubernetesAudience == "" {
 			return "", fmt.Errorf("non-empty audience is required for Kubernetes managed identity")
 		}
 	default:
