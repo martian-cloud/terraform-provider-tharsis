@@ -1,4 +1,4 @@
-resource "tharsis_runner_service_account" "this" {
+resource "tharsis_runner_service_account_assignment" "this" {
   runner_id          = tharsis_runner.this.id
   service_account_id = tharsis_service_account.this.id
 }

@@ -84,15 +84,15 @@ resource "tharsis_assigned_managed_identity" "trn_target" {
 	managed_identity_id = tharsis_managed_identity.trn_mi.id
 	workspace_id        = %s
 }`, "mi", "ws", onMove("ws2"))},
-		{"RunnerAssignmentRunner", "tharsis_runner_service_account.trn_target", "runner_id", "tharsis_runner.trn_ra.id",
+		{"RunnerAssignmentRunner", "tharsis_runner_service_account_assignment.trn_target", "runner_id", "tharsis_runner.trn_ra.id",
 			ra, ra2, "tharsis_runner.trn_ra", withParts(`
-resource "tharsis_runner_service_account" "trn_target" {
+resource "tharsis_runner_service_account_assignment" "trn_target" {
 	runner_id    = %s
 	service_account_id = tharsis_service_account.trn_sa.id
 }`, "ra", onMove("ra2"), "sa")},
-		{"RunnerAssignmentServiceAccount", "tharsis_runner_service_account.trn_target", "service_account_id", "tharsis_service_account.trn_sa.id",
+		{"RunnerAssignmentServiceAccount", "tharsis_runner_service_account_assignment.trn_target", "service_account_id", "tharsis_service_account.trn_sa.id",
 			sa, sa2, "tharsis_service_account.trn_sa", withParts(`
-resource "tharsis_runner_service_account" "trn_target" {
+resource "tharsis_runner_service_account_assignment" "trn_target" {
 	runner_id    = tharsis_runner.trn_ra.id
 	service_account_id = %s
 }`, "ra", "sa", onMove("sa2"))},
@@ -316,7 +316,7 @@ func quoted(s string) string { return fmt.Sprintf("%q", s) }
 // Every other resource runs a normal (no-op) update on a form switch and may call the API.
 var trnRefNoUpdateRPC = map[string]bool{
 	"AssignedIdentity": true, "AssignedWorkspace": true, // tharsis_assigned_managed_identity
-	"RunnerAssignmentRunner": true, "RunnerAssignmentServiceAccount": true, // tharsis_runner_service_account
+	"RunnerAssignmentRunner": true, "RunnerAssignmentServiceAccount": true, // tharsis_runner_service_account_assignment
 	"AliasGroup": true, "AliasSource": true, // tharsis_managed_identity_alias
 	"GPGKey": true, // tharsis_gpg_key
 }

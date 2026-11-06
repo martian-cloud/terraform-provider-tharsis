@@ -6,7 +6,7 @@
 # own, which would make the two halves ambiguous, so TRNs are rejected with an
 # explanatory error.
 import {
-  to = tharsis_runner_service_account.this
+  to = tharsis_runner_service_account_assignment.this
   id = "<runner-id>/<service-account-id>"
 }
 

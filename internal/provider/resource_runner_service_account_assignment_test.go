@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
-// TestRunnerServiceAccount tests creation, reading, and deletion of a runner
+// TestRunnerServiceAccountAssignment tests creation, reading, and deletion of a runner
 // service account assignment — assigning and unassigning a service account to/from a
 // runner.
 //
@@ -16,18 +16,18 @@ import (
 // purpose: the Read resolves both inputs to Global IDs at create and matches on those,
 // so a TRN input must still be found on refresh. (The assigned-managed-identity
 // precedent matches the raw input against Global IDs, where a TRN input never matches.)
-func TestRunnerServiceAccount(t *testing.T) {
+func TestRunnerServiceAccountAssignment(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and read back the assignment.
 			{
-				Config: testRunnerServiceAccountConfiguration(),
+				Config: testRunnerServiceAccountAssignmentConfiguration(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet("tharsis_runner_service_account.trasa", "id"),
-					resource.TestCheckResourceAttrSet("tharsis_runner_service_account.trasa", "runner_id"),
-					resource.TestCheckResourceAttrSet("tharsis_runner_service_account.trasa", "service_account_id"),
+					resource.TestCheckResourceAttrSet("tharsis_runner_service_account_assignment.trasa", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_runner_service_account_assignment.trasa", "runner_id"),
+					resource.TestCheckResourceAttrSet("tharsis_runner_service_account_assignment.trasa", "service_account_id"),
 				),
 			},
 
@@ -35,11 +35,11 @@ func TestRunnerServiceAccount(t *testing.T) {
 			// input, this is the step that fails if Read matched the raw input against
 			// Global IDs: the resource would drop from state and plan a recreate.
 			{
-				Config: testRunnerServiceAccountConfiguration(),
+				Config: testRunnerServiceAccountAssignmentConfiguration(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("tharsis_runner_service_account.trasa", "id"),
-					resource.TestCheckResourceAttrSet("tharsis_runner_service_account.trasa", "runner_id"),
-					resource.TestCheckResourceAttrSet("tharsis_runner_service_account.trasa", "service_account_id"),
+					resource.TestCheckResourceAttrSet("tharsis_runner_service_account_assignment.trasa", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_runner_service_account_assignment.trasa", "runner_id"),
+					resource.TestCheckResourceAttrSet("tharsis_runner_service_account_assignment.trasa", "service_account_id"),
 				),
 			},
 
@@ -47,10 +47,10 @@ func TestRunnerServiceAccount(t *testing.T) {
 			// account by TRN, so the import ID takes its Global ID from the service account
 			// resource; the next plan's TRN is then a form switch, not a replacement.
 			{
-				ResourceName:      "tharsis_runner_service_account.trasa",
+				ResourceName:      "tharsis_runner_service_account_assignment.trasa",
 				ImportState:       true,
-				ImportStateIdFunc: testRunnerServiceAccountImportID,
-				ImportStateCheck:  testRunnerServiceAccountImportStateCheck,
+				ImportStateIdFunc: testRunnerServiceAccountAssignmentImportID,
+				ImportStateCheck:  testRunnerServiceAccountAssignmentImportStateCheck,
 			},
 
 			// Destroy should be covered automatically by TestCase.
@@ -58,9 +58,9 @@ func TestRunnerServiceAccount(t *testing.T) {
 	})
 }
 
-// testRunnerServiceAccountImportID builds the composite import ID from the Global IDs of the
+// testRunnerServiceAccountAssignmentImportID builds the composite import ID from the Global IDs of the
 // runner and service account in state.
-func testRunnerServiceAccountImportID(s *terraform.State) (string, error) {
+func testRunnerServiceAccountAssignmentImportID(s *terraform.State) (string, error) {
 	runner, ok := s.RootModule().Resources["tharsis_runner.tra"]
 	if !ok {
 		return "", fmt.Errorf("tharsis_runner.tra not found in state")
@@ -72,9 +72,9 @@ func testRunnerServiceAccountImportID(s *terraform.State) (string, error) {
 	return runner.Primary.ID + "/" + sa.Primary.ID, nil
 }
 
-// testRunnerServiceAccountImportStateCheck checks the imported assignment holds both IDs and a
+// testRunnerServiceAccountAssignmentImportStateCheck checks the imported assignment holds both IDs and a
 // generated id.
-func testRunnerServiceAccountImportStateCheck(states []*terraform.InstanceState) error {
+func testRunnerServiceAccountAssignmentImportStateCheck(states []*terraform.InstanceState) error {
 	if len(states) != 1 {
 		return fmt.Errorf("expected one imported instance, got %d", len(states))
 	}
@@ -86,7 +86,7 @@ func testRunnerServiceAccountImportStateCheck(states []*terraform.InstanceState)
 	return nil
 }
 
-func testRunnerServiceAccountConfiguration() string {
+func testRunnerServiceAccountAssignmentConfiguration() string {
 	return createRootGroup(testGroupPath, "this is a test root group") +
 		`
 
@@ -103,7 +103,7 @@ func testRunnerServiceAccountConfiguration() string {
 		oidc_trust_policies = [{bound_claims = {"sub" = "some-subject"}, issuer = "https://issuer.example.com/"}]
 	}
 
-	resource "tharsis_runner_service_account" "trasa" {
+	resource "tharsis_runner_service_account_assignment" "trasa" {
 		# runner by Global ID, service account by TRN — both input forms exercised.
 		runner_id    = tharsis_runner.tra.id
 		service_account_id = "trn:service_account:${tharsis_service_account.tsa.resource_path}"

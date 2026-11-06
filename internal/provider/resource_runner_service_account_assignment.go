@@ -18,11 +18,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// RunnerServiceAccountModel is the model for a runner service-account
+// RunnerServiceAccountAssignmentModel is the model for a runner service-account
 // assignment. The two input IDs are stored exactly as the caller supplied them (a TRN
 // or a Global ID); they are resolved to Global IDs only transiently for the API calls,
 // so the state value of a Required attribute never changes during apply.
-type RunnerServiceAccountModel struct {
+type RunnerServiceAccountAssignmentModel struct {
 	ID               types.String `tfsdk:"id"`
 	RunnerID         types.String `tfsdk:"runner_id"`
 	ServiceAccountID types.String `tfsdk:"service_account_id"`
@@ -30,29 +30,29 @@ type RunnerServiceAccountModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = (*runnerServiceAccountResource)(nil)
-	_ resource.ResourceWithConfigure   = (*runnerServiceAccountResource)(nil)
-	_ resource.ResourceWithImportState = (*runnerServiceAccountResource)(nil)
-	_ resource.ResourceWithModifyPlan  = (*runnerServiceAccountResource)(nil)
+	_ resource.Resource                = (*runnerServiceAccountAssignmentResource)(nil)
+	_ resource.ResourceWithConfigure   = (*runnerServiceAccountAssignmentResource)(nil)
+	_ resource.ResourceWithImportState = (*runnerServiceAccountAssignmentResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*runnerServiceAccountAssignmentResource)(nil)
 )
 
-// NewRunnerServiceAccountResource is a helper function to simplify the provider implementation.
-func NewRunnerServiceAccountResource() resource.Resource {
-	return &runnerServiceAccountResource{}
+// NewRunnerServiceAccountAssignmentResource is a helper function to simplify the provider implementation.
+func NewRunnerServiceAccountAssignmentResource() resource.Resource {
+	return &runnerServiceAccountAssignmentResource{}
 }
 
-type runnerServiceAccountResource struct {
+type runnerServiceAccountAssignmentResource struct {
 	client *client.GRPCClient
 }
 
 // Metadata returns the full name of the resource, including prefix, underscore, instance name.
-func (t *runnerServiceAccountResource) Metadata(_ context.Context,
+func (t *runnerServiceAccountAssignmentResource) Metadata(_ context.Context,
 	_ resource.MetadataRequest, resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = "tharsis_runner_service_account"
+	resp.TypeName = "tharsis_runner_service_account_assignment"
 }
 
-func (t *runnerServiceAccountResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (t *runnerServiceAccountAssignmentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	description := "Assigns a service account to a runner, letting the runner authenticate as it."
 
 	resp.Schema = schema.Schema{
@@ -61,8 +61,8 @@ func (t *runnerServiceAccountResource) Schema(_ context.Context, _ resource.Sche
 		Description:         description,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "An ID for this tharsis_runner_service_account resource.",
-				Description:         "An ID for this tharsis_runner_service_account resource.",
+				MarkdownDescription: "An ID for this tharsis_runner_service_account_assignment resource.",
+				Description:         "An ID for this tharsis_runner_service_account_assignment resource.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(), // set once during create, kept in state thereafter
@@ -83,7 +83,7 @@ func (t *runnerServiceAccountResource) Schema(_ context.Context, _ resource.Sche
 }
 
 // Configure lets the provider implement the ResourceWithConfigure interface.
-func (t *runnerServiceAccountResource) Configure(_ context.Context,
+func (t *runnerServiceAccountAssignmentResource) Configure(_ context.Context,
 	req resource.ConfigureRequest, _ *resource.ConfigureResponse,
 ) {
 	if req.ProviderData == nil {
@@ -96,7 +96,7 @@ func (t *runnerServiceAccountResource) Configure(_ context.Context,
 // into their Global IDs, and returns the runner's group namespace path. The IDs
 // are used for the API calls; the namespace path scopes the Read presence lookup. None
 // of these are written back to state.
-func (t *runnerServiceAccountResource) resolveIDs(ctx context.Context,
+func (t *runnerServiceAccountAssignmentResource) resolveIDs(ctx context.Context,
 	runnerInput, serviceAccountInput string,
 ) (runnerID string, serviceAccountID string, runnerNamespacePath string, notFound bool, diags diag.Diagnostics) {
 	runner, err := t.client.RunnersClient.GetRunnerByID(ctx, &pb.GetRunnerByIDRequest{Id: runnerInput})
@@ -121,10 +121,10 @@ func (t *runnerServiceAccountResource) resolveIDs(ctx context.Context,
 	return runner.Metadata.Id, serviceAccount.Metadata.Id, namespacePath, false, diags
 }
 
-func (t *runnerServiceAccountResource) Create(ctx context.Context,
+func (t *runnerServiceAccountAssignmentResource) Create(ctx context.Context,
 	req resource.CreateRequest, resp *resource.CreateResponse,
 ) {
-	var assignment RunnerServiceAccountModel
+	var assignment RunnerServiceAccountAssignmentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &assignment)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -150,10 +150,10 @@ func (t *runnerServiceAccountResource) Create(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &assignment)...)
 }
 
-func (t *runnerServiceAccountResource) Read(ctx context.Context,
+func (t *runnerServiceAccountAssignmentResource) Read(ctx context.Context,
 	req resource.ReadRequest, resp *resource.ReadResponse,
 ) {
-	var state RunnerServiceAccountModel
+	var state RunnerServiceAccountAssignmentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -233,13 +233,13 @@ func (t *runnerServiceAccountResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (t *runnerServiceAccountResource) Update(ctx context.Context,
+func (t *runnerServiceAccountAssignmentResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
 	// Every other input forces a replacement, so Update is reached only for a switch between
 	// an object's Global ID and its TRN, which changes nothing in Tharsis. Store the planned
 	// form and keep everything else as it was; an unknown planned value keeps the stored one.
-	var state, plan RunnerServiceAccountModel
+	var state, plan RunnerServiceAccountAssignmentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -257,7 +257,7 @@ func (t *runnerServiceAccountResource) Update(ctx context.Context,
 // ModifyPlan forces a replacement only when either runner_id or service_account_id moves to a
 // different object. A switch between a Global ID and a TRN of the same object is an
 // in-place update.
-func (t *runnerServiceAccountResource) ModifyPlan(ctx context.Context,
+func (t *runnerServiceAccountAssignmentResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
 	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("runner_id"), trn.TypeRunner)
@@ -266,13 +266,13 @@ func (t *runnerServiceAccountResource) ModifyPlan(ctx context.Context,
 
 // ImportState imports an assignment from the composite ID "<runner_id>/<service_account_id>".
 // An assignment has no identifier of its own in Tharsis, as for an assigned managed identity.
-func (t *runnerServiceAccountResource) ImportState(ctx context.Context,
+func (t *runnerServiceAccountAssignmentResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
 	runnerID, serviceAccountID, err := parseImportIDPair(req.ID, "runner", "service account")
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Invalid import ID for tharsis_runner_service_account: "+req.ID,
+			"Invalid import ID for tharsis_runner_service_account_assignment: "+req.ID,
 			"A runner service account assignment is imported as \"<runner_id>/<service_account_id>\", "+
 				"where both halves are GIDs: "+err.Error(),
 		)
@@ -289,10 +289,10 @@ func (t *runnerServiceAccountResource) ImportState(ctx context.Context,
 	// Terraform reports as an attempt to import a non-existent object.
 }
 
-func (t *runnerServiceAccountResource) Delete(ctx context.Context,
+func (t *runnerServiceAccountAssignmentResource) Delete(ctx context.Context,
 	req resource.DeleteRequest, resp *resource.DeleteResponse,
 ) {
-	var state RunnerServiceAccountModel
+	var state RunnerServiceAccountAssignmentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
