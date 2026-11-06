@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -118,6 +119,22 @@ func testGID(code string) string {
 
 // TestParseAssignedManagedIdentityImportID covers the composite import ID parser
 // without needing a Tharsis instance.
+// The runner service account uses the same parser; its errors must name a runner and a
+// service account, not a workspace and a managed identity.
+func TestParseImportIDPairNamesTheObjects(t *testing.T) {
+	runnerGID, saGID := testGID("runner"), testGID("service_account")
+	if r, s, err := parseImportIDPair(runnerGID+"/"+saGID, "runner", "service account"); err != nil || r != runnerGID || s != saGID {
+		t.Fatalf("got %q, %q, %v; want %q, %q, nil", r, s, err, runnerGID, saGID)
+	}
+	for _, id := range []string{"/" + saGID, "trn:runner:g/r/" + saGID} {
+		_, _, err := parseImportIDPair(id, "runner", "service account")
+		if err == nil || !strings.Contains(err.Error(), "runner") || !strings.Contains(err.Error(), "service account") ||
+			strings.Contains(err.Error(), "workspace") {
+			t.Errorf("parseImportIDPair(%q) error = %v; want one naming the runner and service account", id, err)
+		}
+	}
+}
+
 func TestParseAssignedManagedIdentityImportID(t *testing.T) {
 	workspaceGID := testGID("workspace")
 	managedIdentityGID := testGID("managed_identity")

@@ -126,9 +126,9 @@ func (t *assignedManagedIdentityResource) Create(ctx context.Context,
 	})...)
 }
 
-// assignedManagedIdentityImportIDParts is the number of slash-separated
-// segments expected in an assigned managed identity import ID.
-const assignedManagedIdentityImportIDParts = 2
+// importIDPairParts is the number of slash-separated segments in the composite import ID
+// of a resource that joins two objects.
+const importIDPairParts = 2
 
 // trnPrefix is the leading marker of a Tharsis Resource Name.
 const trnPrefix = "trn:"
@@ -142,22 +142,30 @@ const trnPrefix = "trn:"
 // so a pair of TRNs could not be split reliably and is rejected with an
 // explanatory error rather than being silently mis-parsed.
 func parseAssignedManagedIdentityImportID(importID string) (workspaceID, managedIdentityID string, err error) {
+	return parseImportIDPair(importID, "workspace", "managed identity")
+}
+
+// parseImportIDPair splits a composite import ID of the form "<first>/<second>" into two
+// GIDs, for a resource that joins two objects and has no identifier of its own. first
+// and second name the two objects in error messages. TRNs are rejected for the reason
+// given on parseAssignedManagedIdentityImportID.
+func parseImportIDPair(importID, first, second string) (string, string, error) {
 	if strings.Contains(importID, trnPrefix) {
 		return "", "", fmt.Errorf(
-			"TRNs cannot be used to import this resource because they contain forward slashes, " +
-				"which makes the two halves of the identifier ambiguous; use the workspace GID " +
-				"and managed identity GID instead")
+			"TRNs cannot be used to import this resource because they contain forward slashes, "+
+				"which makes the two halves of the identifier ambiguous; use the %s GID "+
+				"and %s GID instead", first, second)
 	}
 
 	parts := strings.Split(importID, "/")
-	if len(parts) != assignedManagedIdentityImportIDParts {
+	if len(parts) != importIDPairParts {
 		return "", "", fmt.Errorf(
 			"expected %d forward-slash separated parts but got %d",
-			assignedManagedIdentityImportIDParts, len(parts))
+			importIDPairParts, len(parts))
 	}
 
 	if parts[0] == "" || parts[1] == "" {
-		return "", "", fmt.Errorf("neither the workspace ID nor the managed identity ID may be empty")
+		return "", "", fmt.Errorf("neither the %s ID nor the %s ID may be empty", first, second)
 	}
 
 	return parts[0], parts[1], nil

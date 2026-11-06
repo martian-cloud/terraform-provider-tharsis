@@ -21,7 +21,8 @@
 - New resource `tharsis_runner`, a group runner, with `name`, `description`, `group_id`, `tags`,
   `disabled` and `run_untagged_jobs`. It can be imported by its ID. (#59)
 - New resource `tharsis_runner_service_account`, which assigns a service account to a runner by
-  `runner_id` and `service_account_id`, letting the runner authenticate as it. (#59)
+  `runner_id` and `service_account_id`, letting the runner authenticate as it. It is imported
+  using a composite ID of the form `<runner_id>/<service_account_id>`; both halves must be IDs. (#59)
 - The `kubernetes_federated` managed identity type, with an `audience` attribute that must match the
   client ID of the cluster's OIDC identity provider configuration. (#59)
 

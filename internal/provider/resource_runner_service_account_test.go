@@ -1,9 +1,11 @@
 package provider
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
 // TestRunnerServiceAccount tests creation, reading, and deletion of a runner
@@ -41,9 +43,47 @@ func TestRunnerServiceAccount(t *testing.T) {
 				),
 			},
 
+			// Import by "<runner_id>/<service_account_id>". The configuration names the service
+			// account by TRN, so the import ID takes its Global ID from the service account
+			// resource; the next plan's TRN is then a form switch, not a replacement.
+			{
+				ResourceName:      "tharsis_runner_service_account.trasa",
+				ImportState:       true,
+				ImportStateIdFunc: testRunnerServiceAccountImportID,
+				ImportStateCheck:  testRunnerServiceAccountImportStateCheck,
+			},
+
 			// Destroy should be covered automatically by TestCase.
 		},
 	})
+}
+
+// testRunnerServiceAccountImportID builds the composite import ID from the Global IDs of the
+// runner and service account in state.
+func testRunnerServiceAccountImportID(s *terraform.State) (string, error) {
+	runner, ok := s.RootModule().Resources["tharsis_runner.tra"]
+	if !ok {
+		return "", fmt.Errorf("tharsis_runner.tra not found in state")
+	}
+	sa, ok := s.RootModule().Resources["tharsis_service_account.tsa"]
+	if !ok {
+		return "", fmt.Errorf("tharsis_service_account.tsa not found in state")
+	}
+	return runner.Primary.ID + "/" + sa.Primary.ID, nil
+}
+
+// testRunnerServiceAccountImportStateCheck checks the imported assignment holds both IDs and a
+// generated id.
+func testRunnerServiceAccountImportStateCheck(states []*terraform.InstanceState) error {
+	if len(states) != 1 {
+		return fmt.Errorf("expected one imported instance, got %d", len(states))
+	}
+	for _, name := range []string{"id", "runner_id", "service_account_id"} {
+		if states[0].Attributes[name] == "" {
+			return fmt.Errorf("imported state is missing %s", name)
+		}
+	}
+	return nil
 }
 
 func testRunnerServiceAccountConfiguration() string {

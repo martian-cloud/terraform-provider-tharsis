@@ -573,9 +573,11 @@ resource "tharsis_runner" "trn_target" {
 // trnRefImportIDs gives the import ID form for each matrix case; cases not listed have no
 // import (the VCS provider link) or import a different object than they create.
 var trnRefImportIDs = map[string]func(map[string]string) string{
-	"AssignedIdentity":  func(a map[string]string) string { return a["workspace_id"] + "/" + a["managed_identity_id"] },
-	"AssignedWorkspace": func(a map[string]string) string { return a["workspace_id"] + "/" + a["managed_identity_id"] },
-	"RoleBinding":       func(a map[string]string) string { return a["workspace_id"] },
+	"AssignedIdentity":               func(a map[string]string) string { return a["workspace_id"] + "/" + a["managed_identity_id"] },
+	"AssignedWorkspace":              func(a map[string]string) string { return a["workspace_id"] + "/" + a["managed_identity_id"] },
+	"RoleBinding":                    func(a map[string]string) string { return a["workspace_id"] },
+	"RunnerAssignmentRunner":         func(a map[string]string) string { return a["runner_id"] + "/" + a["service_account_id"] },
+	"RunnerAssignmentServiceAccount": func(a map[string]string) string { return a["runner_id"] + "/" + a["service_account_id"] },
 }
 
 func trnRefImportID(c trnRefCase) func(map[string]string) string {
@@ -583,8 +585,8 @@ func trnRefImportID(c trnRefCase) func(map[string]string) string {
 		return f
 	}
 	switch c.name {
-	case "RunnerAssignmentRunner", "RunnerAssignmentServiceAccount", "AliasGroup":
-		return nil // no import support, or one config would hold two aliases of one name
+	case "AliasGroup":
+		return nil // one config would hold two aliases of one name
 	}
 	return func(a map[string]string) string { return a["id"] }
 }

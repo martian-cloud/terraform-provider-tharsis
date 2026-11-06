@@ -41,3 +41,18 @@ resource "tharsis_runner" "this" {
 
 - `id` (String) String identifier of the runner.
 - `resource_path` (String) The path of the parent group plus the name of the runner.
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+# A runner is imported by its ID, shown by the "id" attribute or in the
+# Tharsis UI.
+import {
+  to = tharsis_runner.this
+  id = "<runner-id>"
+}
+```

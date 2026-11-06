@@ -30,9 +30,10 @@ type RunnerServiceAccountModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource               = (*runnerServiceAccountResource)(nil)
-	_ resource.ResourceWithConfigure  = (*runnerServiceAccountResource)(nil)
-	_ resource.ResourceWithModifyPlan = (*runnerServiceAccountResource)(nil)
+	_ resource.Resource                = (*runnerServiceAccountResource)(nil)
+	_ resource.ResourceWithConfigure   = (*runnerServiceAccountResource)(nil)
+	_ resource.ResourceWithImportState = (*runnerServiceAccountResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*runnerServiceAccountResource)(nil)
 )
 
 // NewRunnerServiceAccountResource is a helper function to simplify the provider implementation.
@@ -255,6 +256,31 @@ func (t *runnerServiceAccountResource) ModifyPlan(ctx context.Context,
 ) {
 	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("runner_id"), trn.TypeRunner)
 	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("service_account_id"), trn.TypeServiceAccount)
+}
+
+// ImportState imports an assignment from the composite ID "<runner_id>/<service_account_id>".
+// An assignment has no identifier of its own in Tharsis, as for an assigned managed identity.
+func (t *runnerServiceAccountResource) ImportState(ctx context.Context,
+	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
+) {
+	runnerID, serviceAccountID, err := parseImportIDPair(req.ID, "runner", "service account")
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Invalid import ID for tharsis_runner_service_account: "+req.ID,
+			"A runner service account assignment is imported as \"<runner_id>/<service_account_id>\", "+
+				"where both halves are GIDs: "+err.Error(),
+		)
+		return
+	}
+
+	// The id is manufactured by this provider and means nothing to Tharsis, so a fresh one
+	// is as correct on import as the one minted on create.
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), uuid.New().String())...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("runner_id"), runnerID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_account_id"), serviceAccountID)...)
+
+	// Read runs next and removes the resource if the assignment does not exist, which
+	// Terraform reports as an attempt to import a non-existent object.
 }
 
 func (t *runnerServiceAccountResource) Delete(ctx context.Context,
