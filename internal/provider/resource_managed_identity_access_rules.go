@@ -371,14 +371,6 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 func (t *managedIdentityAccessRuleResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
-	if formOnly, d := formOnlyUpdate(ctx, req, []string{"managed_identity_id"}); d.HasError() || formOnly {
-		resp.Diagnostics.Append(d...)
-		if !d.HasError() {
-			applyFormOnlyUpdate(ctx, req, resp, []string{"managed_identity_id"})
-		}
-		return
-	}
 
 	// Retrieve values from plan for the fields to modify.
 	var plan ManagedIdentityAccessRuleModel

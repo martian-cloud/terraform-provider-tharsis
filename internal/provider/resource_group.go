@@ -218,14 +218,6 @@ func (t *groupResource) Read(ctx context.Context,
 func (t *groupResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
-	if formOnly, d := formOnlyUpdate(ctx, req, []string{"parent_id"}); d.HasError() || formOnly {
-		resp.Diagnostics.Append(d...)
-		if !d.HasError() {
-			applyFormOnlyUpdate(ctx, req, resp, []string{"parent_id"})
-		}
-		return
-	}
 
 	// Retrieve values from plan.
 	var plan GroupModel

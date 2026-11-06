@@ -311,11 +311,31 @@ func quoted(s string) string { return fmt.Sprintf("%q", s) }
 // TestTRNReferenceMatrix runs every reference attribute through create-with-TRN,
 // TRN -> Global ID -> TRN without replacement and without any write call to the API, and a
 // move to a different object.
+// trnRefNoUpdateRPC lists the cases whose resource has no update RPC: a Global ID <-> TRN
+// switch is absorbed into state with no API call, so those steps must make zero write calls.
+// Every other resource runs a normal (no-op) update on a form switch and may call the API.
+var trnRefNoUpdateRPC = map[string]bool{
+	"AssignedIdentity": true, "AssignedWorkspace": true, // tharsis_assigned_managed_identity
+	"RunnerAssignmentRunner": true, "RunnerAssignmentServiceAccount": true, // tharsis_runner_service_account
+	"AliasGroup": true, "AliasSource": true, // tharsis_managed_identity_alias
+	"GPGKey": true, // tharsis_gpg_key
+}
+
 func TestTRNReferenceMatrix(t *testing.T) {
 	for _, c := range trnRefCases() {
 		t.Run(c.name, func(t *testing.T) {
 			var id string
 			calls := newWriteCallLog(t)
+			noWrite := trnRefNoUpdateRPC[c.name]
+			formSwitchChecks := func(wantAttr resource.TestCheckFunc) resource.TestCheckFunc {
+				checks := []resource.TestCheckFunc{testCheckAttrUnchanged(c.resource, "id", &id), wantAttr}
+				// A resource with no update RPC must make no write call on a form switch; one with
+				// an update RPC runs a normal no-op update, so writes are not asserted there.
+				if noWrite {
+					checks = append(checks, calls.checkNoneSinceMark())
+				}
+				return resource.ComposeAggregateTestCheckFunc(checks...)
+			}
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 				Steps: []resource.TestStep{
@@ -329,19 +349,11 @@ func TestTRNReferenceMatrix(t *testing.T) {
 					},
 					{
 						Config: c.withDependsOn(c.gid),
-						Check: resource.ComposeAggregateTestCheckFunc(
-							testCheckAttrUnchanged(c.resource, "id", &id),
-							resource.TestCheckResourceAttrPair(c.resource, c.attr, c.gidAddr, "id"),
-							calls.checkNoneSinceMark(),
-						),
+						Check:  formSwitchChecks(resource.TestCheckResourceAttrPair(c.resource, c.attr, c.gidAddr, "id")),
 					},
 					{
 						Config: c.withDependsOn(quoted(c.trn)),
-						Check: resource.ComposeAggregateTestCheckFunc(
-							testCheckAttrUnchanged(c.resource, "id", &id),
-							resource.TestCheckResourceAttr(c.resource, c.attr, c.trn),
-							calls.checkNoneSinceMark(),
-						),
+						Check:  formSwitchChecks(resource.TestCheckResourceAttr(c.resource, c.attr, c.trn)),
 					},
 					{
 						Config: c.withDependsOn(quoted(c.other)),
@@ -593,6 +605,7 @@ func TestTRNReferenceAfterImport(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			var id, impID, impStateID string
 			calls := newWriteCallLog(t)
+			noWrite := trnRefNoUpdateRPC[c.name]
 			kind, name := splitAddr(c.resource)
 			imported := kind + ".trn_import"
 			// twice declares the resource under its own address and again as trn_import, the
@@ -633,13 +646,19 @@ func TestTRNReferenceAfterImport(t *testing.T) {
 					},
 					{
 						Config: twice(c.gid, quoted(c.trn)),
-						Check: resource.ComposeAggregateTestCheckFunc(
+						Check: func() resource.TestCheckFunc {
 							// Unchanged id = no replacement. (The assignment resources mint a fresh id on
 							// import, so the comparison is with the imported copy, not the original.)
-							testCheckAttrUnchanged(imported, "id", &impStateID),
-							resource.TestCheckResourceAttr(imported, c.attr, c.trn),
-							calls.checkNoneSinceMark(),
-						),
+							checks := []resource.TestCheckFunc{
+								testCheckAttrUnchanged(imported, "id", &impStateID),
+								resource.TestCheckResourceAttr(imported, c.attr, c.trn),
+							}
+							// Only resources with no update RPC absorb a form switch without an API call.
+							if noWrite {
+								checks = append(checks, calls.checkNoneSinceMark())
+							}
+							return resource.ComposeAggregateTestCheckFunc(checks...)
+						}(),
 					},
 				},
 			})

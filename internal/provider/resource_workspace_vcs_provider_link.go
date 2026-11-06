@@ -289,14 +289,6 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 func (t *workspaceVCSProviderLinkResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
-	if formOnly, d := formOnlyUpdate(ctx, req, []string{"workspace_id", "vcs_provider_id"}); d.HasError() || formOnly {
-		resp.Diagnostics.Append(d...)
-		if !d.HasError() {
-			applyFormOnlyUpdate(ctx, req, resp, []string{"workspace_id", "vcs_provider_id"})
-		}
-		return
-	}
 
 	// Retrieve values from plan.
 	var plan WorkspaceVCSProviderLinkModel

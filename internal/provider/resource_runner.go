@@ -242,14 +242,6 @@ func (t *runnerResource) Read(ctx context.Context,
 func (t *runnerResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// A switch between an object's Global ID and its TRN changes nothing in Tharsis.
-	if formOnly, d := formOnlyUpdate(ctx, req, []string{"group_id"}); d.HasError() || formOnly {
-		resp.Diagnostics.Append(d...)
-		if !d.HasError() {
-			applyFormOnlyUpdate(ctx, req, resp, []string{"group_id"})
-		}
-		return
-	}
 
 	var plan RunnerModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
