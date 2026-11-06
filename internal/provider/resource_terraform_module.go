@@ -236,6 +236,13 @@ func (t *terraformModuleResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyTerraformModule(found, &state)
+	// group_id is set here, not in copyTerraformModule: Read keeps or refreshes the stored
+	// form, Create and Update keep the planned value.
+	{
+		parsed := trn.MustParseAny(found.Metadata.Trn)
+		groupPath := strings.TrimSuffix(parsed.Path(), "/"+found.Name+"/"+found.System)
+		state.GroupID = keepOrRefresh(state.GroupID, found.GroupId, trn.TypeGroup.Build(groupPath))
+	}
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -333,11 +340,9 @@ func (t *terraformModuleResource) copyTerraformModule(src *pb.TerraformModule, d
 	// TRN path is <group_path>/<name>/<system>, strip last two segments for group path.
 	resourcePath := parsed.Path()
 	suffix := "/" + src.Name + "/" + src.System
-	// Preserve the caller's group reference (a TRN or a Global ID, in either field); the
-	// API returns the Global ID, which would otherwise overwrite a TRN input and fail
-	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
+	// group_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.GroupPath = types.StringValue(strings.TrimSuffix(resourcePath, suffix))
-	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(strings.TrimSuffix(resourcePath, suffix)))
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	if parts := parsed.PathParts(); len(parts) > 0 {
 		dest.RegistryNamespace = types.StringValue(parts[0])

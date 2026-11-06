@@ -161,6 +161,10 @@ func (t *workspaceRoleBindingResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
+	// workspace_id is set here, not in copyWorkspaceRoleBinding: Read keeps or refreshes the
+	// stored form, Create and Update keep the planned value.
+	state.WorkspaceID = keepOrRefresh(state.WorkspaceID, found.WorkspaceId,
+		trn.TypeWorkspace.Build(trn.MustParseAny(found.Metadata.Trn).Path()))
 	if err = t.copyWorkspaceRoleBinding(ctx, found, &state); err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading back the bound role",
@@ -278,12 +282,8 @@ func (t *workspaceRoleBindingResource) copyWorkspaceRoleBinding(ctx context.Cont
 	}
 
 	dest.ID = types.StringValue(src.Metadata.Id)
-	// Keep the caller's workspace_id (a TRN or a Global ID) while it names the same
-	// workspace; otherwise take the API's Global ID so a change shows as drift. The
-	// binding's own TRN is trn:workspace_role_binding:<workspace-path>, so its full
-	// path is the workspace path; no extra lookup is needed.
-	wsTRN := trn.TypeWorkspace.Build(trn.MustParseAny(src.Metadata.Trn).Path())
-	dest.WorkspaceID = keepOrRefresh(dest.WorkspaceID, src.WorkspaceId, wsTRN)
+	// workspace_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.RoleName = types.StringValue(role.Name)
 
 	return nil

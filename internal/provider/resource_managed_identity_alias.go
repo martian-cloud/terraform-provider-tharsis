@@ -233,6 +233,13 @@ func (t *managedIdentityAliasResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyManagedIdentityAlias(ctx, found, &state)
+	// Keep the stored reference forms while they still name the same objects; otherwise take
+	// the API's Global IDs so a change made outside Terraform shows as drift. The response
+	// carries only the source's Global ID, so a TRN source is resolved to compare.
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId,
+		trn.TypeGroup.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
+	state.AliasSourceID = keepOrRefreshResolve(ctx, t.client, state.AliasSourceID, found.GetAliasSourceId(),
+		trn.TypeManagedIdentity)
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -303,21 +310,16 @@ func (t *managedIdentityAliasResource) ImportState(ctx context.Context,
 
 // copyManagedIdentityAlias copies the contents of a managed identity alias.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *managedIdentityAliasResource) copyManagedIdentityAlias(ctx context.Context, src *pb.ManagedIdentity,
+func (t *managedIdentityAliasResource) copyManagedIdentityAlias(_ context.Context, src *pb.ManagedIdentity,
 	dest *ManagedIdentityAliasModel,
 ) {
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
-	// Preserve the caller's group reference and alias source (a TRN or a Global ID); the
-	// API returns Global IDs, which would otherwise overwrite a TRN input and fail
-	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
+	// group_id and alias_source_id are set by the callers: Read keeps or refreshes the stored
+	// form, Create keeps the planned value.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
-	// The response carries only the source's Global ID, so a TRN is resolved to compare.
-	dest.AliasSourceID = keepOrRefreshResolve(ctx, t.client, dest.AliasSourceID, src.GetAliasSourceId(),
-		trn.TypeManagedIdentity)
 }
 
 // ModifyPlan forces a replacement only when either group_id or alias_source_id moves to a

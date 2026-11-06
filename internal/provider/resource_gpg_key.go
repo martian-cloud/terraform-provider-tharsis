@@ -229,6 +229,10 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyGPGKey(found, &state)
+	// Keep the stored group_id form while it still names the group; otherwise take the API's
+	// Global ID so a change made outside Terraform shows as drift.
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId,
+		trn.TypeGroup.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -305,11 +309,9 @@ func (t *gpgKeyResource) copyGPGKey(src *pb.GPGKey, dest *GPGKeyModel) {
 	dest.ASCIIArmor = types.StringValue(src.AsciiArmor)
 	dest.Fingerprint = types.StringValue(src.Fingerprint)
 	dest.GPGKeyID = types.StringValue(src.GpgKeyId)
-	// Preserve the caller's group reference (a TRN or a Global ID, in either field); the
-	// API returns the Global ID, which would otherwise overwrite a TRN input and fail
-	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
+	// group_id is set by the callers: Read keeps or refreshes the stored form, Create keeps
+	// the planned value.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 	dest.ResourcePath = types.StringValue(parsed.Path())
 }
 

@@ -237,6 +237,12 @@ func (t *serviceAccountResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyServiceAccount(found, &state)
+	// group_id is set here, not in the copy helper: Read keeps or refreshes the stored
+	// form, Create and Update keep the planned value.
+	{
+		parsed := trn.MustParseAny(found.Metadata.Trn)
+		state.GroupID = keepOrRefresh(state.GroupID, found.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
+	}
 
 	// Set the refreshed state, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -331,7 +337,6 @@ func (t *serviceAccountResource) copyServiceAccount(src *pb.ServiceAccount, dest
 	// the same group, so a TRN input survives; if the group changed outside Terraform the
 	// API's Global ID is taken, so the move shows up as drift.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 
 	newPolicies := []OIDCTrustPolicyModel{}
 	for _, trustPolicy := range src.OidcTrustPolicies {

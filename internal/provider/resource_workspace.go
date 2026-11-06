@@ -240,6 +240,10 @@ func (t *workspaceResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyWorkspace(found, &state)
+	// Keep the stored group_id form while it still names the group; otherwise take the API's
+	// Global ID so a move made outside Terraform shows up as drift.
+	parsed := trn.MustParseAny(found.Metadata.Trn)
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -370,12 +374,10 @@ func (t *workspaceResource) copyWorkspace(src *pb.Workspace, dest *WorkspaceMode
 	dest.FullPath = types.StringValue(src.FullPath)
 
 	parsed := trn.MustParseAny(src.Metadata.Trn)
-	// group_path is the same form the caller writes, so copy it straight. group_id keeps
-	// the caller's value (a TRN or a Global ID) while it still names the same group; if the
-	// workspace is moved to another group outside Terraform the API's Global ID is taken,
-	// so the move shows up as drift.
+	// group_path is the same form the caller writes, so copy it straight. group_id is not set
+	// here: each caller sets it with the logic it needs — Read keeps or refreshes the stored
+	// form, Create and Update keep the planned value.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 }
 
 // ModifyPlan forces a replacement only when group_id moves to a different object. A

@@ -275,6 +275,13 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyWorkspaceVCSProviderLink(ctx, found, &state)
+	// workspace_id and vcs_provider_id are set here, not in the copy helper: Read keeps or
+	// refreshes the stored form, Create and Update keep the planned value.
+	{
+		parsed := trn.MustParseAny(found.Metadata.Trn)
+		state.WorkspaceID = keepOrRefresh(state.WorkspaceID, found.WorkspaceId, trn.TypeWorkspace.Build(parsed.ParentPath()))
+		state.VCSProviderID = keepOrRefreshResolve(ctx, t.client, state.VCSProviderID, found.VcsProviderId, trn.TypeVCSProvider)
+	}
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -385,19 +392,14 @@ func (t *workspaceVCSProviderLinkResource) ImportState(ctx context.Context,
 
 // copyWorkspaceVCSProviderLink copies the contents of a workspace VCS provider link.
 // It is intended to copy from a struct returned by Tharsis to a Terraform plan or state.
-func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(ctx context.Context, src *pb.WorkspaceVCSProviderLink,
+func (t *workspaceVCSProviderLinkResource) copyWorkspaceVCSProviderLink(_ context.Context, src *pb.WorkspaceVCSProviderLink,
 	dest *WorkspaceVCSProviderLinkModel,
 ) {
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	dest.ID = types.StringValue(src.Metadata.Id)
-	// Preserve the caller's workspace and VCS-provider references (a TRN or a Global ID);
-	// the API returns Global IDs, which would otherwise overwrite a TRN input and fail
-	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
+	// workspace_id and vcs_provider_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.WorkspacePath = types.StringValue(parsed.ParentPath())
-	dest.WorkspaceID = keepOrRefresh(dest.WorkspaceID, src.WorkspaceId, trn.TypeWorkspace.Build(parsed.ParentPath()))
-	// The response carries only the provider's Global ID, so a TRN is resolved to compare.
-	dest.VCSProviderID = keepOrRefreshResolve(ctx, t.client, dest.VCSProviderID, src.VcsProviderId,
-		trn.TypeVCSProvider)
 	dest.RepositoryPath = types.StringValue(src.RepositoryPath)
 	dest.WebhookID = types.StringValue(src.WebhookId)
 	if src.ModuleDirectory != nil {

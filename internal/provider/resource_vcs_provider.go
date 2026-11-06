@@ -274,6 +274,12 @@ func (t *vcsProviderResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyVCSProvider(found, &state)
+	// group_id is set here, not in the copy helper: Read keeps or refreshes the stored
+	// form, Create and Update keep the planned value.
+	{
+		parsed := trn.MustParseAny(found.Metadata.Trn)
+		state.GroupID = keepOrRefresh(state.GroupID, found.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
+	}
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -379,11 +385,9 @@ func (t *vcsProviderResource) copyVCSProvider(src *pb.VCSProvider, dest *VCSProv
 	dest.CreatedBy = types.StringValue(src.CreatedBy)
 	dest.Description = types.StringValue(src.Description)
 	dest.URL = types.StringValue(src.Url)
-	// Preserve the caller's group reference (a TRN or a Global ID, in either field); the
-	// API returns the Global ID, which would otherwise overwrite a TRN input and fail
-	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
+	// group_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Type = types.StringValue(src.Type)
 	dest.AutoCreateWebhooks = types.BoolValue(src.AutoCreateWebhooks)

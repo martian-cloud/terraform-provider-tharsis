@@ -236,6 +236,16 @@ func (t *runnerResource) Read(ctx context.Context,
 	}
 
 	resp.Diagnostics.Append(t.copyRunner(ctx, found, &state)...)
+	// group_id is set here, not in copyRunner: Read keeps or refreshes the stored form,
+	// Create and Update keep the planned value.
+	{
+		parsed := trn.MustParseAny(found.Metadata.Trn)
+		apiGID := trn.TypeGroup.Build(parsed.ParentPath())
+		if found.GroupId != nil && *found.GroupId != "" {
+			apiGID = *found.GroupId
+		}
+		state.GroupID = keepOrRefresh(state.GroupID, apiGID, trn.TypeGroup.Build(parsed.ParentPath()))
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -325,17 +335,8 @@ func (t *runnerResource) copyRunner(ctx context.Context,
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
-	// Preserve the caller's group_id input (a TRN or a Global ID); the API returns the
-	// Global ID, which would otherwise overwrite a TRN input and fail Terraform's
-	// consistency check. On import the field is null and is populated from the API,
-	// falling back to the parent path so the attribute never goes null.
-	{
-		apiGID := trn.TypeGroup.Build(parsed.ParentPath())
-		if src.GroupId != nil && *src.GroupId != "" {
-			apiGID = *src.GroupId
-		}
-		dest.GroupID = keepOrRefresh(dest.GroupID, apiGID, trn.TypeGroup.Build(parsed.ParentPath()))
-	}
+	// group_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.Disabled = types.BoolValue(src.Disabled)
 	dest.RunUntaggedJobs = types.BoolValue(src.RunUntaggedJobs)
 

@@ -204,6 +204,14 @@ func (t *groupResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyGroup(found, &state)
+	// parent_id is set here, not in copyGroup, so Create and Update keep the planned value
+	// and only Read keeps or refreshes the stored form. A root group has no parent.
+	if found.ParentId == "" {
+		state.ParentID = types.StringNull()
+	} else {
+		parsed := trn.MustParseAny(found.Metadata.Trn)
+		state.ParentID = keepOrRefresh(state.ParentID, found.ParentId, trn.TypeGroup.Build(parsed.ParentPath()))
+	}
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -318,18 +326,12 @@ func (t *groupResource) copyGroup(src *pb.Group, dest *GroupModel) {
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
 	parsed := trn.MustParseAny(src.Metadata.Trn)
-	// Preserve the caller's parent reference (a TRN or a Global ID, in either field); the
-	// API returns the Global ID, which would otherwise overwrite a TRN input and fail
-	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
+	// parent_path is derived from the TRN here. parent_id is set by each caller instead of
+	// here: Read keeps or refreshes the stored form, Create and Update keep the planned value.
 	if parsed.HasParent() {
 		dest.ParentPath = types.StringValue(parsed.ParentPath())
 	} else {
 		dest.ParentPath = types.StringNull()
-	}
-	if src.ParentId == "" {
-		dest.ParentID = types.StringNull()
-	} else {
-		dest.ParentID = keepOrRefresh(dest.ParentID, src.ParentId, trn.TypeGroup.Build(parsed.ParentPath()))
 	}
 	dest.FullPath = types.StringValue(src.FullPath)
 }

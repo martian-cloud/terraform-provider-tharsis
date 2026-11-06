@@ -360,6 +360,10 @@ func (t *managedIdentityAccessRuleResource) Read(ctx context.Context,
 	}
 
 	t.copyAccessRuleToState(ctx, found, &state, &resp.Diagnostics)
+	// managed_identity_id is set here, not in copyAccessRuleToState: Read keeps or refreshes
+	// the stored form, Create and Update keep the planned value.
+	state.ManagedIdentityID = keepOrRefresh(state.ManagedIdentityID, found.ManagedIdentityId,
+		trn.TypeManagedIdentity.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -502,11 +506,8 @@ func (t *managedIdentityAccessRuleResource) copyAccessRuleToState(
 	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.Type = types.StringValue(src.Type)
 	dest.RunStage = types.StringValue(src.RunStage)
-	// Preserve the caller's managed_identity_id input (a TRN or a Global ID); the API
-	// returns the Global ID, which would otherwise overwrite a TRN input and fail
-	// Terraform's consistency check. On import the field is null, so it is populated from the API; on refresh it keeps the stored input.
-	dest.ManagedIdentityID = keepOrRefresh(dest.ManagedIdentityID, src.ManagedIdentityId,
-		trn.TypeManagedIdentity.Build(trn.MustParseAny(src.Metadata.Trn).ParentPath()))
+	// managed_identity_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.VerifyStateLineage = types.BoolValue(src.VerifyStateLineage)
 
 	var d diag.Diagnostics

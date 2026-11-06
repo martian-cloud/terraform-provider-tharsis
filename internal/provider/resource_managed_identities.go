@@ -315,6 +315,12 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
+	// group_id is set here, not in copyManagedIdentity, so only Read keeps or refreshes the
+	// stored form while Create and Update keep the planned value.
+	{
+		parsed := trn.MustParseAny(found.Metadata.Trn)
+		state.GroupID = keepOrRefresh(state.GroupID, found.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
+	}
 	if err = t.copyManagedIdentity(found, &state); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state",
@@ -449,12 +455,9 @@ func (t *managedIdentityResource) copyManagedIdentity(src *pb.ManagedIdentity, d
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
-	// Preserve the caller's group reference (a TRN or a Global ID, in either field):
-	// the API returns the Global ID, which would otherwise overwrite a TRN input and
-	// fail Terraform's consistency check. On import the field is null, so the API
-	// values populate the state as normal.
+	// group_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = keepOrRefresh(dest.GroupID, src.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
 	if decodedData.AWSRole != nil {
 		dest.AWSRole = types.StringValue(*decodedData.AWSRole)
 	}
