@@ -276,10 +276,8 @@ func (t *vcsProviderResource) Read(ctx context.Context,
 	t.copyVCSProvider(found, &state)
 	// group_id is set here, not in the copy helper: Read keeps or refreshes the stored
 	// form, Create and Update keep the planned value.
-	{
-		parsed := trn.MustParseAny(found.Metadata.Trn)
-		state.GroupID = keepOrRefresh(state.GroupID, found.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
-	}
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId,
+		trn.TypeGroup.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.

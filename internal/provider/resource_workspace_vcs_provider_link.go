@@ -277,11 +277,9 @@ func (t *workspaceVCSProviderLinkResource) Read(ctx context.Context,
 	t.copyWorkspaceVCSProviderLink(ctx, found, &state)
 	// workspace_id and vcs_provider_id are set here, not in the copy helper: Read keeps or
 	// refreshes the stored form, Create and Update keep the planned value.
-	{
-		parsed := trn.MustParseAny(found.Metadata.Trn)
-		state.WorkspaceID = keepOrRefresh(state.WorkspaceID, found.WorkspaceId, trn.TypeWorkspace.Build(parsed.ParentPath()))
-		state.VCSProviderID = keepOrRefreshResolve(ctx, t.client, state.VCSProviderID, found.VcsProviderId, trn.TypeVCSProvider)
-	}
+	state.WorkspaceID = keepOrRefresh(state.WorkspaceID, found.WorkspaceId,
+		trn.TypeWorkspace.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
+	state.VCSProviderID = keepOrRefreshResolve(ctx, t.client, state.VCSProviderID, found.VcsProviderId, trn.TypeVCSProvider)
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.

@@ -238,14 +238,8 @@ func (t *runnerResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(t.copyRunner(ctx, found, &state)...)
 	// group_id is set here, not in copyRunner: Read keeps or refreshes the stored form,
 	// Create and Update keep the planned value.
-	{
-		parsed := trn.MustParseAny(found.Metadata.Trn)
-		apiGID := trn.TypeGroup.Build(parsed.ParentPath())
-		if found.GroupId != nil && *found.GroupId != "" {
-			apiGID = *found.GroupId
-		}
-		state.GroupID = keepOrRefresh(state.GroupID, apiGID, trn.TypeGroup.Build(parsed.ParentPath()))
-	}
+	state.GroupID = keepOrRefresh(state.GroupID, runnerGroupGID(found),
+		trn.TypeGroup.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 

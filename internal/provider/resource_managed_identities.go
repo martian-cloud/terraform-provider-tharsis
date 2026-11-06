@@ -317,10 +317,8 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 	// Copy the from-Tharsis struct to the state.
 	// group_id is set here, not in copyManagedIdentity, so only Read keeps or refreshes the
 	// stored form while Create and Update keep the planned value.
-	{
-		parsed := trn.MustParseAny(found.Metadata.Trn)
-		state.GroupID = keepOrRefresh(state.GroupID, found.GroupId, trn.TypeGroup.Build(parsed.ParentPath()))
-	}
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId,
+		trn.TypeGroup.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 	if err = t.copyManagedIdentity(found, &state); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state",

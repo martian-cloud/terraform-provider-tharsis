@@ -238,11 +238,8 @@ func (t *terraformModuleResource) Read(ctx context.Context,
 	t.copyTerraformModule(found, &state)
 	// group_id is set here, not in copyTerraformModule: Read keeps or refreshes the stored
 	// form, Create and Update keep the planned value.
-	{
-		parsed := trn.MustParseAny(found.Metadata.Trn)
-		groupPath := strings.TrimSuffix(parsed.Path(), "/"+found.Name+"/"+found.System)
-		state.GroupID = keepOrRefresh(state.GroupID, found.GroupId, trn.TypeGroup.Build(groupPath))
-	}
+	groupPath := strings.TrimSuffix(trn.MustParseAny(found.Metadata.Trn).Path(), "/"+found.Name+"/"+found.System)
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId, trn.TypeGroup.Build(groupPath))
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
