@@ -6,13 +6,16 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	runpkg "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/run"
 )
 
 const (
@@ -250,5 +253,67 @@ func newTestImportState() tfsdk.State {
 			tftypes.Object{AttributeTypes: map[string]tftypes.Type{"id": tftypes.String}},
 			map[string]tftypes.Value{"id": tftypes.NewValue(tftypes.String, nil)},
 		),
+	}
+}
+
+// TestParseWaitTimeout covers the wait_timeout attribute parsing: an unset, unknown or empty value
+// falls back to the follower's default, a valid Go duration is parsed, and a non-positive or
+// unparseable value is an error.
+func TestParseWaitTimeout(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   types.String
+		want    time.Duration
+		wantErr bool
+	}{
+		{name: "null defaults", input: types.StringNull(), want: runpkg.DefaultWaitTimeout},
+		{name: "unknown defaults", input: types.StringUnknown(), want: runpkg.DefaultWaitTimeout},
+		{name: "empty defaults", input: types.StringValue(""), want: runpkg.DefaultWaitTimeout},
+		{name: "valid minutes", input: types.StringValue("30m"), want: 30 * time.Minute},
+		{name: "valid hours", input: types.StringValue("2h"), want: 2 * time.Hour},
+		{name: "valid composite", input: types.StringValue("1h30m"), want: 90 * time.Minute},
+		{name: "unparseable errors", input: types.StringValue("nope"), wantErr: true},
+		{name: "zero errors", input: types.StringValue("0s"), wantErr: true},
+		{name: "negative errors", input: types.StringValue("-5m"), wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := parseWaitTimeout(test.input)
+			if test.wantErr {
+				if err == nil {
+					t.Fatalf("parseWaitTimeout(%q) expected an error, got none", test.input.ValueString())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseWaitTimeout(%q) unexpected error: %v", test.input.ValueString(), err)
+			}
+			if got != test.want {
+				t.Errorf("parseWaitTimeout(%q) = %s, want %s", test.input.ValueString(), got, test.want)
+			}
+		})
+	}
+}
+
+// TestWaitTimeoutSchemaIsBackwardsCompatible asserts that wait_timeout is an optional attribute and
+// is neither required nor computed, so adding it does not break existing configurations or state:
+// configs that omit it keep working, and it produces no "known after apply" churn on upgrade.
+func TestWaitTimeoutSchemaIsBackwardsCompatible(t *testing.T) {
+	var resp fwresource.SchemaResponse
+	(&applyModuleResource{}).Schema(context.Background(), fwresource.SchemaRequest{}, &resp)
+
+	attr, ok := resp.Schema.Attributes["wait_timeout"]
+	if !ok {
+		t.Fatal("wait_timeout attribute is missing from the schema")
+	}
+	if !attr.IsOptional() {
+		t.Error("wait_timeout must be optional")
+	}
+	if attr.IsRequired() {
+		t.Error("wait_timeout must not be required (would break existing configs)")
+	}
+	if attr.IsComputed() {
+		t.Error("wait_timeout must not be computed (would cause plan churn on upgrade)")
 	}
 }

@@ -26,6 +26,9 @@
   be IDs. (#59)
 - The `kubernetes_federated` managed identity type, with an `audience` attribute that must match the
   client ID of the cluster's OIDC identity provider configuration. (#59)
+- `tharsis_apply_module` now has an optional `wait_timeout` attribute (default `1h`) that sets how
+  long to wait for a run blocked on plan approval or a policy gate. The provider never prompts for
+  input, so a blocked run fails with an explanatory error once the timeout elapses.
 
 ### Changed
 
@@ -46,6 +49,8 @@
   replaces the resource. (#59)
 - `tharsis_workspace_vcs_provider_link`'s deprecated `workspace_path` is now computed, so it is
   filled in when the link is configured by `workspace_id`. (#59)
+- `tharsis_apply_module` now follows runs through the shared `tharsis-api` run follower, and logs
+  stage progress at debug level (log contents only at trace level).
 
 ### Fixed
 
