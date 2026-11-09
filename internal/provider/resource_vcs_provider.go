@@ -40,6 +40,7 @@ type VCSProviderModel struct {
 var (
 	_ resource.Resource                = (*vcsProviderResource)(nil)
 	_ resource.ResourceWithConfigure   = (*vcsProviderResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*vcsProviderResource)(nil)
 	_ resource.ResourceWithImportState = (*vcsProviderResource)(nil)
 )
 
@@ -114,7 +115,6 @@ func (t *vcsProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -231,7 +231,10 @@ func (t *vcsProviderResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	plannedGroupID := vcsProvider.GroupID
 	t.copyVCSProvider(createResponse.VcsProvider, &vcsProvider)
+	// The API acted on the planned reference, so the planned form is kept.
+	vcsProvider.GroupID = keepPlanned(plannedGroupID, createResponse.VcsProvider.GroupId)
 	vcsProvider.OAuthAuthorizationURL = types.StringValue(createResponse.OauthAuthorizationUrl)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
@@ -271,6 +274,10 @@ func (t *vcsProviderResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyVCSProvider(found, &state)
+	// group_id is set here, not in the copy helper: Read keeps or refreshes the stored
+	// form, Create and Update keep the planned value.
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId,
+		trn.TypeGroup.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -285,6 +292,7 @@ func (t *vcsProviderResource) Read(ctx context.Context,
 func (t *vcsProviderResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+
 	// Retrieve values from plan.
 	var plan VCSProviderModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -316,7 +324,10 @@ func (t *vcsProviderResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedGroupID := plan.GroupID
 	t.copyVCSProvider(updated, &plan)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.GroupID = keepPlanned(plannedGroupID, updated.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -372,8 +383,9 @@ func (t *vcsProviderResource) copyVCSProvider(src *pb.VCSProvider, dest *VCSProv
 	dest.CreatedBy = types.StringValue(src.CreatedBy)
 	dest.Description = types.StringValue(src.Description)
 	dest.URL = types.StringValue(src.Url)
+	// group_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Type = types.StringValue(src.Type)
 	dest.AutoCreateWebhooks = types.BoolValue(src.AutoCreateWebhooks)
@@ -381,4 +393,12 @@ func (t *vcsProviderResource) copyVCSProvider(src *pb.VCSProvider, dest *VCSProv
 	// For the create operation, the OAuthAuthorizationURL field must be assigned by the caller.
 	// This just makes it not unknown, because Terraform requires computed fields to be known after apply.
 	dest.OAuthAuthorizationURL = types.StringValue("")
+}
+
+// ModifyPlan forces a replacement only when group_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
+func (t *vcsProviderResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
 }

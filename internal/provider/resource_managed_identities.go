@@ -36,6 +36,7 @@ type ManagedIdentityModel struct {
 	AzureTenantID             types.String `tfsdk:"azure_tenant_id"`
 	TharsisServiceAccountPath types.String `tfsdk:"tharsis_service_account_path"`
 	Subject                   types.String `tfsdk:"subject"`
+	KubernetesAudience        types.String `tfsdk:"audience"`
 	LastUpdated               types.String `tfsdk:"last_updated"`
 }
 
@@ -46,6 +47,7 @@ type managedIdentityDataInput struct {
 	AzureClientID             string `json:"clientId,omitempty"`
 	AzureTenantID             string `json:"tenantId,omitempty"`
 	TharsisServiceAccountPath string `json:"serviceAccountPath,omitempty"`
+	KubernetesAudience        string `json:"audience,omitempty"`
 }
 
 // managedIdentityData has all fields required for output from the encoded data string.
@@ -56,12 +58,14 @@ type managedIdentityData struct {
 	AzureTenantID             *string `json:"tenantId,omitempty"`
 	TharsisServiceAccountPath *string `json:"serviceAccountPath,omitempty"`
 	Subject                   string  `json:"subject,omitempty"`
+	KubernetesAudience        *string `json:"audience,omitempty"`
 }
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
 	_ resource.Resource                = (*managedIdentityResource)(nil)
 	_ resource.ResourceWithConfigure   = (*managedIdentityResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*managedIdentityResource)(nil)
 	_ resource.ResourceWithImportState = (*managedIdentityResource)(nil)
 )
 
@@ -98,8 +102,8 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"type": schema.StringAttribute{
-				MarkdownDescription: "Type of managed identity: AWS, Azure, or Tharsis.",
-				Description:         "Type of managed identity: AWS, Azure, or Tharsis.",
+				MarkdownDescription: "Type of managed identity: aws_federated, azure_federated, tharsis_federated, or kubernetes_federated.",
+				Description:         "Type of managed identity: aws_federated, azure_federated, tharsis_federated, or kubernetes_federated.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -109,6 +113,7 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 						pb.ManagedIdentityType_aws_federated.String(),
 						pb.ManagedIdentityType_azure_federated.String(),
 						pb.ManagedIdentityType_tharsis_federated.String(),
+						pb.ManagedIdentityType_kubernetes_federated.String(),
 					),
 				},
 			},
@@ -152,7 +157,6 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -184,6 +188,11 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				MarkdownDescription: "subject string for AWS, Azure, and Tharsis",
 				Description:         "subject string for AWS. Azure, and Tharsis",
 				Computed:            true,
+			},
+			"audience": schema.StringAttribute{
+				MarkdownDescription: "Audience for a kubernetes_federated managed identity. Must match the client_id on the cluster's OIDC identity provider configuration.",
+				Description:         "Audience for a kubernetes_federated managed identity. Must match the client_id on the cluster's OIDC identity provider configuration.",
+				Optional:            true,
 			},
 			"last_updated": schema.StringAttribute{
 				MarkdownDescription: "Timestamp when this managed identity was most recently updated by Terraform.",
@@ -220,6 +229,7 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 			AzureClientID:             managedIdentity.AzureClientID.ValueString(),
 			AzureTenantID:             managedIdentity.AzureTenantID.ValueString(),
 			TharsisServiceAccountPath: managedIdentity.TharsisServiceAccountPath.ValueString(),
+			KubernetesAudience:        managedIdentity.KubernetesAudience.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -258,6 +268,7 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	// Because the schema uses the Set type rather than the List type, make sure to set all fields.
+	plannedGroupID := managedIdentity.GroupID
 	if err = t.copyManagedIdentity(created, &managedIdentity); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state",
@@ -265,6 +276,8 @@ func (t *managedIdentityResource) Create(ctx context.Context,
 		)
 		return
 	}
+	// The API acted on the planned reference, so the planned form is kept.
+	managedIdentity.GroupID = keepPlanned(plannedGroupID, created.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	managedIdentity.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -302,6 +315,10 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
+	// group_id is set here, not in copyManagedIdentity, so only Read keeps or refreshes the
+	// stored form while Create and Update keep the planned value.
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId,
+		trn.TypeGroup.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 	if err = t.copyManagedIdentity(found, &state); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state",
@@ -323,6 +340,7 @@ func (t *managedIdentityResource) Read(ctx context.Context,
 func (t *managedIdentityResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+
 	// Retrieve values from plan for the ID, the description, and the data.
 	var plan ManagedIdentityModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -336,6 +354,7 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 			AzureClientID:             plan.AzureClientID.ValueString(),
 			AzureTenantID:             plan.AzureTenantID.ValueString(),
 			TharsisServiceAccountPath: plan.TharsisServiceAccountPath.ValueString(),
+			KubernetesAudience:        plan.KubernetesAudience.ValueString(),
 		})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -363,6 +382,7 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedGroupID := plan.GroupID
 	if err = t.copyManagedIdentity(updated, &plan); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting state",
@@ -370,6 +390,8 @@ func (t *managedIdentityResource) Update(ctx context.Context,
 		)
 		return
 	}
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.GroupID = keepPlanned(plannedGroupID, updated.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -431,8 +453,9 @@ func (t *managedIdentityResource) copyManagedIdentity(src *pb.ManagedIdentity, d
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	dest.Name = types.StringValue(src.Name)
 	dest.Description = types.StringValue(src.Description)
+	// group_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
 	if decodedData.AWSRole != nil {
 		dest.AWSRole = types.StringValue(*decodedData.AWSRole)
 	}
@@ -446,6 +469,9 @@ func (t *managedIdentityResource) copyManagedIdentity(src *pb.ManagedIdentity, d
 		dest.TharsisServiceAccountPath = types.StringValue(*decodedData.TharsisServiceAccountPath)
 	}
 	dest.Subject = types.StringValue(decodedData.Subject)
+	if decodedData.KubernetesAudience != nil {
+		dest.KubernetesAudience = types.StringValue(*decodedData.KubernetesAudience)
+	}
 
 	return nil
 }
@@ -481,6 +507,10 @@ func (t *managedIdentityResource) encodeDataString(managedIdentityType types.Str
 		if input.TharsisServiceAccountPath == "" {
 			return "", fmt.Errorf("non-empty service account path is required for Tharsis managed identity")
 		}
+	case pb.ManagedIdentityType_kubernetes_federated:
+		if input.KubernetesAudience == "" {
+			return "", fmt.Errorf("non-empty audience is required for Kubernetes managed identity")
+		}
 	default:
 		return "", fmt.Errorf("invalid managed identity type: %s", type2)
 	}
@@ -509,4 +539,12 @@ func (t *managedIdentityResource) decodeDataString(encoded string) (*managedIden
 	}
 
 	return &result, nil
+}
+
+// ModifyPlan forces a replacement only when group_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
+func (t *managedIdentityResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
 }

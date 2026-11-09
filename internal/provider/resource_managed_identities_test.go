@@ -398,3 +398,101 @@ resource "tharsis_managed_identity" "tmi_tharsis" {
 
 	`, createRootGroup(testGroupPath, "this is a test root group"), createType, createName, updatedDescription, updatedTharsisServiceAccountPath)
 }
+
+func TestManagedIdentityKubernetes(t *testing.T) {
+	createType := pb.ManagedIdentityType_kubernetes_federated.String()
+	createName := "tmi_kubernetes_name"
+	createDescription := "this is tmi_kubernetes, a Kubernetes managed identity"
+	createResourcePath := testGroupPath + "/" + createName
+	createAudience := "my-cluster"
+
+	updatedDescription := "this is an updated description for tmi_kubernetes"
+	updatedAudience := "my-other-cluster"
+
+	resource.Test(t, resource.TestCase{
+		// Kubernetes managed identities
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and read back a managed identity.
+			{
+				Config: testSharedProviderConfiguration() + testManagedIdentityKubernetesConfigurationCreate(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "type", createType),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "resource_path", createResourcePath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "description", createDescription),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "group_path", testGroupPath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "audience", createAudience),
+
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_kubernetes", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_kubernetes", "last_updated"),
+				),
+			},
+
+			// Import state.
+			{
+				ResourceName:      "tharsis_managed_identity.tmi_kubernetes",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+
+			// Update and read.
+			{
+				Config: testSharedProviderConfiguration() + testManagedIdentityKubernetesConfigurationUpdate(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "type", createType),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "resource_path", createResourcePath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "name", createName),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "description", updatedDescription),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "group_path", testGroupPath),
+					resource.TestCheckResourceAttr("tharsis_managed_identity.tmi_kubernetes", "audience", updatedAudience),
+
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_kubernetes", "id"),
+					resource.TestCheckResourceAttrSet("tharsis_managed_identity.tmi_kubernetes", "last_updated"),
+				),
+			},
+
+			// Destroy should be covered automatically by TestCase.
+		},
+	})
+}
+
+func testManagedIdentityKubernetesConfigurationCreate() string {
+	createType := pb.ManagedIdentityType_kubernetes_federated.String()
+	createName := "tmi_kubernetes_name"
+	createDescription := "this is tmi_kubernetes, a Kubernetes managed identity"
+	createAudience := "my-cluster"
+	return fmt.Sprintf(`
+
+%s
+
+resource "tharsis_managed_identity" "tmi_kubernetes" {
+	type        = "%s"
+	name        = "%s"
+	description = "%s"
+	group_path  = tharsis_group.root-group.full_path
+	audience    = "%s"
+}
+
+	`, createRootGroup(testGroupPath, "this is a test root group"), createType, createName, createDescription, createAudience)
+}
+
+func testManagedIdentityKubernetesConfigurationUpdate() string {
+	createType := pb.ManagedIdentityType_kubernetes_federated.String()
+	createName := "tmi_kubernetes_name"
+	updatedDescription := "this is an updated description for tmi_kubernetes"
+	updatedAudience := "my-other-cluster"
+	return fmt.Sprintf(`
+
+%s
+
+resource "tharsis_managed_identity" "tmi_kubernetes" {
+	type        = "%s"
+	name        = "%s"
+	description = "%s"
+	group_path  = tharsis_group.root-group.full_path
+	audience    = "%s"
+}
+
+	`, createRootGroup(testGroupPath, "this is a test root group"), createType, createName, updatedDescription, updatedAudience)
+}

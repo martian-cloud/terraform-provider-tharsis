@@ -18,7 +18,7 @@ description: |-
 ## Behavior
 
 - Groups organize workspaces hierarchically. A group can contain subgroups and workspaces.
-- Variables, managed identities, memberships, service accounts, runner agents, Terraform modules, and VCS providers set on a group are inherited by its child groups and workspaces.
+- Variables, managed identities, memberships, service accounts, runners, Terraform modules, and VCS providers set on a group are inherited by its child groups and workspaces.
 - The parent is given with either `parent_id` or `parent_path`. Omit both to create a top-level group, which only system administrators can do.
 - A name may contain only numerals, lowercase letters, hyphens, and underscores, and cannot start or end with a hyphen or underscore. It cannot be changed after creation.
 

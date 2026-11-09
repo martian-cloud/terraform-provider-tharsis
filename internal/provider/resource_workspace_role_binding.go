@@ -27,6 +27,7 @@ type WorkspaceRoleBindingModel struct {
 var (
 	_ resource.Resource                = (*workspaceRoleBindingResource)(nil)
 	_ resource.ResourceWithConfigure   = (*workspaceRoleBindingResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*workspaceRoleBindingResource)(nil)
 	_ resource.ResourceWithImportState = (*workspaceRoleBindingResource)(nil)
 )
 
@@ -68,9 +69,6 @@ func (t *workspaceRoleBindingResource) Schema(_ context.Context, _ resource.Sche
 				MarkdownDescription: "The ID or TRN of the workspace this role binding applies to.",
 				Description:         "The ID or TRN of the workspace this role binding applies to.",
 				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"role_name": schema.StringAttribute{
 				MarkdownDescription: "The name of the role bound to the workspace.",
@@ -119,6 +117,7 @@ func (t *workspaceRoleBindingResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	plannedWorkspaceID := binding.WorkspaceID
 	if err = t.copyWorkspaceRoleBinding(ctx, created, &binding); err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading back the bound role",
@@ -126,6 +125,8 @@ func (t *workspaceRoleBindingResource) Create(ctx context.Context,
 		)
 		return
 	}
+	// The API acted on the planned reference, so the planned form is kept.
+	binding.WorkspaceID = keepPlanned(plannedWorkspaceID, created.WorkspaceId)
 
 	// Set the response state to the fully-populated plan, whether or not there is an error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, binding)...)
@@ -160,6 +161,10 @@ func (t *workspaceRoleBindingResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
+	// workspace_id is set here, not in copyWorkspaceRoleBinding: Read keeps or refreshes the
+	// stored form, Create and Update keep the planned value.
+	state.WorkspaceID = keepOrRefresh(state.WorkspaceID, found.WorkspaceId,
+		trn.TypeWorkspace.Build(trn.MustParseAny(found.Metadata.Trn).Path()))
 	if err = t.copyWorkspaceRoleBinding(ctx, found, &state); err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading back the bound role",
@@ -175,6 +180,7 @@ func (t *workspaceRoleBindingResource) Read(ctx context.Context,
 func (t *workspaceRoleBindingResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+
 	// Retrieve values from plan.
 	var plan WorkspaceRoleBindingModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -200,6 +206,7 @@ func (t *workspaceRoleBindingResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedWorkspaceID := plan.WorkspaceID
 	if err = t.copyWorkspaceRoleBinding(ctx, updated, &plan); err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading back the bound role",
@@ -207,6 +214,8 @@ func (t *workspaceRoleBindingResource) Update(ctx context.Context,
 		)
 		return
 	}
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.WorkspaceID = keepPlanned(plannedWorkspaceID, updated.WorkspaceId)
 
 	// Set the response state to the fully-populated plan, with or without error.
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -249,7 +258,14 @@ func (t *workspaceRoleBindingResource) Delete(ctx context.Context,
 func (t *workspaceRoleBindingResource) ImportState(ctx context.Context,
 	req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), req.ID)...)
+	// The import ID may be the workspace's TRN or its Global ID. Store the Global ID, so
+	// both forms import to the same state.
+	workspace, err := t.client.WorkspacesClient.GetWorkspaceByID(ctx, &pb.GetWorkspaceByIDRequest{Id: req.ID})
+	if err != nil {
+		resp.Diagnostics.AddError("Error resolving workspace for import: "+req.ID, err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), workspace.Metadata.Id)...)
 }
 
 // copyWorkspaceRoleBinding copies the contents of a workspace role binding.
@@ -266,8 +282,17 @@ func (t *workspaceRoleBindingResource) copyWorkspaceRoleBinding(ctx context.Cont
 	}
 
 	dest.ID = types.StringValue(src.Metadata.Id)
-	dest.WorkspaceID = types.StringValue(src.WorkspaceId)
+	// workspace_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.RoleName = types.StringValue(role.Name)
 
 	return nil
+}
+
+// ModifyPlan forces a replacement only when workspace_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
+func (t *workspaceRoleBindingResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("workspace_id"), trn.TypeWorkspace)
 }

@@ -34,6 +34,7 @@ type TerraformProviderModel struct {
 var (
 	_ resource.Resource                = (*terraformProviderResource)(nil)
 	_ resource.ResourceWithConfigure   = (*terraformProviderResource)(nil)
+	_ resource.ResourceWithModifyPlan  = (*terraformProviderResource)(nil)
 	_ resource.ResourceWithImportState = (*terraformProviderResource)(nil)
 )
 
@@ -94,7 +95,6 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -184,7 +184,10 @@ func (t *terraformProviderResource) Create(ctx context.Context,
 	}
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
+	plannedGroupID := terraformProvider.GroupID
 	t.copyTerraformProvider(created, &terraformProvider)
+	// The API acted on the planned reference, so the planned form is kept.
+	terraformProvider.GroupID = keepPlanned(plannedGroupID, created.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	terraformProvider.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -223,6 +226,10 @@ func (t *terraformProviderResource) Read(ctx context.Context,
 
 	// Copy the from-Tharsis struct to the state.
 	t.copyTerraformProvider(found, &state)
+	// group_id is set here, not in the copy helper: Read keeps or refreshes the stored
+	// form, Create and Update keep the planned value.
+	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId,
+		trn.TypeGroup.Build(trn.MustParseAny(found.Metadata.Trn).ParentPath()))
 
 	// Read normally leaves the last updated timestamp alone because it reflects the last change made by
 	// Terraform.  After an import there is no prior value, so use the time reported by Tharsis.
@@ -237,6 +244,7 @@ func (t *terraformProviderResource) Read(ctx context.Context,
 func (t *terraformProviderResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+
 	// Retrieve values from plan.
 	var plan TerraformProviderModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -261,7 +269,10 @@ func (t *terraformProviderResource) Update(ctx context.Context,
 	}
 
 	// Copy all fields returned by Tharsis back into the plan.
+	plannedGroupID := plan.GroupID
 	t.copyTerraformProvider(updated, &plan)
+	// The API acted on the planned reference, so the planned form is kept.
+	plan.GroupID = keepPlanned(plannedGroupID, updated.GroupId)
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	plan.LastUpdated = types.StringValue(updated.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -314,12 +325,21 @@ func (t *terraformProviderResource) copyTerraformProvider(src *pb.TerraformProvi
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.Name = types.StringValue(src.Name)
+	// group_id is set by the callers: Read keeps or refreshes the stored form, Create and
+	// Update keep the planned value.
 	dest.GroupPath = types.StringValue(parsed.ParentPath())
-	dest.GroupID = types.StringValue(src.GroupId)
 	dest.ResourcePath = types.StringValue(parsed.Path())
 	if parts := parsed.PathParts(); len(parts) > 0 {
 		dest.RegistryNamespace = types.StringValue(parts[0])
 	}
 	dest.RepositoryURL = types.StringValue(src.RepositoryUrl)
 	dest.Private = types.BoolValue(src.Private)
+}
+
+// ModifyPlan forces a replacement only when group_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
+func (t *terraformProviderResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
 }
