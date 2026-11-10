@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
 	runpkg "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/run"
 )
 
@@ -315,5 +316,64 @@ func TestWaitTimeoutSchemaIsBackwardsCompatible(t *testing.T) {
 	}
 	if attr.IsComputed() {
 		t.Error("wait_timeout must not be computed (would cause plan churn on upgrade)")
+	}
+}
+
+func TestRunFailureMessage(t *testing.T) {
+	planError := "Error: Invalid reference"
+	applyError := "Error: creating bucket: AccessDenied"
+
+	tests := []struct {
+		name    string
+		outcome *runpkg.Outcome
+		want    string
+	}{
+		{
+			name: "plan error",
+			outcome: &runpkg.Outcome{
+				Run: &pb.Run{
+					Status: pb.RunStatus_ERRORED,
+					Plan:   &pb.Plan{ErrorMessage: &planError},
+					Apply:  &pb.Apply{},
+				},
+				Stage: runpkg.StageRef{Name: "Plan", Kind: runpkg.StagePlan},
+			},
+			want: `Run "run-1" ended with status ERRORED: plan failed: Error: Invalid reference`,
+		},
+		{
+			name: "apply error",
+			outcome: &runpkg.Outcome{
+				Run: &pb.Run{
+					Status: pb.RunStatus_ERRORED,
+					Plan:   &pb.Plan{},
+					Apply:  &pb.Apply{ErrorMessage: &applyError},
+				},
+				Stage: runpkg.StageRef{Name: "Apply", Kind: runpkg.StageApply},
+			},
+			want: `Run "run-1" ended with status ERRORED: apply failed: Error: creating bucket: AccessDenied`,
+		},
+		{
+			name: "policy stage failure without a plan or apply error",
+			outcome: &runpkg.Outcome{
+				Run:   &pb.Run{Status: pb.RunStatus_ERRORED, Plan: &pb.Plan{}},
+				Stage: runpkg.StageRef{Name: "Post-plan stage", Kind: runpkg.StageTask},
+			},
+			want: `Run "run-1" ended with status ERRORED during Post-plan stage.`,
+		},
+		{
+			name: "no plan, apply or stage",
+			outcome: &runpkg.Outcome{
+				Run: &pb.Run{Status: pb.RunStatus_CANCELED},
+			},
+			want: `Run "run-1" ended with status CANCELED.`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := runFailureMessage("run-1", test.outcome); got != test.want {
+				t.Errorf("runFailureMessage() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }

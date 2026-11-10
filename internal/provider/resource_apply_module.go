@@ -550,8 +550,7 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		return nil, diags
 	default:
 		// OutcomeFailed, OutcomeDiscarded or OutcomeInterrupted: the run didn't apply.
-		diags.AddError("Run did not complete",
-			fmt.Sprintf("Run %q ended with status %s.", createdRun.Metadata.Id, outcome.Run.Status.String()))
+		diags.AddError("Run did not complete", runFailureMessage(createdRun.Metadata.Id, outcome))
 		return nil, diags
 	}
 
@@ -590,6 +589,23 @@ func parseWaitTimeout(v types.String) (time.Duration, error) {
 		return 0, fmt.Errorf("wait_timeout must be positive, got %q", v.ValueString())
 	}
 	return d, nil
+}
+
+// runFailureMessage explains why a run didn't complete, with the plan or apply error when the run
+// has one, or the stage it failed at otherwise.
+func runFailureMessage(runID string, outcome *runpkg.Outcome) string {
+	msg := fmt.Sprintf("Run %q ended with status %s", runID, outcome.Run.Status.String())
+	if errMsg := outcome.Run.GetApply().GetErrorMessage(); errMsg != "" {
+		return fmt.Sprintf("%s: apply failed: %s", msg, errMsg)
+	}
+	if errMsg := outcome.Run.GetPlan().GetErrorMessage(); errMsg != "" {
+		return fmt.Sprintf("%s: plan failed: %s", msg, errMsg)
+	}
+	if outcome.Stage.Name != "" {
+		return fmt.Sprintf("%s during %s.", msg, outcome.Stage.Name)
+	}
+
+	return msg + "."
 }
 
 // getCurrentApplied returns an ApplyModuleModel reflecting what is currently applied.
