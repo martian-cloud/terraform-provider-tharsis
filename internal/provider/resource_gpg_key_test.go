@@ -2,8 +2,11 @@ package provider
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
@@ -89,6 +92,8 @@ vF7bYisZMWZogpHZ39zCe8T8zjpZ0xipaOmAhvHKR+p2Tm+OwJL7qjs6dQ==
 				ResourceName:      "tharsis_gpg_key.tgk",
 				ImportState:       true,
 				ImportStateVerify: true,
+				// Tharsis returns the key re-armored, so the imported armor differs textually.
+				ImportStateVerifyIgnore: []string{"ascii_armor"},
 			},
 
 			// Import the state by TRN.
@@ -97,6 +102,8 @@ vF7bYisZMWZogpHZ39zCe8T8zjpZ0xipaOmAhvHKR+p2Tm+OwJL7qjs6dQ==
 				ImportStateId:     "trn:gpg_key:" + createResourcePath,
 				ImportState:       true,
 				ImportStateVerify: true,
+				// Tharsis returns the key re-armored, so the imported armor differs textually.
+				ImportStateVerifyIgnore: []string{"ascii_armor"},
 			},
 
 			// Update (which requires replacement) and read back.
@@ -123,6 +130,102 @@ vF7bYisZMWZogpHZ39zCe8T8zjpZ0xipaOmAhvHKR+p2Tm+OwJL7qjs6dQ==
 	})
 }
 
+func TestSameGPGKey(t *testing.T) {
+	// Tharsis stores a key as parsed and re-serialized, which changes the armor text but not the key.
+	entities, err := openpgp.ReadArmoredKeyRing(strings.NewReader(testGPGKeyASCIIArmor))
+	if err != nil {
+		t.Fatalf("failed to read test key: %v", err)
+	}
+	reArmored := armorGPGPublicKey(t, entities[0])
+
+	otherKey, err := openpgp.NewEntity("Other", "", "other@invalid.example", nil)
+	if err != nil {
+		t.Fatalf("failed to generate key: %v", err)
+	}
+	otherArmor := armorGPGPublicKey(t, otherKey)
+	if err = otherKey.AddUserId("Other Too", "", "other.too@invalid.example", nil); err != nil {
+		t.Fatalf("failed to add user ID: %v", err)
+	}
+	otherWithUserIDArmor := armorGPGPublicKey(t, otherKey)
+
+	var privateBuf strings.Builder
+	privateWriter, err := armor.Encode(&privateBuf, openpgp.PrivateKeyType, nil)
+	if err != nil {
+		t.Fatalf("failed to start armor: %v", err)
+	}
+	if err = otherKey.SerializePrivate(privateWriter, nil); err != nil {
+		t.Fatalf("failed to serialize private key: %v", err)
+	}
+	if err = privateWriter.Close(); err != nil {
+		t.Fatalf("failed to close armor: %v", err)
+	}
+	otherPrivateArmor := privateBuf.String()
+
+	tests := []struct {
+		name string
+		a    string
+		b    string
+		want bool
+	}{
+		{
+			name: "identical armor",
+			a:    testGPGKeyASCIIArmor,
+			b:    testGPGKeyASCIIArmor,
+			want: true,
+		},
+		{
+			name: "same key re-armored as Tharsis returns it",
+			a:    testGPGKeyASCIIArmor,
+			b:    reArmored,
+			want: true,
+		},
+		{
+			name: "different key",
+			a:    testGPGKeyASCIIArmor,
+			b:    otherArmor,
+			want: false,
+		},
+		{
+			name: "same primary key with an added user ID",
+			a:    otherArmor,
+			b:    otherWithUserIDArmor,
+			want: false,
+		},
+		{
+			name: "private key block of the same key",
+			a:    otherWithUserIDArmor,
+			b:    otherPrivateArmor,
+			want: false,
+		},
+		{
+			name: "same key with a private key block appended",
+			a:    otherWithUserIDArmor,
+			b:    otherWithUserIDArmor + "\n" + otherPrivateArmor,
+			want: false,
+		},
+		{
+			name: "not an armored key",
+			a:    testGPGKeyASCIIArmor,
+			b:    "not a key",
+			want: false,
+		},
+		{
+			name: "empty",
+			a:    "",
+			b:    "",
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := sameGPGKey(test.a, test.b); got != test.want {
+				t.Errorf("sameGPGKey() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func testGPGKeyConfiguration(asciiArmor string) string {
 	// Using %#v for the ASCII armor field to escape the embedded newlines.  It supplies double-quotation marks.
 	return fmt.Sprintf(`
@@ -134,6 +237,24 @@ resource "tharsis_gpg_key" "tgk" {
 	group_path = tharsis_group.root-group.full_path
 }
 	`, createRootGroup(testGroupPath, "this is a test root group"), asciiArmor)
+}
+
+func armorGPGPublicKey(t *testing.T, entity *openpgp.Entity) string {
+	var buf strings.Builder
+	w, err := armor.Encode(&buf, openpgp.PublicKeyType, nil)
+	if err != nil {
+		t.Fatalf("failed to start armor: %v", err)
+	}
+
+	if err = entity.Serialize(w); err != nil {
+		t.Fatalf("failed to serialize key: %v", err)
+	}
+
+	if err = w.Close(); err != nil {
+		t.Fatalf("failed to close armor: %v", err)
+	}
+
+	return buf.String()
 }
 
 // testGPGKeyASCIIArmor is a made-up GPG public key, shared by the GPG key tests.

@@ -54,6 +54,10 @@
 
 ### Fixed
 
+- `tharsis_gpg_key` failed on create with "Provider produced inconsistent result after apply" against
+  Tharsis v0.111.0 and later, which store a key re-armored. The configured armor is now kept, and
+  re-armoring of the same key (for example after an import) is an in-place update rather than a
+  replacement.
 - `tharsis_assigned_managed_identity` was removed from state on every refresh, and re-created on every
   apply, when `managed_identity_id` was a TRN. (#59)
 - `tharsis_workspace_vcs_provider_link` could not be created with `workspace_id`: every apply failed
