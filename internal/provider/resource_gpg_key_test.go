@@ -1,9 +1,13 @@
 package provider
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
@@ -61,6 +65,7 @@ vF7bYisZMWZogpHZ39zCe8T8zjpZ0xipaOmAhvHKR+p2Tm+OwJL7qjs6dQ==
 	updateGroupPath := testGroupPath
 	updateResourcePath := updateGroupPath + "/" + updateFingerprint
 
+	var id string
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -79,6 +84,18 @@ vF7bYisZMWZogpHZ39zCe8T8zjpZ0xipaOmAhvHKR+p2Tm+OwJL7qjs6dQ==
 					resource.TestCheckResourceAttrSet("tharsis_gpg_key.tgk", "id"),
 					resource.TestCheckResourceAttrSet("tharsis_gpg_key.tgk", "last_updated"),
 					resource.TestCheckResourceAttrSet("tharsis_gpg_key.tgk", "created_by"),
+					testCaptureAttr("tharsis_gpg_key.tgk", "id", &id),
+				),
+			},
+
+			// The same key armored differently, as Tharsis may store it: an in-place update that
+			// keeps the configured text, not a replacement.
+			{
+				Config: testGPGKeyConfiguration(testReArmor(t, createASCIIArmor)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged("tharsis_gpg_key.tgk", "id", &id),
+					resource.TestCheckResourceAttr("tharsis_gpg_key.tgk", "ascii_armor", testReArmor(t, createASCIIArmor)),
+					resource.TestCheckResourceAttr("tharsis_gpg_key.tgk", "fingerprint", createFingerprint),
 				),
 			},
 
@@ -89,6 +106,8 @@ vF7bYisZMWZogpHZ39zCe8T8zjpZ0xipaOmAhvHKR+p2Tm+OwJL7qjs6dQ==
 				ResourceName:      "tharsis_gpg_key.tgk",
 				ImportState:       true,
 				ImportStateVerify: true,
+				// Import takes the armor Tharsis stores, which may be the same key re-armored.
+				ImportStateVerifyIgnore: []string{"ascii_armor"},
 			},
 
 			// Import the state by TRN.
@@ -97,9 +116,11 @@ vF7bYisZMWZogpHZ39zCe8T8zjpZ0xipaOmAhvHKR+p2Tm+OwJL7qjs6dQ==
 				ImportStateId:     "trn:gpg_key:" + createResourcePath,
 				ImportState:       true,
 				ImportStateVerify: true,
+				// Import takes the armor Tharsis stores, which may be the same key re-armored.
+				ImportStateVerifyIgnore: []string{"ascii_armor"},
 			},
 
-			// Update (which requires replacement) and read back.
+			// A different key: requires replacement.
 			{
 				Config: testGPGKeyConfiguration(updateASCIIArmor),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -179,3 +200,43 @@ lNBLBcAMCdEMd4qgt0YvzKzE3GbQoiAkBKJ2qoqun2MXM60324j01B/x/r3E+p15
 =HJT6
 -----END PGP PUBLIC KEY BLOCK-----
 `
+
+// testReArmor returns the same public key armored again, so the text differs from the input
+// while the key, and its fingerprint, stay the same.
+func testReArmor(t *testing.T, asciiArmor string) string {
+	t.Helper()
+	entities, err := openpgp.ReadArmoredKeyRing(strings.NewReader(asciiArmor))
+	if err != nil {
+		t.Fatalf("reading the test key: %v", err)
+	}
+	var buf bytes.Buffer
+	w, err := armor.Encode(&buf, openpgp.PublicKeyType, map[string]string{"Comment": "re-armored by the test"})
+	if err != nil {
+		t.Fatalf("armoring the test key: %v", err)
+	}
+	if err := entities[0].Serialize(w); err != nil {
+		t.Fatalf("serializing the test key: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("closing the armor: %v", err)
+	}
+	if out := buf.String(); out != asciiArmor {
+		return out
+	}
+	t.Fatalf("re-armoring produced identical text")
+	return ""
+}
+
+// gpgKeyFingerprint must match the fingerprint Tharsis reports, or ModifyPlan would replace
+// a key whose armor only changed form.
+func TestGPGKeyFingerprint(t *testing.T) {
+	if got, err := gpgKeyFingerprint(testGPGKeyASCIIArmor); err != nil || got != "C48F7F19B14E59433DF9402341F57AB6741F92F1" {
+		t.Fatalf("gpgKeyFingerprint(test key) = %q, %v", got, err)
+	}
+	if got, err := gpgKeyFingerprint(testReArmor(t, testGPGKeyASCIIArmor)); err != nil || got != "C48F7F19B14E59433DF9402341F57AB6741F92F1" {
+		t.Fatalf("gpgKeyFingerprint(re-armored) = %q, %v", got, err)
+	}
+	if _, err := gpgKeyFingerprint("not an armored key"); err == nil {
+		t.Fatal("gpgKeyFingerprint accepted text that is not armored")
+	}
+}

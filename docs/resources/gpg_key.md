@@ -30,7 +30,7 @@ resource "tharsis_gpg_key" "this" {
 
 ### Required
 
-- `ascii_armor` (String) The ASCII armored key.
+- `ascii_armor` (String) The ASCII armored key. Changing it to a different key forces replacement; the same key armored differently is an in-place update.
 
 ### Optional
 
