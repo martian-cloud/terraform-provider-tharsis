@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -138,6 +139,10 @@ func (t *managedIdentityResource) Schema(_ context.Context, _ resource.SchemaReq
 				MarkdownDescription: "A description of the managed identity.",
 				Description:         "A description of the managed identity.",
 				Optional:            true,
+				// Computed with the API's own default, so leaving it unset stores "" rather than
+				// failing the consistency check when Tharsis returns "".
+				Computed: true,
+				Default:  stringdefault.StaticString(""),
 				// Description can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"group_path": schema.StringAttribute{

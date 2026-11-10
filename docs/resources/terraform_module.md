@@ -41,7 +41,7 @@ resource "tharsis_terraform_module" "this" {
 
 - `group_id` (String) The ID or TRN of the parent group.
 - `group_path` (String, Deprecated) The group path for this module.
-- `private` (Boolean) Whether other groups are blocked from seeing this module.
+- `private` (Boolean) Whether other groups are blocked from seeing this module. Defaults to false.
 - `repository_url` (String) The URL in a repository where this module is found.
 
 ### Read-Only
