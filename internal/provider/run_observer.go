@@ -47,5 +47,13 @@ func (o *runObserver) Event(e runpkg.Event) {
 		tflog.Debug(o.ctx, "tharsis run has no changes to apply", nil)
 	case runpkg.AutoApproving:
 		tflog.Debug(o.ctx, "tharsis run auto-approving", nil)
+	case runpkg.DecisionDeferred:
+		tflog.Debug(o.ctx, "tharsis run waiting on a decision made elsewhere",
+			map[string]any{"stage": e.Stage.Name, "reason": e.Reason})
+	case runpkg.Interrupted:
+		tflog.Debug(o.ctx, "tharsis run following interrupted", nil)
+	case runpkg.InterruptFailed:
+		tflog.Debug(o.ctx, "tharsis run interrupt action failed",
+			map[string]any{"action": e.Action, "error": e.Err.Error()})
 	}
 }
