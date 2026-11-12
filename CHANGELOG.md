@@ -54,10 +54,6 @@
   inconsistent result after apply" and left the resource tainted, so the next apply replaced it.
   These attributes now default to `""` and `false`, the values Tharsis stores when they are not set,
   and removing one from the configuration clears it.
-- Creating a `tharsis_gpg_key` against Tharsis `v0.113.0` or later failed with "Provider produced
-  inconsistent result after apply", because Tharsis now stores the key re-armored. The configured
-  armor is kept while the key's fingerprint is unchanged, and changing the armor to the same key in
-  another form is an in-place update instead of a replacement.
 - `tharsis_assigned_managed_identity` was removed from state on every refresh, and re-created on every
   apply, when `managed_identity_id` was a TRN. (#59)
 - `tharsis_workspace_vcs_provider_link` could not be created with `workspace_id`: every apply failed

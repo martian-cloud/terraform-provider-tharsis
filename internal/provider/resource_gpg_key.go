@@ -2,12 +2,8 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -91,11 +87,12 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				},
 			},
 			"ascii_armor": schema.StringAttribute{
-				MarkdownDescription: "The ASCII armored key. Changing it to a different key forces replacement; the same key armored differently is an in-place update.",
-				Description:         "The ASCII armored key. Changing it to a different key forces replacement; the same key armored differently is an in-place update.",
+				MarkdownDescription: "The ASCII armored key.",
+				Description:         "The ASCII armored key.",
 				Required:            true,
-				// Replacement is decided in ModifyPlan by comparing fingerprints, not text:
-				// Tharsis may store the key re-armored, so the text can differ for the same key.
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"fingerprint": schema.StringAttribute{
 				MarkdownDescription: "The fingerprint of the GPG key.",
@@ -230,12 +227,6 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 		return
 	}
 
-	// Keep the stored armor while it is still the same key: Tharsis may return it re-armored.
-	// Take the API's armor after an import (nothing stored) or if the key itself differs.
-	if state.ASCIIArmor.IsNull() || state.Fingerprint.ValueString() != found.Fingerprint {
-		state.ASCIIArmor = types.StringValue(found.AsciiArmor)
-	}
-
 	// Copy the from-Tharsis struct to the state.
 	t.copyGPGKey(found, &state)
 	// Keep the stored group_id form while it still names the group; otherwise take the API's
@@ -260,9 +251,8 @@ func (t *gpgKeyResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
 	// Every other input forces a replacement, so Update is reached only for a switch between
-	// an object's Global ID and its TRN, or for the same key armored differently. Neither
-	// changes anything in Tharsis. Store the planned values and keep everything else as it
-	// was; an unknown planned value keeps the stored one.
+	// an object's Global ID and its TRN, which changes nothing in Tharsis. Store the planned
+	// form and keep everything else as it was; an unknown planned value keeps the stored one.
 	var state, plan GPGKeyModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -271,9 +261,6 @@ func (t *gpgKeyResource) Update(ctx context.Context,
 	}
 	if isKnownValue(plan.GroupID) {
 		state.GroupID = plan.GroupID
-	}
-	if isKnownValue(plan.ASCIIArmor) {
-		state.ASCIIArmor = plan.ASCIIArmor
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -322,8 +309,7 @@ func (t *gpgKeyResource) copyGPGKey(src *pb.GPGKey, dest *GPGKeyModel) {
 	parsed := trn.MustParseAny(src.Metadata.Trn)
 	dest.ID = types.StringValue(src.Metadata.Id)
 	dest.CreatedBy = types.StringValue(src.CreatedBy)
-	// ascii_armor is set by the callers: Create keeps the planned armor, Read keeps the stored
-	// one while the fingerprint is unchanged.
+	dest.ASCIIArmor = types.StringValue(src.AsciiArmor)
 	dest.Fingerprint = types.StringValue(src.Fingerprint)
 	dest.GPGKeyID = types.StringValue(src.GpgKeyId)
 	// group_id is set by the callers: Read keeps or refreshes the stored form, Create keeps
@@ -332,47 +318,10 @@ func (t *gpgKeyResource) copyGPGKey(src *pb.GPGKey, dest *GPGKeyModel) {
 	dest.ResourcePath = types.StringValue(parsed.Path())
 }
 
-// ModifyPlan forces a replacement only when group_id moves to a different object, or when
-// ascii_armor holds a different key. A switch between a Global ID and a TRN of the same
-// object, or the same key armored differently, is an in-place update.
+// ModifyPlan forces a replacement only when group_id moves to a different object. A
+// switch between a Global ID and a TRN of the same object is an in-place update.
 func (t *gpgKeyResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
 	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
-
-	// Nothing to compare on create, nothing to plan on destroy.
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-	var state, plan GPGKeyModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() || plan.ASCIIArmor.Equal(state.ASCIIArmor) {
-		return
-	}
-	// An unknown or unparsable armor, or a different fingerprint, replaces, as the static
-	// RequiresReplace this replaces did.
-	if isKnownValue(plan.ASCIIArmor) {
-		if fp, err := gpgKeyFingerprint(plan.ASCIIArmor.ValueString()); err == nil && fp == state.Fingerprint.ValueString() {
-			return
-		}
-	}
-	resp.RequiresReplace = append(resp.RequiresReplace, path.Root("ascii_armor"))
-}
-
-// gpgKeyFingerprint returns the fingerprint of the first key in an ASCII armored public key,
-// formatted as Tharsis reports it.
-func gpgKeyFingerprint(asciiArmor string) (string, error) {
-	block, err := armor.Decode(strings.NewReader(asciiArmor))
-	if err != nil {
-		return "", err
-	}
-	entities, err := openpgp.ReadKeyRing(block.Body)
-	if err != nil {
-		return "", err
-	}
-	if len(entities) == 0 || entities[0].PrimaryKey == nil {
-		return "", fmt.Errorf("no public key found in the ASCII armor")
-	}
-	return fmt.Sprintf("%016X", entities[0].PrimaryKey.Fingerprint), nil
 }
