@@ -28,7 +28,8 @@
   client ID of the cluster's OIDC identity provider configuration. (#59)
 - `tharsis_apply_module` now has an optional `wait_timeout` attribute (default `1h`) that sets how
   long to wait for a run blocked on plan approval or a policy gate. The provider never prompts for
-  input, so a blocked run fails with an explanatory error once the timeout elapses.
+  input, so a blocked run fails with an explanatory error once the timeout elapses. Changing only
+  `wait_timeout` updates state without starting a run.
 
 ### Changed
 
@@ -55,7 +56,7 @@
 ### Fixed
 
 - `tharsis_gpg_key` failed on create with "Provider produced inconsistent result after apply" against
-  Tharsis v0.111.0 and later, which store a key re-armored. The configured armor is now kept, and
+  Tharsis v0.113.0 and later, which store a key re-armored. The configured armor is now kept, and
   re-armoring of the same key (for example after an import) is an in-place update rather than a
   replacement.
 - Creating a `tharsis_managed_identity` without `description`, or a `tharsis_terraform_module` or

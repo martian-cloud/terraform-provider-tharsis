@@ -341,6 +341,27 @@ func (t *applyModuleResource) Update(ctx context.Context,
 		return
 	}
 
+	var state ApplyModuleModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// wait_timeout only changes how a run is followed, so changing it alone shouldn't re-apply the module.
+	if plan.ModuleSource.Equal(state.ModuleSource) &&
+		plan.ModuleVersion.Equal(state.ModuleVersion) &&
+		plan.Refresh.Equal(state.Refresh) &&
+		plan.Variables.Equal(state.Variables) {
+		if _, err := parseWaitTimeout(plan.WaitTimeout); err != nil {
+			resp.Diagnostics.AddError("Invalid wait_timeout", err.Error())
+			return
+		}
+
+		plan.ResolvedVariables = state.ResolvedVariables
+		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+		return
+	}
+
 	// Do the run.
 	didRun, newDiags := t.createRun(ctx, &createRunInput{
 		model: &plan,

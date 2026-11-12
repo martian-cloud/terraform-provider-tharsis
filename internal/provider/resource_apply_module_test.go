@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -375,5 +376,193 @@ func TestRunFailureMessage(t *testing.T) {
 				t.Errorf("runFailureMessage() = %q, want %q", got, test.want)
 			}
 		})
+	}
+}
+
+// TestApplyModuleUpdateSkipsRunWhenOnlyWaitTimeoutChanges leaves the workspace unset, so a started run errors before using the client.
+func TestApplyModuleUpdateSkipsRunWhenOnlyWaitTimeoutChanges(t *testing.T) {
+	ctx := t.Context()
+	underTest := &applyModuleResource{}
+
+	var schemaResp fwresource.SchemaResponse
+	underTest.Schema(ctx, fwresource.SchemaRequest{}, &schemaResp)
+
+	variablesType := schemaResp.Schema.Attributes["variables"].GetType().(types.ListType).ElemType.(types.ObjectType)
+	resolvedType := schemaResp.Schema.Attributes["resolved_variables"].GetType().(types.ListType).ElemType.(types.ObjectType)
+
+	variables := types.ListValueMust(variablesType, []attr.Value{
+		types.ObjectValueMust(variablesType.AttrTypes, map[string]attr.Value{
+			"key":      types.StringValue("trigger_name"),
+			"value":    types.StringValue("v1"),
+			"category": types.StringValue("terraform"),
+		}),
+	})
+	resolvedVariables := types.ListValueMust(resolvedType, []attr.Value{
+		types.ObjectValueMust(resolvedType.AttrTypes, map[string]attr.Value{
+			"key":            types.StringValue("trigger_name"),
+			"value":          types.StringValue("v1"),
+			"category":       types.StringValue("terraform"),
+			"namespace_path": types.StringValue(""),
+		}),
+	})
+
+	tests := []struct {
+		name      string
+		mutate    func(state, plan *ApplyModuleModel)
+		wantRun   bool
+		wantError string
+	}{
+		{
+			name:   "wait_timeout set where it was unset",
+			mutate: func(_, plan *ApplyModuleModel) { plan.WaitTimeout = types.StringValue("2h") },
+		},
+		{
+			name: "wait_timeout changed",
+			mutate: func(state, plan *ApplyModuleModel) {
+				state.WaitTimeout = types.StringValue("30m")
+				plan.WaitTimeout = types.StringValue("2h")
+			},
+		},
+		{
+			name:   "wait_timeout unset where it was set",
+			mutate: func(state, _ *ApplyModuleModel) { state.WaitTimeout = types.StringValue("30m") },
+		},
+		{
+			name:      "invalid wait_timeout is still rejected",
+			mutate:    func(_, plan *ApplyModuleModel) { plan.WaitTimeout = types.StringValue("nope") },
+			wantError: "Invalid wait_timeout",
+		},
+		{
+			name:    "module_source changed starts a run",
+			mutate:  func(_, plan *ApplyModuleModel) { plan.ModuleSource = types.StringValue("other/module/null") },
+			wantRun: true,
+		},
+		{
+			name:    "module_source missing from the workspace starts a run",
+			mutate:  func(state, _ *ApplyModuleModel) { state.ModuleSource = types.StringNull() },
+			wantRun: true,
+		},
+		{
+			name:    "module_version changed starts a run",
+			mutate:  func(_, plan *ApplyModuleModel) { plan.ModuleVersion = types.StringValue("2.0.0") },
+			wantRun: true,
+		},
+		{
+			name:    "refresh changed starts a run",
+			mutate:  func(_, plan *ApplyModuleModel) { plan.Refresh = types.BoolValue(false) },
+			wantRun: true,
+		},
+		{
+			name: "variables changed starts a run",
+			mutate: func(_, plan *ApplyModuleModel) {
+				plan.Variables = types.ListValueMust(variablesType, []attr.Value{
+					types.ObjectValueMust(variablesType.AttrTypes, map[string]attr.Value{
+						"key":      types.StringValue("trigger_name"),
+						"value":    types.StringValue("v2"),
+						"category": types.StringValue("terraform"),
+					}),
+				})
+			},
+			wantRun: true,
+		},
+		{
+			name: "wait_timeout and variables changed starts a run",
+			mutate: func(_, plan *ApplyModuleModel) {
+				plan.WaitTimeout = types.StringValue("2h")
+				plan.Variables = types.ListNull(variablesType)
+			},
+			wantRun: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stateModel := ApplyModuleModel{
+				ID:                types.StringValue("f6b2c5d1-9a84-4c3e-8f17-0d5b6e9a2c41"),
+				WorkspacePath:     types.StringNull(),
+				WorkspaceID:       types.StringNull(),
+				ModuleSource:      types.StringValue(moduleSource),
+				ModuleVersion:     types.StringValue("1.0.0"),
+				Refresh:           types.BoolValue(true),
+				WaitTimeout:       types.StringNull(),
+				Variables:         variables,
+				ResolvedVariables: resolvedVariables,
+			}
+			planModel := stateModel
+			planModel.ResolvedVariables = types.ListUnknown(resolvedType)
+			test.mutate(&stateModel, &planModel)
+
+			req := fwresource.UpdateRequest{
+				Plan:  tfsdk.Plan{Schema: schemaResp.Schema},
+				State: tfsdk.State{Schema: schemaResp.Schema},
+			}
+			if diags := req.Plan.Set(ctx, planModel); diags.HasError() {
+				t.Fatalf("setting plan: %v", diags)
+			}
+			if diags := req.State.Set(ctx, stateModel); diags.HasError() {
+				t.Fatalf("setting state: %v", diags)
+			}
+
+			resp := &fwresource.UpdateResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
+			underTest.Update(ctx, req, resp)
+			if test.wantRun {
+				if !resp.Diagnostics.HasError() {
+					t.Fatal("expected Update to start a run, but it skipped it")
+				}
+				return
+			}
+			if test.wantError != "" {
+				if !resp.Diagnostics.HasError() {
+					t.Fatalf("expected a %q error, got none", test.wantError)
+				}
+				if summary := resp.Diagnostics.Errors()[0].Summary(); summary != test.wantError {
+					t.Fatalf("error = %q, want %q", summary, test.wantError)
+				}
+				return
+			}
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+			}
+
+			var got ApplyModuleModel
+			if diags := resp.State.Get(ctx, &got); diags.HasError() {
+				t.Fatalf("reading state: %v", diags)
+			}
+			if !got.WaitTimeout.Equal(planModel.WaitTimeout) {
+				t.Errorf("wait_timeout = %s, want %s", got.WaitTimeout, planModel.WaitTimeout)
+			}
+			if !got.ResolvedVariables.Equal(resolvedVariables) {
+				t.Errorf("resolved_variables = %s, want the prior state's %s", got.ResolvedVariables, resolvedVariables)
+			}
+		})
+	}
+}
+
+// TestApplyModuleUpdateComparesEveryAttribute fails when a new attribute isn't classified, so it can't be missed by Update's skip check.
+func TestApplyModuleUpdateComparesEveryAttribute(t *testing.T) {
+	notCompared := map[string]string{
+		"id":                 "kept from state",
+		"workspace_path":     "requires replace",
+		"workspace_id":       "requires replace",
+		"wait_timeout":       "the attribute the skip is for",
+		"resolved_variables": "computed by the run",
+	}
+	compared := map[string]bool{
+		"module_source":  true,
+		"module_version": true,
+		"refresh":        true,
+		"variables":      true,
+	}
+
+	var resp fwresource.SchemaResponse
+	(&applyModuleResource{}).Schema(t.Context(), fwresource.SchemaRequest{}, &resp)
+
+	for name := range resp.Schema.Attributes {
+		if _, ok := notCompared[name]; ok {
+			continue
+		}
+		if !compared[name] {
+			t.Errorf("attribute %q must be compared in applyModuleResource.Update's skip check, or listed in notCompared", name)
+		}
 	}
 }
