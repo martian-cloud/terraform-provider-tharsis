@@ -58,6 +58,11 @@
   Tharsis v0.111.0 and later, which store a key re-armored. The configured armor is now kept, and
   re-armoring of the same key (for example after an import) is an in-place update rather than a
   replacement.
+- Creating a `tharsis_managed_identity` without `description`, or a `tharsis_terraform_module` or
+  `tharsis_terraform_provider` without `repository_url` or `private`, failed with "Provider produced
+  inconsistent result after apply" and left the resource tainted, so the next apply replaced it.
+  These attributes now default to `""` and `false`, the values Tharsis stores when they are not set,
+  and removing one from the configuration clears it.
 - `tharsis_assigned_managed_identity` was removed from state on every refresh, and re-created on every
   apply, when `managed_identity_id` was a TRN. (#59)
 - `tharsis_workspace_vcs_provider_link` could not be created with `workspace_id`: every apply failed

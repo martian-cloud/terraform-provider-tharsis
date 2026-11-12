@@ -38,7 +38,7 @@ resource "tharsis_terraform_provider" "this" {
 
 - `group_id` (String) The ID or TRN of the parent group.
 - `group_path` (String, Deprecated) The path of the group where this Terraform provider resides.
-- `private` (Boolean) Whether this Terraform provider is hidden from other top-level groups.
+- `private` (Boolean) Whether this Terraform provider is hidden from other top-level groups. Defaults to false.
 - `repository_url` (String) The repository URL where this Terraform provider can be found.
 
 ### Read-Only
