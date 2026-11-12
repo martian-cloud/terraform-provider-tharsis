@@ -7,7 +7,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
@@ -120,12 +122,20 @@ func (t *terraformProviderResource) Schema(_ context.Context, _ resource.SchemaR
 				MarkdownDescription: "The repository URL where this Terraform provider can be found.",
 				Description:         "The repository URL where this Terraform provider can be found.",
 				Optional:            true,
+				// Computed with the API's own default, so leaving it unset stores "" rather than
+				// failing the consistency check when Tharsis returns "".
+				Computed: true,
+				Default:  stringdefault.StaticString(""),
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"private": schema.BoolAttribute{
-				MarkdownDescription: "Whether this Terraform provider is hidden from other top-level groups.",
-				Description:         "Whether this Terraform provider is hidden from other top-level groups.",
+				MarkdownDescription: "Whether this Terraform provider is hidden from other top-level groups. Defaults to false.",
+				Description:         "Whether this Terraform provider is hidden from other top-level groups. Defaults to false.",
 				Optional:            true,
+				// Computed with false, which is what an unset value already sends to Tharsis, so
+				// leaving it unset stores false rather than failing the consistency check.
+				Computed: true,
+				Default:  booldefault.StaticBool(false),
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"last_updated": schema.StringAttribute{

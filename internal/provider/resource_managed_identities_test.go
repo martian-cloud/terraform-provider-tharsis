@@ -496,3 +496,33 @@ resource "tharsis_managed_identity" "tmi_kubernetes" {
 
 	`, createRootGroup(testGroupPath, "this is a test root group"), createType, createName, updatedDescription, updatedAudience)
 }
+
+// TestManagedIdentityUnsetDescription leaves description unset. Tharsis returns "" for it, which
+// once failed the apply with "Provider produced inconsistent result after apply" and left
+// the resource tainted. It then sets it and removes it again: removing a value from the
+// configuration must clear it in Tharsis. resource.Test re-plans after each step, so this
+// also proves there is no perpetual diff.
+func TestManagedIdentityUnsetDescription(t *testing.T) {
+	const addr = "tharsis_managed_identity.tmi_no_desc"
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: testManagedIdentityUnsetDescriptionConfiguration(""), Check: resource.TestCheckResourceAttr(addr, "description", "")},
+			{Config: testManagedIdentityUnsetDescriptionConfiguration(`description = "set"`), Check: resource.TestCheckResourceAttr(addr, "description", "set")},
+			{Config: testManagedIdentityUnsetDescriptionConfiguration(""), Check: resource.TestCheckResourceAttr(addr, "description", "")},
+		},
+	})
+}
+
+func testManagedIdentityUnsetDescriptionConfiguration(description string) string {
+	return createRootGroup(testGroupPath, "this is a test root group") + fmt.Sprintf(`
+
+resource "tharsis_managed_identity" "tmi_no_desc" {
+	type       = "%s"
+	name       = "tmi_no_desc"
+	group_path = tharsis_group.root-group.full_path
+	aws_role   = "some-iam-role"
+	%s
+}
+`, pb.ManagedIdentityType_aws_federated.String(), description)
+}

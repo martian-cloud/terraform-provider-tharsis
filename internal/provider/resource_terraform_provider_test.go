@@ -115,3 +115,41 @@ resource "tharsis_terraform_provider" "ttp" {
 }
 `, createRootGroup(testGroupPath, "this is a test root group"), createName, updateRepositoryURL, updatePrivate)
 }
+
+// TestTerraformProviderUnsetOptional leaves repository_url and private unset. Tharsis returns "" and false for them, which
+// once failed the apply with "Provider produced inconsistent result after apply" and left
+// the resource tainted. It then sets them and removes them again: removing a value from the
+// configuration must clear it in Tharsis. resource.Test re-plans after each step, so this
+// also proves there is no perpetual diff.
+func TestTerraformProviderUnsetOptional(t *testing.T) {
+	const addr = "tharsis_terraform_provider.ttp_unset"
+	unset := resource.ComposeAggregateTestCheckFunc(
+		resource.TestCheckResourceAttr(addr, "repository_url", ""),
+		resource.TestCheckResourceAttr(addr, "private", "false"),
+	)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: testTerraformProviderUnsetOptionalConfiguration(""), Check: unset},
+			{
+				Config: testTerraformProviderUnsetOptionalConfiguration("repository_url = \"https://example.invalid/provider\"\n\tprivate        = true"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(addr, "repository_url", "https://example.invalid/provider"),
+					resource.TestCheckResourceAttr(addr, "private", "true"),
+				),
+			},
+			{Config: testTerraformProviderUnsetOptionalConfiguration(""), Check: unset},
+		},
+	})
+}
+
+func testTerraformProviderUnsetOptionalConfiguration(extra string) string {
+	return createRootGroup(testGroupPath, "this is a test root group") + fmt.Sprintf(`
+
+resource "tharsis_terraform_provider" "ttp_unset" {
+	name       = "ttp-unset"
+	group_path = tharsis_group.root-group.full_path
+	%s
+}
+`, extra)
+}
