@@ -26,6 +26,10 @@
   be IDs. (#59)
 - The `kubernetes_federated` managed identity type, with an `audience` attribute that must match the
   client ID of the cluster's OIDC identity provider configuration. (#59)
+- `tharsis_apply_module` now has an optional `wait_timeout` attribute (default `1h`) that sets how
+  long to wait for a run blocked on plan approval or a policy gate. The provider never prompts for
+  input, so a blocked run fails with an explanatory error once the timeout elapses. Changing only
+  `wait_timeout` updates state without starting a run.
 
 ### Changed
 
@@ -46,9 +50,15 @@
   replaces the resource. (#59)
 - `tharsis_workspace_vcs_provider_link`'s deprecated `workspace_path` is now computed, so it is
   filled in when the link is configured by `workspace_id`. (#59)
+- `tharsis_apply_module` now follows runs through the shared `tharsis-api` run follower, and logs
+  stage progress at debug level (log contents only at trace level).
 
 ### Fixed
 
+- `tharsis_gpg_key` failed on create with "Provider produced inconsistent result after apply" against
+  Tharsis v0.113.0 and later, which store a key re-armored. The configured armor is now kept, and
+  re-armoring of the same key (for example after an import) is an in-place update rather than a
+  replacement.
 - Creating a `tharsis_managed_identity` without `description`, or a `tharsis_terraform_module` or
   `tharsis_terraform_provider` without `repository_url` or `private`, failed with "Provider produced
   inconsistent result after apply" and left the resource tainted, so the next apply replaced it.

@@ -1,9 +1,14 @@
 package provider
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -91,7 +96,9 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Description:         "The ASCII armored key.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.RequiresReplaceIf(requireReplaceIfDifferentKey,
+						"Changing to a different key replaces the GPG key.",
+						"Changing to a different key replaces the GPG key."),
 				},
 			},
 			"fingerprint": schema.StringAttribute{
@@ -189,9 +196,12 @@ func (t *gpgKeyResource) Create(ctx context.Context,
 
 	// Map the response body to the schema and update the plan with the computed attribute values.
 	plannedGroupID := gpgKey.GroupID
+	plannedArmor := gpgKey.ASCIIArmor
 	t.copyGPGKey(created, &gpgKey)
 	// The API acted on the planned reference, so the planned form is kept.
 	gpgKey.GroupID = keepPlanned(plannedGroupID, created.GroupId)
+	// Tharsis returns the key re-armored, so keep the configured text of the same key.
+	gpgKey.ASCIIArmor = plannedArmor
 
 	// Must use time value from SDK/API.  Using time.Now() is not reliable.
 	gpgKey.LastUpdated = types.StringValue(created.Metadata.UpdatedAt.AsTime().Format(time.RFC850))
@@ -228,7 +238,12 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 	}
 
 	// Copy the from-Tharsis struct to the state.
+	storedArmor := state.ASCIIArmor
 	t.copyGPGKey(found, &state)
+	// A key can't change in Tharsis, so stored armor still holds it; an import has none and takes Tharsis's.
+	if !storedArmor.IsNull() {
+		state.ASCIIArmor = storedArmor
+	}
 	// Keep the stored group_id form while it still names the group; otherwise take the API's
 	// Global ID so a change made outside Terraform shows as drift.
 	state.GroupID = keepOrRefresh(state.GroupID, found.GroupId,
@@ -245,14 +260,13 @@ func (t *gpgKeyResource) Read(ctx context.Context,
 }
 
 // Update is reached only when group_id switches between the group's Global ID and its
-// TRN: every other input forces a replacement, and so does group_id moving to a
-// different group. Nothing changes in Tharsis, so only the stored form is updated.
+// TRN, or ascii_armor switches to another armoring of the same key: every other input forces
+// a replacement, and so does moving to a different group or key. Nothing changes in Tharsis,
+// so only the stored forms are updated.
 func (t *gpgKeyResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	// Every other input forces a replacement, so Update is reached only for a switch between
-	// an object's Global ID and its TRN, which changes nothing in Tharsis. Store the planned
-	// form and keep everything else as it was; an unknown planned value keeps the stored one.
+	// Store the planned forms and keep everything else as it was; an unknown planned value keeps the stored one.
 	var state, plan GPGKeyModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -261,6 +275,9 @@ func (t *gpgKeyResource) Update(ctx context.Context,
 	}
 	if isKnownValue(plan.GroupID) {
 		state.GroupID = plan.GroupID
+	}
+	if isKnownValue(plan.ASCIIArmor) {
+		state.ASCIIArmor = plan.ASCIIArmor
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -324,4 +341,75 @@ func (t *gpgKeyResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
 	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
+}
+
+// requireReplaceIfDifferentKey replaces the GPG key unless the planned and stored armor hold the same key.
+func requireReplaceIfDifferentKey(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+	resp.RequiresReplace = !sameGPGKey(req.PlanValue.ValueString(), req.StateValue.ValueString())
+}
+
+// sameGPGKey reports whether two armored public key blocks hold the same key, compared as Tharsis stores it: re-serialized.
+func sameGPGKey(armoredA, armoredB string) bool {
+	keyA, err := serializeGPGKey(armoredA)
+	if err != nil {
+		return false
+	}
+
+	keyB, err := serializeGPGKey(armoredB)
+	if err != nil {
+		return false
+	}
+
+	return bytes.Equal(keyA, keyB)
+}
+
+// serializeGPGKey returns the packets of an armored public key, rejecting what Tharsis rejects so that input never counts as the same key.
+func serializeGPGKey(armored string) ([]byte, error) {
+	if strings.Count(armored, "-----BEGIN ") != 1 {
+		return nil, fmt.Errorf("expected exactly one armor block")
+	}
+
+	block, err := armor.Decode(strings.NewReader(armored))
+	if err != nil {
+		return nil, err
+	}
+
+	if block.Type != openpgp.PublicKeyType {
+		return nil, fmt.Errorf("expected armor type %s, got %s", openpgp.PublicKeyType, block.Type)
+	}
+
+	entities, err := openpgp.ReadKeyRing(block.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(entities) != 1 {
+		return nil, fmt.Errorf("expected one key, got %d", len(entities))
+	}
+
+	if hasPrivateKey(entities[0]) {
+		return nil, fmt.Errorf("armor contains private key material")
+	}
+
+	var buf bytes.Buffer
+	if err := entities[0].Serialize(&buf); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+// hasPrivateKey reports whether the key or any of its subkeys includes private key material.
+func hasPrivateKey(entity *openpgp.Entity) bool {
+	if entity.PrivateKey != nil {
+		return true
+	}
+
+	for _, subkey := range entity.Subkeys {
+		if subkey.PrivateKey != nil {
+			return true
+		}
+	}
+
+	return false
 }

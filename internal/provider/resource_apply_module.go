@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -19,8 +20,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
 	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
+	runpkg "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/run"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
-	"google.golang.org/grpc"
 )
 
 type createRunInput struct {
@@ -41,10 +42,6 @@ type appliedModuleInfo struct {
 	wasSuccessfulDestroy bool
 	wasManualUpdate      bool
 }
-
-const (
-	jobCompletionPollInterval = 5 * time.Second
-)
 
 // RunVariableModel is used in apply modules to set Terraform and environment variables.
 type RunVariableModel struct {
@@ -102,6 +99,7 @@ type ApplyModuleModel struct {
 	ModuleSource      types.String        `tfsdk:"module_source"`
 	ModuleVersion     types.String        `tfsdk:"module_version"`
 	Refresh           types.Bool          `tfsdk:"refresh"`
+	WaitTimeout       types.String        `tfsdk:"wait_timeout"`
 	Variables         basetypes.ListValue `tfsdk:"variables"`
 	ResolvedVariables basetypes.ListValue `tfsdk:"resolved_variables"`
 }
@@ -186,6 +184,15 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Optional:            true,
 				Computed:            true,
 				Default:             booldefault.StaticBool(true),
+			},
+			"wait_timeout": schema.StringAttribute{
+				MarkdownDescription: "How long to wait for a run blocked on plan approval or a policy gate to be approved, " +
+					"overridden or discarded in the Tharsis UI, as a Go duration string (e.g. \"30m\", \"2h\"). " +
+					"The provider cannot approve a run itself, so it waits. Defaults to \"1h\".",
+				Description: "How long to wait for a run blocked on plan approval or a policy gate to be approved, " +
+					"overridden or discarded in the Tharsis UI, as a Go duration string (e.g. \"30m\", \"2h\"). " +
+					"The provider cannot approve a run itself, so it waits. Defaults to \"1h\".",
+				Optional: true,
 			},
 			"variables": schema.ListNestedAttribute{
 				MarkdownDescription: "Optional list of variables for the run in the target workspace.",
@@ -331,6 +338,27 @@ func (t *applyModuleResource) Update(ctx context.Context,
 	var plan ApplyModuleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var state ApplyModuleModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// wait_timeout only changes how a run is followed, so changing it alone shouldn't re-apply the module.
+	if plan.ModuleSource.Equal(state.ModuleSource) &&
+		plan.ModuleVersion.Equal(state.ModuleVersion) &&
+		plan.Refresh.Equal(state.Refresh) &&
+		plan.Variables.Equal(state.Variables) {
+		if _, err := parseWaitTimeout(plan.WaitTimeout); err != nil {
+			resp.Diagnostics.AddError("Invalid wait_timeout", err.Error())
+			return
+		}
+
+		plan.ResolvedVariables = state.ResolvedVariables
+		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 		return
 	}
 
@@ -486,6 +514,14 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		return nil, diags
 	}
 
+	// Parse the wait timeout, which bounds how long we wait for a run blocked on a decision. Done
+	// before creating the run so a bad value doesn't leave an unfollowed auto-apply run behind.
+	waitTimeout, err := parseWaitTimeout(input.model.WaitTimeout)
+	if err != nil {
+		diags.AddError("Invalid wait_timeout", err.Error())
+		return nil, diags
+	}
+
 	createdRun, err := t.client.RunsClient.CreateRun(ctx, &pb.CreateRunRequest{
 		WorkspaceId:   workspaceID,
 		IsDestroy:     input.doDestroy,
@@ -493,274 +529,104 @@ func (t *applyModuleResource) createRun(ctx context.Context, input *createRunInp
 		ModuleVersion: moduleVersion,
 		Refresh:       new(input.model.Refresh.ValueBool()),
 		Variables:     vars,
+		// Auto-apply preserves this resource's long-standing behavior of applying the plan without a
+		// separate approval step. The provider can't approve a plan interactively, and terraform
+		// apply is itself the user's approval. Policy gates still block and are waited on below.
+		AutoApply: new(true),
 	})
 	if err != nil {
 		diags.AddError("Failed to create run", err.Error())
 		return nil, diags
 	}
 
-	// Wait until the plan job has been created before requesting it, to avoid a race
-	// where the job does not yet exist. The plan status is the authoritative signal.
-	if err = t.waitForRunJob(ctx, createdRun.WorkspaceId, createdRun.Metadata.Id, func(ctx context.Context) (string, error) {
-		plan, pErr := t.client.RunsClient.GetPlanByID(ctx, &pb.GetPlanByIDRequest{Id: createdRun.PlanId})
-		if pErr != nil {
-			return "", pErr
-		}
-		return enumToDomain(plan.Status), nil
-	}, planJobReady); err != nil {
-		diags.AddError("Failed waiting for plan job", err.Error())
-		return nil, diags
-	}
-
-	// Wait for plan job.
-	planJob, err := t.client.JobsClient.GetLatestJobForPlan(ctx, &pb.GetLatestJobForPlanRequest{
-		PlanId: createdRun.PlanId,
+	// Follow the run through its stages: plan, policy checks and apply. The provider can't make
+	// decisions, so it leaves a nil Decider, which makes the follower wait for a blocked run to be
+	// approved, overridden or discarded in the Tharsis UI, bounded by waitTimeout. Interrupts leave
+	// the run going rather than canceling it mid-apply; Terraform cancellation shouldn't tear down
+	// infrastructure changes already underway.
+	outcome, err := runpkg.Follow(ctx, t.client, createdRun, &runpkg.Options{
+		Observer:    &runObserver{ctx: ctx},
+		WaitTimeout: waitTimeout,
+		// Run progress is surfaced through the observer to tflog; the follower's own debug logger
+		// isn't needed, so discard it.
+		Logger: hclog.NewNullLogger(),
 	})
 	if err != nil {
-		diags.AddError("Failed to get plan job", err.Error())
+		diags.AddError("Failed to follow run", err.Error())
 		return nil, diags
 	}
 
-	if err = t.waitForJobCompletion(ctx, planJob.Metadata.Id); err != nil {
-		diags.AddError("Failed to wait for plan job completion", err.Error())
-		return nil, diags
-	}
-
-	// Check plan status.
-	plan, err := t.client.RunsClient.GetPlanByID(ctx, &pb.GetPlanByIDRequest{Id: createdRun.PlanId})
-	if err != nil {
-		diags.AddError("Failed to get plan", err.Error())
-		return nil, diags
-	}
-
-	switch enumToDomain(plan.Status) {
-	case "canceled":
-		diags.AddError("Plan was canceled", enumToDomain(plan.Status))
-		return nil, diags
-	case "errored":
-		msg := "Plan failed with unknown error"
-		if plan.ErrorMessage != nil {
-			msg = *plan.ErrorMessage
+	switch outcome.Kind {
+	case runpkg.OutcomeCompleted:
+		// The run applied, or finished planning with no changes.
+	case runpkg.OutcomeDetached:
+		if outcome.TimedOut {
+			diags.AddError("Timed out waiting for the run",
+				fmt.Sprintf("Run %q is still waiting on a decision after %s; approve, override or "+
+					"discard it in the Tharsis UI, or raise wait_timeout.", createdRun.Metadata.Id, waitTimeout))
+		} else {
+			diags.AddError("Run is waiting on a decision",
+				fmt.Sprintf("Run %q is waiting on a decision that must be made in the Tharsis UI.", createdRun.Metadata.Id))
 		}
-		diags.AddError("Plan failed", msg)
+		return nil, diags
+	default:
+		// OutcomeFailed, OutcomeDiscarded or OutcomeInterrupted: the run didn't apply.
+		diags.AddError("Run did not complete", runFailureMessage(createdRun.Metadata.Id, outcome))
 		return nil, diags
 	}
 
-	// Capture the run ID.
-	runID := createdRun.Metadata.Id
+	finishedRun := outcome.Run
 
 	// Get the resolved variables from the run.
-	resolvedPlanVarsResp, err := t.client.RunsClient.GetRunVariables(ctx, &pb.GetRunVariablesRequest{Id: runID})
+	resolvedVarsResp, err := t.client.RunsClient.GetRunVariables(ctx, &pb.GetRunVariablesRequest{Id: createdRun.Metadata.Id})
 	if err != nil {
 		diags.AddError("Failed to get resolved variables", err.Error())
 		return nil, diags
 	}
 
-	if enumToDomain(createdRun.Status) == "planned_and_finished" {
-		result := &createRunOutput{
-			resolvedVariables: resolvedPlanVarsResp.Variables,
-		}
-
-		if createdRun.ModuleVersion != nil {
-			result.moduleVersion = *createdRun.ModuleVersion
-		}
-		return result, diags
+	result := &createRunOutput{resolvedVariables: resolvedVarsResp.Variables}
+	// Match the original behavior: record the module version when present, and tolerate its absence
+	// rather than erroring. A successful module run carries a version, so the fallbacks are belt-and-
+	// suspenders; the old no-changes path left it empty on nil, so do the same here.
+	if finishedRun.ModuleVersion != nil {
+		result.moduleVersion = *finishedRun.ModuleVersion
+	} else if createdRun.ModuleVersion != nil {
+		result.moduleVersion = *createdRun.ModuleVersion
 	}
-
-	// Do the apply run.
-	appliedRun, err := t.client.RunsClient.ApplyRun(ctx, &pb.ApplyRunRequest{
-		RunId: runID,
-	})
-	if err != nil {
-		diags.AddError("Failed to apply a run", err.Error())
-		return nil, diags
-	}
-
-	// Wait until the apply job has been created before requesting it, to avoid a race
-	// where the job does not yet exist. The apply status is the authoritative signal.
-	if err = t.waitForRunJob(ctx, appliedRun.WorkspaceId, runID, func(ctx context.Context) (string, error) {
-		apply, aErr := t.client.RunsClient.GetApplyByID(ctx, &pb.GetApplyByIDRequest{Id: appliedRun.ApplyId})
-		if aErr != nil {
-			return "", aErr
-		}
-		return enumToDomain(apply.Status), nil
-	}, applyJobReady); err != nil {
-		diags.AddError("Failed waiting for apply job", err.Error())
-		return nil, diags
-	}
-
-	// Wait for apply job.
-	applyJob, err := t.client.JobsClient.GetLatestJobForApply(ctx, &pb.GetLatestJobForApplyRequest{
-		ApplyId: appliedRun.ApplyId,
-	})
-	if err != nil {
-		diags.AddError("Failed to get apply job", err.Error())
-		return nil, diags
-	}
-
-	if err = t.waitForJobCompletion(ctx, applyJob.Metadata.Id); err != nil {
-		diags.AddError("Failed to wait for apply job completion", err.Error())
-		return nil, diags
-	}
-
-	// Check apply status.
-	apply, err := t.client.RunsClient.GetApplyByID(ctx, &pb.GetApplyByIDRequest{Id: appliedRun.ApplyId})
-	if err != nil {
-		diags.AddError("Failed to get apply", err.Error())
-		return nil, diags
-	}
-
-	switch enumToDomain(apply.Status) {
-	case "canceled":
-		diags.AddError("Apply was canceled", enumToDomain(apply.Status))
-		return nil, diags
-	case "errored":
-		msg := "Apply failed with unknown error"
-		if apply.ErrorMessage != nil {
-			msg = *apply.ErrorMessage
-		}
-		diags.AddError("Apply failed", msg)
-		return nil, diags
-	}
-
-	// In case of a rainy day, make sure the ModuleSource and ModuleVersion *string aren't nil.
-	if createdRun.ModuleSource == nil {
-		diags.AddError("Finished run's module source is nil.", "")
-		return nil, diags
-	}
-
-	if createdRun.ModuleVersion == nil {
-		diags.AddError("Finished run's module version is nil.", "")
-		return nil, diags
-	}
-
-	// Get the resolved variables from the run.
-	resolvedApplyVarsResp, err := t.client.RunsClient.GetRunVariables(ctx, &pb.GetRunVariablesRequest{Id: runID})
-	if err != nil {
-		diags.AddError("Failed to get resolved variables", err.Error())
-		return nil, diags
-	}
-
-	// The module version was checked above, so it's safe to dereference.
-	// These diags may include those from the inner run if it errored out.
-	return &createRunOutput{
-		resolvedVariables: resolvedApplyVarsResp.Variables,
-		moduleVersion:     *createdRun.ModuleVersion,
-	}, diags
+	return result, diags
 }
 
-// waitForRunJob blocks until ready reports the plan/apply job has been created. It
-// checks the current status first, then subscribes to run events as a wake-up signal,
-// re-checking the authoritative plan/apply status (getStatus) on each event. It returns
-// an error if the plan/apply reaches a final state before a job becomes available, or
-// if the run event stream cannot be established or closes first.
-func (t *applyModuleResource) waitForRunJob(
-	ctx context.Context,
-	workspaceID, runID string,
-	getStatus func(context.Context) (string, error),
-	ready func(status string) (bool, error),
-) error {
-	// Check current state first; the subscription does not replay current state, so a
-	// transition that already happened could otherwise be missed.
-	status, err := getStatus(ctx)
+// parseWaitTimeout parses the wait_timeout attribute, defaulting to the follower's default when
+// unset or empty.
+func parseWaitTimeout(v types.String) (time.Duration, error) {
+	if v.IsNull() || v.IsUnknown() || v.ValueString() == "" {
+		return runpkg.DefaultWaitTimeout, nil
+	}
+	d, err := time.ParseDuration(v.ValueString())
 	if err != nil {
-		return err
+		return 0, fmt.Errorf("wait_timeout %q is not a valid duration: %w", v.ValueString(), err)
 	}
-	if done, rErr := ready(status); rErr != nil || done {
-		return rErr
+	if d <= 0 {
+		return 0, fmt.Errorf("wait_timeout must be positive, got %q", v.ValueString())
 	}
-
-	// Subscribe to run events as wake-ups, re-checking the authoritative status on each.
-	// StreamWithReconnect rides through server drains; it tears the stream down on return.
-	err = client.StreamWithReconnect(ctx,
-		func(streamCtx context.Context) (grpc.ServerStreamingClient[pb.RunEvent], error) {
-			return t.client.RunsClient.SubscribeToRunEvents(streamCtx, &pb.SubscribeToRunEventsRequest{
-				WorkspaceId: &workspaceID,
-				RunId:       &runID,
-			})
-		},
-		func(_ *pb.RunEvent) (bool, error) {
-			status, err := getStatus(ctx)
-			if err != nil {
-				return false, err
-			}
-
-			return ready(status)
-		},
-	)
-	if err != nil {
-		return err
-	}
-
-	// The handler reported ready, or the stream ended; a final check decides which, since
-	// events during a reconnect gap aren't replayed.
-	status, err = getStatus(ctx)
-	if err != nil {
-		return err
-	}
-	if done, rErr := ready(status); rErr != nil || done {
-		return rErr
-	}
-
-	return fmt.Errorf("run event stream closed before a job was available")
+	return d, nil
 }
 
-// planJobReady reports whether the plan's job has been created, based on the plan
-// status (the lowercased proto status values sent on the wire). A job exists once the
-// plan reaches queued and through its terminal states. A plan that reaches a final
-// state without a job (canceled) is an error.
-func planJobReady(status string) (bool, error) {
-	switch status {
-	case "queued", "running", "finished", "errored":
-		// A job exists.
-		return true, nil
-	case "canceled":
-		return false, fmt.Errorf("plan reached final state before a job was available; status: %s", status)
-	default:
-		// pending: job not created yet.
-		return false, nil
+// runFailureMessage explains why a run didn't complete, with the plan or apply error when the run
+// has one, or the stage it failed at otherwise.
+func runFailureMessage(runID string, outcome *runpkg.Outcome) string {
+	msg := fmt.Sprintf("Run %q ended with status %s", runID, outcome.Run.Status.String())
+	if errMsg := outcome.Run.GetApply().GetErrorMessage(); errMsg != "" {
+		return fmt.Sprintf("%s: apply failed: %s", msg, errMsg)
 	}
-}
-
-// applyJobReady reports whether the apply's job has been created, based on the apply
-// status. A job exists once the apply reaches queued and through its terminal states.
-// An apply that reaches a final state without a job (canceled) is an error.
-func applyJobReady(status string) (bool, error) {
-	switch status {
-	case "queued", "running", "finished", "errored":
-		// A job exists.
-		return true, nil
-	case "canceled":
-		return false, fmt.Errorf("apply reached final state before a job was available; status: %s", status)
-	default:
-		// created, pending: job not created yet.
-		return false, nil
+	if errMsg := outcome.Run.GetPlan().GetErrorMessage(); errMsg != "" {
+		return fmt.Sprintf("%s: plan failed: %s", msg, errMsg)
 	}
-}
-
-func (t *applyModuleResource) waitForJobCompletion(ctx context.Context, jobID string) error {
-	if jobID == "" {
-		return fmt.Errorf("empty job ID")
+	if outcome.Stage.Name != "" {
+		return fmt.Sprintf("%s during %s.", msg, outcome.Stage.Name)
 	}
 
-	// Poll until job has finished or the context expires.
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("context expired while waiting for job ID %s", jobID)
-		case <-time.After(jobCompletionPollInterval):
-			job, err := t.client.JobsClient.GetJobByID(ctx, &pb.GetJobByIDRequest{
-				Id: jobID,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to get job ID %s", jobID)
-			}
-
-			if job.Status == pb.JobStatus_finished {
-				return nil
-			}
-		}
-	}
+	return msg + "."
 }
 
 // getCurrentApplied returns an ApplyModuleModel reflecting what is currently applied.

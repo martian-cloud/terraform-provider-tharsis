@@ -1,6 +1,6 @@
 module github.com/martian-cloud/terraform-provider-tharsis
 
-go 1.26.2
+go 1.26.10
 
 require (
 	github.com/google/uuid v1.6.0
@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.38.1
 	github.com/hashicorp/terraform-svchost v0.2.0
 	github.com/zclconf/go-cty v1.18.1
-	gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api v0.106.0
+	gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api v0.113.0
 	google.golang.org/grpc v1.83.1
 )
 
@@ -21,7 +21,7 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
-	github.com/ProtonMail/go-crypto v1.4.1 // indirect
+	github.com/ProtonMail/go-crypto v1.5.2
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-versions v1.0.2 // indirect
@@ -41,7 +41,7 @@ require (
 	github.com/hashicorp/go-checkpoint v0.5.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-cty v1.5.0 // indirect
-	github.com/hashicorp/go-hclog v1.6.3 // indirect
+	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-plugin v1.7.0 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
