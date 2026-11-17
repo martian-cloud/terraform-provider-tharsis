@@ -362,6 +362,30 @@ func TestRunFailureMessage(t *testing.T) {
 			want: `Run "run-1" ended with status ERRORED during Post-plan stage.`,
 		},
 		{
+			name: "apply error with Terraform's colour codes",
+			outcome: &runpkg.Outcome{
+				Run: &pb.Run{
+					Status: pb.RunStatus_ERRORED,
+					Plan:   &pb.Plan{},
+					Apply:  &pb.Apply{ErrorMessage: new("\x1b[31m╷\x1b[0m\x1b[0m\n\x1b[31m│\x1b[0m \x1b[0m\x1b[1m\x1b[31mError: \x1b[0m\x1b[0m\x1b[1mlocal-exec provisioner error\x1b[0m")},
+				},
+				Stage: runpkg.StageRef{Name: "Apply", Kind: runpkg.StageApply},
+			},
+			want: "Run \"run-1\" ended with status ERRORED: apply failed: ╷\n│ Error: local-exec provisioner error",
+		},
+		{
+			name: "plan error with Terraform's colour codes",
+			outcome: &runpkg.Outcome{
+				Run: &pb.Run{
+					Status: pb.RunStatus_ERRORED,
+					Plan:   &pb.Plan{ErrorMessage: new("\x1b[31mError: \x1b[0mInvalid reference")},
+					Apply:  &pb.Apply{},
+				},
+				Stage: runpkg.StageRef{Name: "Plan", Kind: runpkg.StagePlan},
+			},
+			want: `Run "run-1" ended with status ERRORED: plan failed: Error: Invalid reference`,
+		},
+		{
 			name: "no plan, apply or stage",
 			outcome: &runpkg.Outcome{
 				Run: &pb.Run{Status: pb.RunStatus_CANCELED},

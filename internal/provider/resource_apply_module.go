@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -679,10 +680,10 @@ func parseWaitTimeout(v types.String) (time.Duration, error) {
 // has one, or the stage it failed at otherwise.
 func runFailureMessage(runID string, outcome *runpkg.Outcome) string {
 	msg := fmt.Sprintf("Run %q ended with status %s", runID, outcome.Run.Status.String())
-	if errMsg := outcome.Run.GetApply().GetErrorMessage(); errMsg != "" {
+	if errMsg := stripANSI(outcome.Run.GetApply().GetErrorMessage()); errMsg != "" {
 		return fmt.Sprintf("%s: apply failed: %s", msg, errMsg)
 	}
-	if errMsg := outcome.Run.GetPlan().GetErrorMessage(); errMsg != "" {
+	if errMsg := stripANSI(outcome.Run.GetPlan().GetErrorMessage()); errMsg != "" {
 		return fmt.Sprintf("%s: plan failed: %s", msg, errMsg)
 	}
 	if outcome.Stage.Name != "" {
@@ -690,6 +691,16 @@ func runFailureMessage(runID string, outcome *runpkg.Outcome) string {
 	}
 
 	return msg + "."
+}
+
+// ansiEscape matches ANSI CSI escape sequences, such as the colour codes ("\x1b[31m", "\x1b[0m")
+// in a plan or apply error: Tharsis's job executor runs Terraform with colour on and reports its
+// error output as it is.
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
+
+// stripANSI removes ANSI escape sequences, so an error shown by Terraform reads as plain text.
+func stripANSI(s string) string {
+	return ansiEscape.ReplaceAllString(s, "")
 }
 
 // getCurrentApplied returns an ApplyModuleModel reflecting what is currently applied.
