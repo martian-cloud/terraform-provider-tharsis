@@ -73,6 +73,8 @@
 - `tharsis_managed_identity_alias` was replaced when its source switched between
   `alias_source_path` and `alias_source_id` (or its TRN) of the same managed identity. That switch
   is now an in-place update; a different source still replaces the alias.
+- Removing `verify_state_lineage` from a `tharsis_managed_identity_access_rule` configuration kept
+  the old value in Tharsis. An unset `verify_state_lineage` now means `false`.
 - `tharsis_gpg_key` failed on create with "Provider produced inconsistent result after apply" against
   Tharsis v0.113.0 and later, which store a key re-armored. The configured armor is now kept, and
   re-armoring of the same key (for example after an import) is an in-place update rather than a
