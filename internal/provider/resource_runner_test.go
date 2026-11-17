@@ -1,11 +1,16 @@
 package provider
 
 import (
+	"context"
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
@@ -194,4 +199,78 @@ resource "tharsis_runner" "tr_unset" {
 	%s
 }
 `, extra)
+}
+
+// TestRunnerValidateConfig checks the plan-time rule: no tags (unset or empty) and
+// run_untagged_jobs not true is an error; a value unknown until apply is not checked.
+func TestRunnerValidateConfig(t *testing.T) {
+	ctx := context.Background()
+	r := &runnerResource{}
+	var sresp fwresource.SchemaResponse
+	r.Schema(ctx, fwresource.SchemaRequest{}, &sresp)
+	objType := sresp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	tagsType := tftypes.Set{ElementType: tftypes.String}
+
+	set := func(v ...string) tftypes.Value {
+		vals := make([]tftypes.Value, len(v))
+		for i, s := range v {
+			vals[i] = tftypes.NewValue(tftypes.String, s)
+		}
+		return tftypes.NewValue(tagsType, vals)
+	}
+	null := tftypes.NewValue(tagsType, nil)
+	unknownTags := tftypes.NewValue(tagsType, tftypes.UnknownValue)
+	b := func(v bool) tftypes.Value { return tftypes.NewValue(tftypes.Bool, v) }
+	nullBool := tftypes.NewValue(tftypes.Bool, nil)
+	unknownBool := tftypes.NewValue(tftypes.Bool, tftypes.UnknownValue)
+
+	for _, tc := range []struct {
+		name      string
+		tags, rut tftypes.Value
+		wantError bool
+	}{
+		{"both unset", null, nullBool, true},
+		{"empty tags, run_untagged_jobs false", set(), b(false), true},
+		{"empty tags, run_untagged_jobs true", set(), b(true), false},
+		{"unset tags, run_untagged_jobs true", null, b(true), false},
+		{"a tag, run_untagged_jobs unset", set("a"), nullBool, false},
+		{"tags unknown", unknownTags, nullBool, false},
+		{"run_untagged_jobs unknown", null, unknownBool, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			vals := map[string]tftypes.Value{}
+			for name, at := range objType.AttributeTypes {
+				vals[name] = tftypes.NewValue(at, nil)
+			}
+			vals["name"] = tftypes.NewValue(tftypes.String, "r")
+			vals["group_id"] = tftypes.NewValue(tftypes.String, "trn:group:g")
+			vals["tags"] = tc.tags
+			vals["run_untagged_jobs"] = tc.rut
+			req := fwresource.ValidateConfigRequest{Config: tfsdk.Config{Schema: sresp.Schema, Raw: tftypes.NewValue(objType, vals)}}
+			resp := &fwresource.ValidateConfigResponse{}
+			r.ValidateConfig(ctx, req, resp)
+			if got := resp.Diagnostics.HasError(); got != tc.wantError {
+				t.Fatalf("HasError = %v, want %v: %v", got, tc.wantError, resp.Diagnostics)
+			}
+		})
+	}
+}
+
+// TestRunnerWithoutTagsFailsAtPlan is QA's case: a runner with only name and group_id must fail
+// at plan with the provider's message, before anything is created.
+func TestRunnerWithoutTagsFailsAtPlan(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: createRootGroup(testGroupPath, "this is a test root group") + `
+
+resource "tharsis_runner" "tr_no_tags" {
+	name     = "tr_no_tags"
+	group_id = tharsis_group.root-group.id
+}
+`,
+			PlanOnly:    true,
+			ExpectError: regexp.MustCompile(`Runner has no way to claim jobs`),
+		}},
+	})
 }
