@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -22,6 +23,8 @@ import (
 	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
 	runpkg "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/run"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type createRunInput struct {
@@ -106,8 +109,9 @@ type ApplyModuleModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource              = (*applyModuleResource)(nil)
-	_ resource.ResourceWithConfigure = (*applyModuleResource)(nil)
+	_ resource.Resource               = (*applyModuleResource)(nil)
+	_ resource.ResourceWithConfigure  = (*applyModuleResource)(nil)
+	_ resource.ResourceWithModifyPlan = (*applyModuleResource)(nil)
 
 	// This resource is deliberately not importable. It implements
 	// ResourceWithImportState only so that an import attempt returns an
@@ -152,17 +156,13 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description:         "The full path of the workspace.",
 				Optional:            true,
 				DeprecationMessage:  "Use workspace_id instead. This field will be removed in a future version.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				// Replacement is decided in ModifyPlan by the workspace named, not the text.
 			},
 			"workspace_id": schema.StringAttribute{
-				MarkdownDescription: "The ID or TRN of the workspace.",
-				Description:         "The ID or TRN of the workspace.",
+				MarkdownDescription: "The ID or TRN of the workspace. Moving to a different workspace forces replacement; switching between the ID, the TRN or workspace_path of the same workspace is an in-place update that starts no run.",
+				Description:         "The ID or TRN of the workspace. Moving to a different workspace forces replacement; switching between the ID, the TRN or workspace_path of the same workspace is an in-place update that starts no run.",
 				Optional:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				// Replacement is decided in ModifyPlan by the workspace named, not the text.
 			},
 			"module_source": schema.StringAttribute{
 				MarkdownDescription: "The source of the module.",
@@ -473,6 +473,69 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 // workspace and waiting for it to finish. Its id attribute is a UUID this
 // provider manufactures locally. With no stored remote object to look up, there
 // is nothing an import could read back.
+// ModifyPlan forces a replacement only when the run's target workspace changes. workspace_id
+// (an ID or a TRN) and the deprecated workspace_path are three ways to name it, so a switch
+// between them for the same workspace is an in-place update. Update then starts no run, since
+// nothing about the module or its variables changed. When the target can't be compared (a
+// value unknown until apply, or a failed lookup) it replaces, as RequiresReplace did.
+func (t *applyModuleResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	// Nothing to compare on create, nothing to plan on destroy.
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan ApplyModuleModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	idChanged := !plan.WorkspaceID.Equal(state.WorkspaceID)
+	pathChanged := !plan.WorkspacePath.Equal(state.WorkspacePath)
+	if !idChanged && !pathChanged {
+		return
+	}
+
+	if prior, planned := applyModuleWorkspaceRef(state), applyModuleWorkspaceRef(plan); prior != "" && planned != "" {
+		priorGID, priorErr := referenceGID(ctx, t.client, prior, trn.TypeWorkspace)
+		plannedGID, plannedErr := referenceGID(ctx, t.client, planned, trn.TypeWorkspace)
+		if priorErr == nil && plannedErr == nil && priorGID == plannedGID {
+			return
+		}
+		for _, e := range []error{priorErr, plannedErr} {
+			if e != nil && status.Code(e) != codes.NotFound {
+				resp.Diagnostics.AddWarning("Could not compare workspaces",
+					fmt.Sprintf("Planning a replacement because %q and %q could not both be resolved, so it "+
+						"is not known whether they name the same workspace: %s", prior, planned, e))
+				break
+			}
+		}
+	}
+	if idChanged {
+		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("workspace_id"))
+	}
+	if pathChanged {
+		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("workspace_path"))
+	}
+}
+
+// applyModuleWorkspaceRef returns the run's target workspace as createRun picks it:
+// workspace_id when set, else workspace_path as a workspace TRN. It returns "" when neither is
+// a known, non-empty value, which ModifyPlan treats as not comparable.
+func applyModuleWorkspaceRef(m ApplyModuleModel) string {
+	if isKnownValue(m.WorkspaceID) && m.WorkspaceID.ValueString() != "" {
+		return m.WorkspaceID.ValueString()
+	}
+	if m.WorkspaceID.IsUnknown() {
+		return ""
+	}
+	if isKnownValue(m.WorkspacePath) && m.WorkspacePath.ValueString() != "" {
+		return trn.TypeWorkspace.Build(m.WorkspacePath.ValueString())
+	}
+	return ""
+}
+
 func (t *applyModuleResource) ImportState(_ context.Context,
 	_ resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {

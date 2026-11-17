@@ -50,7 +50,7 @@ Only owners and deployers can launch runs.
 - `refresh` (Boolean) Whether to do a Terraform refresh to update the state based on all managed remote objects.
 - `variables` (Attributes List) Optional list of variables for the run in the target workspace. (see [below for nested schema](#nestedatt--variables))
 - `wait_timeout` (String) How long to wait for a run blocked on plan approval or a policy gate to be approved, overridden or discarded in the Tharsis UI, as a Go duration string (e.g. "30m", "2h"). The provider cannot approve a run itself, so it waits. Defaults to "1h".
-- `workspace_id` (String) The ID or TRN of the workspace.
+- `workspace_id` (String) The ID or TRN of the workspace. Moving to a different workspace forces replacement; switching between the ID, the TRN or workspace_path of the same workspace is an in-place update that starts no run.
 - `workspace_path` (String, Deprecated) The full path of the workspace.
 
 ### Read-Only

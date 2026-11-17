@@ -55,6 +55,10 @@
 
 ### Fixed
 
+- `tharsis_apply_module` was replaced, with a destroy run and a new apply run, when `workspace_id`
+  switched between the ID and the TRN of the same workspace, or between `workspace_path` and
+  `workspace_id`. That switch is now an in-place update that starts no run; moving to a different
+  workspace still replaces the resource.
 - `tharsis_gpg_key` failed on create with "Provider produced inconsistent result after apply" against
   Tharsis v0.113.0 and later, which store a key re-armored. The configured armor is now kept, and
   re-armoring of the same key (for example after an import) is an in-place update rather than a
