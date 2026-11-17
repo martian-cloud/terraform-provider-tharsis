@@ -121,9 +121,6 @@ func (t *managedIdentityAliasResource) Schema(_ context.Context, _ resource.Sche
 				Description:         "Full path of the managed identity being aliased.",
 				Optional:            true,
 				DeprecationMessage:  "Use alias_source_id instead. This field will be removed in a future version.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 		},
 	}
@@ -251,15 +248,14 @@ func (t *managedIdentityAliasResource) Read(ctx context.Context,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Update is reached only when group_id or alias_source_id switches between an object's
-// Global ID and its TRN: every other input forces a replacement, and so does either
-// reference moving to a different object. An alias cannot be updated in Tharsis and
-// nothing changes there, so only the stored forms are updated.
+// Update is reached only when group_id or the alias source changes form but still names the
+// same object (a Global ID, a TRN, or for the source alias_source_path): every other input
+// forces a replacement, and so does either reference moving to a different object. An alias
+// cannot be updated in Tharsis and nothing changes there, so only the stored forms are updated.
 func (t *managedIdentityAliasResource) Update(ctx context.Context,
 	req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Every other input forces a replacement, so Update is reached only for a switch between
-	// an object's Global ID and its TRN, which changes nothing in Tharsis. Store the planned
-	// form and keep everything else as it was; an unknown planned value keeps the stored one.
+	// Store the planned forms and keep everything else as it was; an unknown planned value
+	// keeps the stored one.
 	var state, plan ManagedIdentityAliasModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -272,6 +268,7 @@ func (t *managedIdentityAliasResource) Update(ctx context.Context,
 	if isKnownValue(plan.AliasSourceID) {
 		state.AliasSourceID = plan.AliasSourceID
 	}
+	state.AliasSourcePath = plan.AliasSourcePath
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -335,5 +332,42 @@ func (t *managedIdentityAliasResource) ModifyPlan(ctx context.Context,
 	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
 ) {
 	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("group_id"), trn.TypeGroup)
-	requireReplaceIfDifferentObject(ctx, t.client, req, resp, path.Root("alias_source_id"), trn.TypeManagedIdentity)
+	t.planAliasSource(ctx, req, resp)
+}
+
+// planAliasSource replaces the alias when alias_source_id or alias_source_path changes to a
+// different managed identity. Switching between the two, or between an ID and a TRN, of the
+// same identity is an in-place update. The planned side is read from the configuration
+// because alias_source_id is Computed: left unset, it plans as unknown.
+func (t *managedIdentityAliasResource) planAliasSource(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	// Nothing to compare on create, nothing to plan on destroy.
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan, config ManagedIdentityAliasModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var changed []path.Path
+	if !plan.AliasSourceID.Equal(state.AliasSourceID) {
+		changed = append(changed, path.Root("alias_source_id"))
+	}
+	if !plan.AliasSourcePath.Equal(state.AliasSourcePath) {
+		changed = append(changed, path.Root("alias_source_path"))
+	}
+	if len(changed) == 0 {
+		return
+	}
+	prior := targetRef(state.AliasSourceID, state.AliasSourcePath, trn.TypeManagedIdentity)
+	planned := targetRef(config.AliasSourceID, config.AliasSourcePath, trn.TypeManagedIdentity)
+	if requireReplaceIfDifferentTarget(ctx, t.client, resp, prior, planned, trn.TypeManagedIdentity,
+		changed...) && config.AliasSourceID.IsNull() {
+		// The same identity named by its path: keep the stored ID rather than plan it unknown.
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("alias_source_id"), state.AliasSourceID)...)
+	}
 }

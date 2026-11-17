@@ -24,8 +24,6 @@ import (
 	pb "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/protos/gen"
 	runpkg "gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/run"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/trn"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type createRunInput struct {
@@ -500,43 +498,22 @@ func (t *applyModuleResource) ModifyPlan(ctx context.Context,
 		return
 	}
 
-	if prior, planned := applyModuleWorkspaceRef(state), applyModuleWorkspaceRef(plan); prior != "" && planned != "" {
-		priorGID, priorErr := referenceGID(ctx, t.client, prior, trn.TypeWorkspace)
-		plannedGID, plannedErr := referenceGID(ctx, t.client, planned, trn.TypeWorkspace)
-		if priorErr == nil && plannedErr == nil && priorGID == plannedGID {
-			return
-		}
-		for _, e := range []error{priorErr, plannedErr} {
-			if e != nil && status.Code(e) != codes.NotFound {
-				resp.Diagnostics.AddWarning("Could not compare workspaces",
-					fmt.Sprintf("Planning a replacement because %q and %q could not both be resolved, so it "+
-						"is not known whether they name the same workspace: %s", prior, planned, e))
-				break
-			}
-		}
-	}
+	var changed []path.Path
 	if idChanged {
-		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("workspace_id"))
+		changed = append(changed, path.Root("workspace_id"))
 	}
 	if pathChanged {
-		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("workspace_path"))
+		changed = append(changed, path.Root("workspace_path"))
 	}
+	requireReplaceIfDifferentTarget(ctx, t.client, resp, applyModuleWorkspaceRef(state),
+		applyModuleWorkspaceRef(plan), trn.TypeWorkspace, changed...)
 }
 
 // applyModuleWorkspaceRef returns the run's target workspace as createRun picks it:
 // workspace_id when set, else workspace_path as a workspace TRN. It returns "" when neither is
 // a known, non-empty value, which ModifyPlan treats as not comparable.
 func applyModuleWorkspaceRef(m ApplyModuleModel) string {
-	if isKnownValue(m.WorkspaceID) && m.WorkspaceID.ValueString() != "" {
-		return m.WorkspaceID.ValueString()
-	}
-	if m.WorkspaceID.IsUnknown() {
-		return ""
-	}
-	if isKnownValue(m.WorkspacePath) && m.WorkspacePath.ValueString() != "" {
-		return trn.TypeWorkspace.Build(m.WorkspacePath.ValueString())
-	}
-	return ""
+	return targetRef(m.WorkspaceID, m.WorkspacePath, trn.TypeWorkspace)
 }
 
 func (t *applyModuleResource) ImportState(_ context.Context,

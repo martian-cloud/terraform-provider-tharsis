@@ -195,6 +195,49 @@ func requireReplaceIfDifferentObject(ctx context.Context, c *client.GRPCClient,
 	resp.RequiresReplace = append(resp.RequiresReplace, p)
 }
 
+// targetRef returns the object a resource targets through a pair of reference attributes, as
+// its Create picks it: id when set, else path as a TRN of type t. It returns "" when neither
+// is a known, non-empty value, which requireReplaceIfDifferentTarget treats as not comparable.
+func targetRef(id, p types.String, t trn.Type) string {
+	if isKnownValue(id) && id.ValueString() != "" {
+		return id.ValueString()
+	}
+	if id.IsUnknown() {
+		return ""
+	}
+	if isKnownValue(p) && p.ValueString() != "" {
+		return t.Build(p.ValueString())
+	}
+	return ""
+}
+
+// requireReplaceIfDifferentTarget is requireReplaceIfDifferentObject for a target named by an
+// ID attribute or its deprecated path counterpart, where switching between the two is only a
+// change of form. prior and planned are the targets from targetRef. It reports whether they
+// resolve to the same object; otherwise it plans a replacement of every attribute in changed.
+// An empty target, or one that cannot be resolved, replaces, as RequiresReplace would.
+func requireReplaceIfDifferentTarget(ctx context.Context, c *client.GRPCClient,
+	resp *resource.ModifyPlanResponse, prior, planned string, t trn.Type, changed ...path.Path,
+) bool {
+	if prior != "" && planned != "" {
+		priorGID, priorErr := referenceGID(ctx, c, prior, t)
+		plannedGID, plannedErr := referenceGID(ctx, c, planned, t)
+		if priorErr == nil && plannedErr == nil && priorGID == plannedGID {
+			return true
+		}
+		for _, e := range []error{priorErr, plannedErr} {
+			if e != nil && status.Code(e) != codes.NotFound {
+				resp.Diagnostics.AddWarning("Could not compare reference values",
+					fmt.Sprintf("Planning a replacement because %q and %q could not both be resolved, so it "+
+						"is not known whether they name the same object: %s", prior, planned, e))
+				break
+			}
+		}
+	}
+	resp.RequiresReplace = append(resp.RequiresReplace, changed...)
+	return false
+}
+
 // isKnownValue reports whether v is neither null nor unknown.
 func isKnownValue(v types.String) bool {
 	return !v.IsNull() && !v.IsUnknown()

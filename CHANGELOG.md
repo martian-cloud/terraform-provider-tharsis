@@ -70,6 +70,9 @@
   deleted the old key before the create failed, leaving the group without one.
 - `tharsis_apply_module` errors for a failed plan or apply showed Terraform's colour codes (for
   example `[31m`), because Tharsis reports the job's coloured output. They are now removed.
+- `tharsis_managed_identity_alias` was replaced when its source switched between
+  `alias_source_path` and `alias_source_id` (or its TRN) of the same managed identity. That switch
+  is now an in-place update; a different source still replaces the alias.
 - `tharsis_gpg_key` failed on create with "Provider produced inconsistent result after apply" against
   Tharsis v0.113.0 and later, which store a key re-armored. The configured armor is now kept, and
   re-armoring of the same key (for example after an import) is an in-place update rather than a
