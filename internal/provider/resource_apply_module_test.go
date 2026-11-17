@@ -591,30 +591,6 @@ func TestApplyModuleUpdateComparesEveryAttribute(t *testing.T) {
 	}
 }
 
-// TestApplyModuleWorkspaceRef checks how ModifyPlan reads the target workspace: workspace_id
-// wins, as in createRun, and an unknown workspace_id is not comparable even if a path is set.
-func TestApplyModuleWorkspaceRef(t *testing.T) {
-	const gid, path = "V18wMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDA", "g/ws"
-	for _, tc := range []struct {
-		name      string
-		id, wpath types.String
-		want      string
-	}{
-		{"id", types.StringValue(gid), types.StringNull(), gid},
-		{"id wins over path", types.StringValue(gid), types.StringValue(path), gid},
-		{"path only", types.StringNull(), types.StringValue(path), "trn:workspace:" + path},
-		{"unknown id", types.StringUnknown(), types.StringValue(path), ""},
-		{"empty id falls back to path", types.StringValue(""), types.StringValue(path), "trn:workspace:" + path},
-		{"neither", types.StringNull(), types.StringNull(), ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := applyModuleWorkspaceRef(ApplyModuleModel{WorkspaceID: tc.id, WorkspacePath: tc.wpath}); got != tc.want {
-				t.Fatalf("applyModuleWorkspaceRef = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
 // TestApplyModuleWorkspaceFormSwitch is QA's finding on v0.18.0-alpha.6: switching the target
 // workspace between its ID, its TRN and workspace_path must be an in-place update that starts
 // no run, and moving to a different workspace must still replace.

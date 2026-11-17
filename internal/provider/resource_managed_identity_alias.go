@@ -363,10 +363,11 @@ func (t *managedIdentityAliasResource) planAliasSource(ctx context.Context,
 	if len(changed) == 0 {
 		return
 	}
-	prior := targetRef(state.AliasSourceID, state.AliasSourcePath, trn.TypeManagedIdentity)
-	planned := targetRef(config.AliasSourceID, config.AliasSourcePath, trn.TypeManagedIdentity)
-	if requireReplaceIfDifferentTarget(ctx, t.client, resp, prior, planned, trn.TypeManagedIdentity,
-		changed...) && config.AliasSourceID.IsNull() {
+	prior := idOrPath{ID: state.AliasSourceID, Path: state.AliasSourcePath}
+	planned := idOrPath{ID: config.AliasSourceID, Path: config.AliasSourcePath}
+	replaced := requireReplaceIfDifferentIDOrPathObject(ctx, t.client, resp, prior, planned,
+		trn.TypeManagedIdentity, changed...)
+	if !replaced && config.AliasSourceID.IsNull() {
 		// The same identity named by its path: keep the stored ID rather than plan it unknown.
 		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("alias_source_id"), state.AliasSourceID)...)
 	}

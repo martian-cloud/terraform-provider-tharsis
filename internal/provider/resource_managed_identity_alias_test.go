@@ -189,7 +189,10 @@ func TestManagedIdentityAliasSourceFormSwitch(t *testing.T) {
 			},
 			{
 				Config: testSharedProviderConfiguration() + testManagedIdentityAliasSourceConfiguration("alias_source_path = "+quoted(testGroupPath+"/tmi_azure_name")),
-				Check:  testCheckAttrChanged(addr, "id", &id),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrChanged(addr, "id", &id),
+					resource.TestCheckResourceAttrPair(addr, "alias_source_id", "tharsis_managed_identity.tmi_azure", "id"),
+				),
 			},
 		},
 	})

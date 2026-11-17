@@ -505,15 +505,9 @@ func (t *applyModuleResource) ModifyPlan(ctx context.Context,
 	if pathChanged {
 		changed = append(changed, path.Root("workspace_path"))
 	}
-	requireReplaceIfDifferentTarget(ctx, t.client, resp, applyModuleWorkspaceRef(state),
-		applyModuleWorkspaceRef(plan), trn.TypeWorkspace, changed...)
-}
-
-// applyModuleWorkspaceRef returns the run's target workspace as createRun picks it:
-// workspace_id when set, else workspace_path as a workspace TRN. It returns "" when neither is
-// a known, non-empty value, which ModifyPlan treats as not comparable.
-func applyModuleWorkspaceRef(m ApplyModuleModel) string {
-	return targetRef(m.WorkspaceID, m.WorkspacePath, trn.TypeWorkspace)
+	requireReplaceIfDifferentIDOrPathObject(ctx, t.client, resp,
+		idOrPath{ID: state.WorkspaceID, Path: state.WorkspacePath},
+		idOrPath{ID: plan.WorkspaceID, Path: plan.WorkspacePath}, trn.TypeWorkspace, changed...)
 }
 
 func (t *applyModuleResource) ImportState(_ context.Context,

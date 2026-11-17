@@ -145,6 +145,27 @@ func referenceGID(ctx context.Context, c *client.GRPCClient, ref string, t trn.T
 	return resolveObjectGID(ctx, c, ref, t)
 }
 
+// sameObject reports whether two reference values (each a Global ID or a TRN) name the same
+// object of type t. A reference that names no object (NotFound) is a different object, not an
+// error. Any other lookup error means sameness is unknown: it returns false with that error.
+func sameObject(ctx context.Context, c *client.GRPCClient, a, b string, t trn.Type) (bool, error) {
+	if a == b {
+		return true, nil
+	}
+	aGID, aErr := referenceGID(ctx, c, a, t)
+	bGID, bErr := referenceGID(ctx, c, b, t)
+	if aErr == nil && bErr == nil {
+		return aGID == bGID, nil
+	}
+	var lookupErrs []error
+	for _, e := range []error{aErr, bErr} {
+		if e != nil && status.Code(e) != codes.NotFound {
+			lookupErrs = append(lookupErrs, e)
+		}
+	}
+	return false, errors.Join(lookupErrs...)
+}
+
 // requireReplaceIfDifferentObject is called from ModifyPlan for a reference attribute the
 // API cannot update in place. It forces a replacement only when the prior and planned
 // values name different objects of type t. Two forms of the same object (a Global ID and
@@ -172,20 +193,11 @@ func requireReplaceIfDifferentObject(ctx context.Context, c *client.GRPCClient,
 		return
 	}
 	if isKnownValue(prior) && isKnownValue(planned) {
-		priorGID, priorErr := referenceGID(ctx, c, prior.ValueString(), t)
-		plannedGID, plannedErr := referenceGID(ctx, c, planned.ValueString(), t)
-		if priorErr == nil && plannedErr == nil && priorGID == plannedGID {
+		same, err := sameObject(ctx, c, prior.ValueString(), planned.ValueString(), t)
+		if same {
 			return
 		}
-		// NotFound means the two cannot be the same object, so only other errors leave the
-		// answer unknown and are worth a warning.
-		var lookupErrs []error
-		for _, e := range []error{priorErr, plannedErr} {
-			if e != nil && status.Code(e) != codes.NotFound {
-				lookupErrs = append(lookupErrs, e)
-			}
-		}
-		if err := errors.Join(lookupErrs...); err != nil {
+		if err != nil {
 			resp.Diagnostics.AddAttributeWarning(p, "Could not compare reference values",
 				fmt.Sprintf("Planning a replacement because %q and %q could not both be resolved, so "+
 					"it is not known whether they name the same object: %s", prior.ValueString(),
@@ -193,49 +205,6 @@ func requireReplaceIfDifferentObject(ctx context.Context, c *client.GRPCClient,
 		}
 	}
 	resp.RequiresReplace = append(resp.RequiresReplace, p)
-}
-
-// targetRef returns the object a resource targets through a pair of reference attributes, as
-// its Create picks it: id when set, else path as a TRN of type t. It returns "" when neither
-// is a known, non-empty value, which requireReplaceIfDifferentTarget treats as not comparable.
-func targetRef(id, p types.String, t trn.Type) string {
-	if isKnownValue(id) && id.ValueString() != "" {
-		return id.ValueString()
-	}
-	if id.IsUnknown() {
-		return ""
-	}
-	if isKnownValue(p) && p.ValueString() != "" {
-		return t.Build(p.ValueString())
-	}
-	return ""
-}
-
-// requireReplaceIfDifferentTarget is requireReplaceIfDifferentObject for a target named by an
-// ID attribute or its deprecated path counterpart, where switching between the two is only a
-// change of form. prior and planned are the targets from targetRef. It reports whether they
-// resolve to the same object; otherwise it plans a replacement of every attribute in changed.
-// An empty target, or one that cannot be resolved, replaces, as RequiresReplace would.
-func requireReplaceIfDifferentTarget(ctx context.Context, c *client.GRPCClient,
-	resp *resource.ModifyPlanResponse, prior, planned string, t trn.Type, changed ...path.Path,
-) bool {
-	if prior != "" && planned != "" {
-		priorGID, priorErr := referenceGID(ctx, c, prior, t)
-		plannedGID, plannedErr := referenceGID(ctx, c, planned, t)
-		if priorErr == nil && plannedErr == nil && priorGID == plannedGID {
-			return true
-		}
-		for _, e := range []error{priorErr, plannedErr} {
-			if e != nil && status.Code(e) != codes.NotFound {
-				resp.Diagnostics.AddWarning("Could not compare reference values",
-					fmt.Sprintf("Planning a replacement because %q and %q could not both be resolved, so it "+
-						"is not known whether they name the same object: %s", prior, planned, e))
-				break
-			}
-		}
-	}
-	resp.RequiresReplace = append(resp.RequiresReplace, changed...)
-	return false
 }
 
 // isKnownValue reports whether v is neither null nor unknown.
