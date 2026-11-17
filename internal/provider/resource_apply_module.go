@@ -187,12 +187,14 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Default:             booldefault.StaticBool(true),
 			},
 			"wait_timeout": schema.StringAttribute{
-				MarkdownDescription: "How long to wait for a run blocked on plan approval or a policy gate to be approved, " +
-					"overridden or discarded in the Tharsis UI, as a Go duration string (e.g. \"30m\", \"2h\"). " +
-					"The provider cannot approve a run itself, so it waits. Defaults to \"1h\".",
-				Description: "How long to wait for a run blocked on plan approval or a policy gate to be approved, " +
-					"overridden or discarded in the Tharsis UI, as a Go duration string (e.g. \"30m\", \"2h\"). " +
-					"The provider cannot approve a run itself, so it waits. Defaults to \"1h\".",
+				MarkdownDescription: "How long to wait for a run blocked on a policy gate to be approved, overridden or discarded in " +
+					"the Tharsis UI, as a Go duration string (e.g. \"30m\", \"2h\"). The run applies its plan " +
+					"without a separate approval, so only a policy gate can block it, and the provider cannot " +
+					"approve a gate itself. Defaults to \"1h\".",
+				Description: "How long to wait for a run blocked on a policy gate to be approved, overridden or discarded in " +
+					"the Tharsis UI, as a Go duration string (e.g. \"30m\", \"2h\"). The run applies its plan " +
+					"without a separate approval, so only a policy gate can block it, and the provider cannot " +
+					"approve a gate itself. Defaults to \"1h\".",
 				Optional: true,
 			},
 			"variables": schema.ListNestedAttribute{

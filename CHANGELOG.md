@@ -27,8 +27,8 @@
 - The `kubernetes_federated` managed identity type, with an `audience` attribute that must match the
   client ID of the cluster's OIDC identity provider configuration. (#59)
 - `tharsis_apply_module` now has an optional `wait_timeout` attribute (default `1h`) that sets how
-  long to wait for a run blocked on plan approval or a policy gate. The provider never prompts for
-  input, so a blocked run fails with an explanatory error once the timeout elapses. Changing only
+  long to wait for a run blocked on a policy gate. The provider never prompts for input, so a
+  blocked run fails with an explanatory error once the timeout elapses. Changing only
   `wait_timeout` updates state without starting a run.
 
 ### Changed
