@@ -1,12 +1,18 @@
 package provider
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
@@ -300,3 +306,99 @@ lNBLBcAMCdEMd4qgt0YvzKzE3GbQoiAkBKJ2qoqun2MXM60324j01B/x/r3E+p15
 =HJT6
 -----END PGP PUBLIC KEY BLOCK-----
 `
+
+// TestGPGKeyValidateConfig checks the plan-time check rejects what Tharsis rejects and accepts
+// what it accepts, including the same key re-armored.
+func TestGPGKeyValidateConfig(t *testing.T) {
+	ctx := context.Background()
+	r := &gpgKeyResource{}
+	var sresp fwresource.SchemaResponse
+	r.Schema(ctx, fwresource.SchemaRequest{}, &sresp)
+	objType := sresp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+
+	entities, err := openpgp.ReadArmoredKeyRing(strings.NewReader(testGPGKeyASCIIArmor))
+	if err != nil {
+		t.Fatalf("failed to read test key: %v", err)
+	}
+	other, err := openpgp.NewEntity("Other", "", "other@invalid.example", nil)
+	if err != nil {
+		t.Fatalf("failed to generate key: %v", err)
+	}
+	armorWith := func(blockType string, write func(io.Writer) error) string {
+		var buf strings.Builder
+		w, err := armor.Encode(&buf, blockType, nil)
+		if err != nil {
+			t.Fatalf("failed to start armor: %v", err)
+		}
+		if err := write(w); err != nil {
+			t.Fatalf("failed to write armor: %v", err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatalf("failed to close armor: %v", err)
+		}
+		return buf.String()
+	}
+	privateBlock := armorWith(openpgp.PrivateKeyType, func(w io.Writer) error { return other.SerializePrivate(w, nil) })
+	privateInPublicBlock := armorWith(openpgp.PublicKeyType, func(w io.Writer) error { return other.SerializePrivate(w, nil) })
+	twoKeysOneBlock := armorWith(openpgp.PublicKeyType, func(w io.Writer) error {
+		if err := entities[0].Serialize(w); err != nil {
+			return err
+		}
+		return other.Serialize(w)
+	})
+
+	for _, tc := range []struct {
+		name      string
+		value     tftypes.Value
+		wantError bool
+	}{
+		{"valid key", tftypes.NewValue(tftypes.String, testGPGKeyASCIIArmor), false},
+		{"same key re-armored", tftypes.NewValue(tftypes.String, armorGPGPublicKey(t, entities[0])), false},
+		{"not armor", tftypes.NewValue(tftypes.String, "not a key"), true},
+		{"empty", tftypes.NewValue(tftypes.String, ""), true},
+		{"private key block", tftypes.NewValue(tftypes.String, privateBlock), true},
+		{"private key material in a public block", tftypes.NewValue(tftypes.String, privateInPublicBlock), true},
+		{"two blocks", tftypes.NewValue(tftypes.String, testGPGKeyASCIIArmor+armorGPGPublicKey(t, other)), true},
+		{"two keys in one block", tftypes.NewValue(tftypes.String, twoKeysOneBlock), true},
+		{"unknown", tftypes.NewValue(tftypes.String, tftypes.UnknownValue), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			vals := map[string]tftypes.Value{}
+			for name, at := range objType.AttributeTypes {
+				vals[name] = tftypes.NewValue(at, nil)
+			}
+			vals["ascii_armor"] = tc.value
+			req := fwresource.ValidateConfigRequest{Config: tfsdk.Config{Schema: sresp.Schema, Raw: tftypes.NewValue(objType, vals)}}
+			resp := &fwresource.ValidateConfigResponse{}
+			r.ValidateConfig(ctx, req, resp)
+			if got := resp.Diagnostics.HasError(); got != tc.wantError {
+				t.Fatalf("HasError = %v, want %v: %v", got, tc.wantError, resp.Diagnostics)
+			}
+		})
+	}
+}
+
+// TestGPGKeyInvalidArmorKeepsKey is QA's finding on v0.18.0-alpha.6: changing a working key to
+// invalid text deleted the old key before the create failed, leaving the group without one. It
+// must now fail at plan, and the original key must still be there.
+func TestGPGKeyInvalidArmorKeepsKey(t *testing.T) {
+	const addr = "tharsis_gpg_key.tgk"
+	var id string
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testGPGKeyConfiguration(testGPGKeyASCIIArmor),
+				Check:  testCaptureAttr(addr, "id", &id),
+			},
+			{
+				Config:      testGPGKeyConfiguration("-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nnot a key\n-----END PGP PUBLIC KEY BLOCK-----\n"),
+				ExpectError: regexp.MustCompile(`Invalid GPG public key`),
+			},
+			{
+				Config: testGPGKeyConfiguration(testGPGKeyASCIIArmor),
+				Check:  testCheckAttrUnchanged(addr, "id", &id),
+			},
+		},
+	})
+}

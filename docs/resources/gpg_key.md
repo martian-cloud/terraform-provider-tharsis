@@ -30,7 +30,7 @@ resource "tharsis_gpg_key" "this" {
 
 ### Required
 
-- `ascii_armor` (String) The ASCII armored key.
+- `ascii_armor` (String) The ASCII armored key: one PGP public key block holding exactly one public key and no private key material. Checked at plan time.
 
 ### Optional
 

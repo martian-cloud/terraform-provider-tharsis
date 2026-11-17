@@ -40,10 +40,11 @@ type GPGKeyModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = (*gpgKeyResource)(nil)
-	_ resource.ResourceWithConfigure   = (*gpgKeyResource)(nil)
-	_ resource.ResourceWithModifyPlan  = (*gpgKeyResource)(nil)
-	_ resource.ResourceWithImportState = (*gpgKeyResource)(nil)
+	_ resource.Resource                   = (*gpgKeyResource)(nil)
+	_ resource.ResourceWithConfigure      = (*gpgKeyResource)(nil)
+	_ resource.ResourceWithModifyPlan     = (*gpgKeyResource)(nil)
+	_ resource.ResourceWithImportState    = (*gpgKeyResource)(nil)
+	_ resource.ResourceWithValidateConfig = (*gpgKeyResource)(nil)
 )
 
 // NewGPGKeyResource is a helper function to simplify the provider implementation.
@@ -92,8 +93,8 @@ func (t *gpgKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				},
 			},
 			"ascii_armor": schema.StringAttribute{
-				MarkdownDescription: "The ASCII armored key.",
-				Description:         "The ASCII armored key.",
+				MarkdownDescription: "The ASCII armored key: one PGP public key block holding exactly one public key and no private key material. Checked at plan time.",
+				Description:         "The ASCII armored key: one PGP public key block holding exactly one public key and no private key material. Checked at plan time.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplaceIf(requireReplaceIfDifferentKey,
@@ -158,6 +159,25 @@ func (t *gpgKeyResource) Configure(_ context.Context,
 		return
 	}
 	t.client = req.ProviderData.(*client.GRPCClient)
+}
+
+// ValidateConfig rejects at plan time ASCII armor that Tharsis would refuse, using the same
+// rules (serializeGPGKey). Otherwise the error only shows at apply, and replacing a working key
+// with invalid text deletes the old key before the create fails, leaving the group without one.
+// A value unknown until apply is not checked.
+func (t *gpgKeyResource) ValidateConfig(ctx context.Context,
+	req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse,
+) {
+	var armored types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("ascii_armor"), &armored)...)
+	if resp.Diagnostics.HasError() || !isKnownValue(armored) {
+		return
+	}
+	if _, err := serializeGPGKey(armored.ValueString()); err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("ascii_armor"), "Invalid GPG public key",
+			"ascii_armor must be one ASCII-armored PGP public key block holding exactly one public key "+
+				"and no private key material: "+err.Error())
+	}
 }
 
 func (t *gpgKeyResource) Create(ctx context.Context,

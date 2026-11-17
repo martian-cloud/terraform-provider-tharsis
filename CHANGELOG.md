@@ -65,6 +65,9 @@
 - A `tharsis_runner` with no tags and `run_untagged_jobs` not `true` now fails at plan with an
   explanation, instead of at apply with Tharsis's error. The `tags` and `run_untagged_jobs`
   descriptions say that one of them is required.
+- Invalid `ascii_armor` on a `tharsis_gpg_key` now fails at plan, using the same rules Tharsis
+  applies. Before, the error only showed at apply, and changing a working key to invalid text
+  deleted the old key before the create failed, leaving the group without one.
 - `tharsis_gpg_key` failed on create with "Provider produced inconsistent result after apply" against
   Tharsis v0.113.0 and later, which store a key re-armored. The configured armor is now kept, and
   re-armoring of the same key (for example after an import) is an in-place update rather than a
