@@ -75,6 +75,9 @@
   is now an in-place update; a different source still replaces the alias.
 - Removing `verify_state_lineage` from a `tharsis_managed_identity_access_rule` configuration kept
   the old value in Tharsis. An unset `verify_state_lineage` now means `false`.
+- A `tharsis_managed_identity` whose fields don't match its `type` (for example `azure_federated`
+  without `azure_client_id`) now fails at plan. Before, the error only showed at apply, and changing
+  the type of a working identity deleted it before the create failed.
 - `tharsis_gpg_key` failed on create with "Provider produced inconsistent result after apply" against
   Tharsis v0.113.0 and later, which store a key re-armored. The configured armor is now kept, and
   re-armoring of the same key (for example after an import) is an in-place update rather than a

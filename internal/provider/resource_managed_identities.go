@@ -64,10 +64,11 @@ type managedIdentityData struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = (*managedIdentityResource)(nil)
-	_ resource.ResourceWithConfigure   = (*managedIdentityResource)(nil)
-	_ resource.ResourceWithModifyPlan  = (*managedIdentityResource)(nil)
-	_ resource.ResourceWithImportState = (*managedIdentityResource)(nil)
+	_ resource.Resource                   = (*managedIdentityResource)(nil)
+	_ resource.ResourceWithConfigure      = (*managedIdentityResource)(nil)
+	_ resource.ResourceWithModifyPlan     = (*managedIdentityResource)(nil)
+	_ resource.ResourceWithValidateConfig = (*managedIdentityResource)(nil)
+	_ resource.ResourceWithImportState    = (*managedIdentityResource)(nil)
 )
 
 // NewManagedIdentityResource is a helper function to simplify the provider implementation.
@@ -481,43 +482,51 @@ func (t *managedIdentityResource) copyManagedIdentity(src *pb.ManagedIdentity, d
 	return nil
 }
 
-// encodeDataString checks the AWS role, Azure client ID, Azure tenant ID, Tharsis service account path,
-// and subject fields and then marshals them into the appropriate type and base64 encodes that.
-func (t *managedIdentityResource) encodeDataString(managedIdentityType types.String, input managedIdentityDataInput) (string, error) {
-	type2 := pb.ManagedIdentityType(pb.ManagedIdentityType_value[managedIdentityType.ValueString()])
-
-	// What to check depends on the type of managed identity this is.
-	switch type2 {
-	case pb.ManagedIdentityType_aws_federated:
+// checkManagedIdentityData applies the per-type rules for the data fields. It returns the
+// attribute at fault with the error, or "" and nil when the fields are valid for the type.
+// ValidateConfig and encodeDataString share it, so plan time and apply time agree.
+func checkManagedIdentityData(managedIdentityType string, input managedIdentityDataInput) (string, error) {
+	switch managedIdentityType {
+	case pb.ManagedIdentityType_aws_federated.String():
 		if input.AWSRole == "" {
-			return "", fmt.Errorf("non-empty role is required for AWS managed identity")
+			return "aws_role", fmt.Errorf("non-empty role is required for AWS managed identity")
 		}
 		if input.AzureClientID != "" {
-			return "", fmt.Errorf("non-empty client ID is not allowed for AWS managed identity")
+			return "azure_client_id", fmt.Errorf("non-empty client ID is not allowed for AWS managed identity")
 		}
 		if input.AzureTenantID != "" {
-			return "", fmt.Errorf("non-empty tenant ID is not allowed for AWS managed identity")
+			return "azure_tenant_id", fmt.Errorf("non-empty tenant ID is not allowed for AWS managed identity")
 		}
-	case pb.ManagedIdentityType_azure_federated:
+	case pb.ManagedIdentityType_azure_federated.String():
 		if input.AWSRole != "" {
-			return "", fmt.Errorf("non-empty role is not allowed for Azure managed identity")
+			return "aws_role", fmt.Errorf("non-empty role is not allowed for Azure managed identity")
 		}
 		if input.AzureClientID == "" {
-			return "", fmt.Errorf("non-empty client ID is required for Azure managed identity")
+			return "azure_client_id", fmt.Errorf("non-empty client ID is required for Azure managed identity")
 		}
 		if input.AzureTenantID == "" {
-			return "", fmt.Errorf("non-empty tenant ID is required for Azure managed identity")
+			return "azure_tenant_id", fmt.Errorf("non-empty tenant ID is required for Azure managed identity")
 		}
-	case pb.ManagedIdentityType_tharsis_federated:
+	case pb.ManagedIdentityType_tharsis_federated.String():
 		if input.TharsisServiceAccountPath == "" {
-			return "", fmt.Errorf("non-empty service account path is required for Tharsis managed identity")
+			return "tharsis_service_account_path",
+				fmt.Errorf("non-empty service account path is required for Tharsis managed identity")
 		}
-	case pb.ManagedIdentityType_kubernetes_federated:
+	case pb.ManagedIdentityType_kubernetes_federated.String():
 		if input.KubernetesAudience == "" {
-			return "", fmt.Errorf("non-empty audience is required for Kubernetes managed identity")
+			return "audience", fmt.Errorf("non-empty audience is required for Kubernetes managed identity")
 		}
 	default:
-		return "", fmt.Errorf("invalid managed identity type: %s", type2)
+		return "type", fmt.Errorf("invalid managed identity type: %s", managedIdentityType)
+	}
+	return "", nil
+}
+
+// encodeDataString checks the AWS role, Azure client ID, Azure tenant ID, Tharsis service account path,
+// and audience fields and then marshals them into the appropriate type and base64 encodes that.
+func (t *managedIdentityResource) encodeDataString(managedIdentityType types.String, input managedIdentityDataInput) (string, error) {
+	if _, err := checkManagedIdentityData(managedIdentityType.ValueString(), input); err != nil {
+		return "", err
 	}
 
 	// With the checking completed, JSON-encode the fields, taking advantage of omitempty.
@@ -544,6 +553,42 @@ func (t *managedIdentityResource) decodeDataString(encoded string) (*managedIden
 	}
 
 	return &result, nil
+}
+
+// ValidateConfig applies checkManagedIdentityData at plan time, so a configuration that the
+// create would reject fails before anything changes. Without it, changing type (which
+// replaces the identity) with a required field missing deleted the old identity before the
+// create failed. A value unknown until apply is not checked, and an invalid type is left to
+// the type attribute's validator.
+func (t *managedIdentityResource) ValidateConfig(ctx context.Context,
+	req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse,
+) {
+	var config ManagedIdentityModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	fields := []types.String{config.Type, config.AWSRole, config.AzureClientID, config.AzureTenantID,
+		config.TharsisServiceAccountPath, config.KubernetesAudience}
+	for _, f := range fields {
+		if f.IsUnknown() {
+			return
+		}
+	}
+	if _, ok := pb.ManagedIdentityType_value[config.Type.ValueString()]; !ok || config.Type.IsNull() {
+		return
+	}
+	attr, err := checkManagedIdentityData(config.Type.ValueString(), managedIdentityDataInput{
+		AWSRole:                   config.AWSRole.ValueString(),
+		AzureClientID:             config.AzureClientID.ValueString(),
+		AzureTenantID:             config.AzureTenantID.ValueString(),
+		TharsisServiceAccountPath: config.TharsisServiceAccountPath.ValueString(),
+		KubernetesAudience:        config.KubernetesAudience.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root(attr), "Invalid managed identity configuration",
+			fmt.Sprintf("Type %q: %s.", config.Type.ValueString(), err))
+	}
 }
 
 // ModifyPlan forces a replacement only when group_id moves to a different object. A
