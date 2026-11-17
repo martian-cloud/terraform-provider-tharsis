@@ -59,6 +59,9 @@
   switched between the ID and the TRN of the same workspace, or between `workspace_path` and
   `workspace_id`. That switch is now an in-place update that starts no run; moving to a different
   workspace still replaces the resource.
+- Removing `description` or `tags` from a `tharsis_runner` configuration kept the old value in Tharsis.
+  An unset `description` now means `""`, and unset `tags` an empty set; removing the tags replaces
+  the runner, because the API can't clear tags through an update.
 - `tharsis_gpg_key` failed on create with "Provider produced inconsistent result after apply" against
   Tharsis v0.113.0 and later, which store a key re-armored. The configured armor is now kept, and
   re-armoring of the same key (for example after an import) is an in-place update rather than a

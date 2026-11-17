@@ -3,12 +3,15 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
@@ -93,6 +96,9 @@ func (t *runnerResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Description:         "A description of the runner.",
 				Optional:            true,
 				Computed:            true,
+				// Without a Default, removing the description from the configuration would plan the
+				// prior value and leave it in Tharsis. "" is what Tharsis stores when none is set.
+				Default: stringdefault.StaticString(""),
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"group_id": schema.StringAttribute{
@@ -119,10 +125,13 @@ func (t *runnerResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			},
 			"tags": schema.SetAttribute{
 				ElementType:         types.StringType,
-				MarkdownDescription: "Tags that route tagged jobs to this runner. Changing a non-empty set to empty forces replacement, because the API cannot clear tags through an update.",
-				Description:         "Tags that route tagged jobs to this runner. Changing a non-empty set to empty forces replacement, because the API cannot clear tags through an update.",
+				MarkdownDescription: "Tags that route tagged jobs to this runner. Removing the tags, or changing a non-empty set to empty, forces replacement, because the API cannot clear tags through an update.",
+				Description:         "Tags that route tagged jobs to this runner. Removing the tags, or changing a non-empty set to empty, forces replacement, because the API cannot clear tags through an update.",
 				Optional:            true,
 				Computed:            true,
+				// Without a Default, removing the tags from the configuration would plan the prior
+				// set and leave them in Tharsis. An empty set makes ModifyPlan replace the runner.
+				Default: setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{})),
 			},
 		},
 	}
@@ -343,7 +352,13 @@ func (t *runnerResource) copyRunner(ctx context.Context,
 	dest.Disabled = types.BoolValue(src.Disabled)
 	dest.RunUntaggedJobs = types.BoolValue(src.RunUntaggedJobs)
 
-	tagSet, d := types.SetValueFrom(ctx, types.StringType, src.Tags)
+	// No tags is an empty set, not null: it must match the empty-set default that an unset
+	// tags attribute plans.
+	tags := src.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+	tagSet, d := types.SetValueFrom(ctx, types.StringType, tags)
 	diags = append(diags, d...)
 	dest.Tags = tagSet
 

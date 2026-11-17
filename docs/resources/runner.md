@@ -35,7 +35,7 @@ resource "tharsis_runner" "this" {
 - `description` (String) A description of the runner.
 - `disabled` (Boolean) Whether the runner is prevented from claiming jobs. Defaults to false.
 - `run_untagged_jobs` (Boolean) Whether the runner claims jobs that carry no tags. Defaults to false.
-- `tags` (Set of String) Tags that route tagged jobs to this runner. Changing a non-empty set to empty forces replacement, because the API cannot clear tags through an update.
+- `tags` (Set of String) Tags that route tagged jobs to this runner. Removing the tags, or changing a non-empty set to empty, forces replacement, because the API cannot clear tags through an update.
 
 ### Read-Only
 

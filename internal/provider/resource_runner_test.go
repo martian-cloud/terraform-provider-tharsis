@@ -136,3 +136,62 @@ resource "tharsis_runner" "tra" {
 }
 	`, createRootGroup(testGroupPath, "this is a test root group"), createName, updatedDescription)
 }
+
+// TestRunnerUnsetOptional is QA's finding on v0.18.0-alpha.6: removing description or tags
+// from the configuration kept the old value in Tharsis. It creates a runner with both unset,
+// sets them, then removes the description (an in-place update) and then the tags (a
+// replacement, since the API can't clear tags through an update). resource.Test re-plans after
+// each step, so this also proves there is no perpetual diff.
+func TestRunnerUnsetOptional(t *testing.T) {
+	const addr = "tharsis_runner.tr_unset"
+	var id string
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testRunnerUnsetOptionalConfiguration(""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(addr, "description", ""),
+					resource.TestCheckResourceAttr(addr, "tags.#", "0"),
+					testCaptureAttr(addr, "id", &id),
+				),
+			},
+			{
+				Config: testRunnerUnsetOptionalConfiguration("description = \"set\"\n\ttags        = [\"a\"]"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged(addr, "id", &id),
+					resource.TestCheckResourceAttr(addr, "description", "set"),
+					resource.TestCheckResourceAttr(addr, "tags.#", "1"),
+				),
+			},
+			{
+				Config: testRunnerUnsetOptionalConfiguration("tags = [\"a\"]"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged(addr, "id", &id),
+					resource.TestCheckResourceAttr(addr, "description", ""),
+					resource.TestCheckResourceAttr(addr, "tags.#", "1"),
+				),
+			},
+			{
+				Config: testRunnerUnsetOptionalConfiguration(""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrChanged(addr, "id", &id),
+					resource.TestCheckResourceAttr(addr, "description", ""),
+					resource.TestCheckResourceAttr(addr, "tags.#", "0"),
+				),
+			},
+		},
+	})
+}
+
+func testRunnerUnsetOptionalConfiguration(extra string) string {
+	return createRootGroup(testGroupPath, "this is a test root group") + fmt.Sprintf(`
+
+resource "tharsis_runner" "tr_unset" {
+	name              = "tr_unset"
+	group_id          = tharsis_group.root-group.id
+	run_untagged_jobs = true
+	%s
+}
+`, extra)
+}
