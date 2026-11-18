@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -198,7 +199,8 @@ func (t *managedIdentityAccessRuleResource) Schema(_ context.Context, _ resource
 				MarkdownDescription: "Whether to verify that the workspace's current state is from the same module source, default is false.",
 				Description:         "Whether to verify that the workspace's current state is from the same module source, default is false.",
 				Optional:            true,
-				Computed:            true, // When not passed it, it needs to be set by Create.
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 			"module_attestation_policies": schema.ListNestedAttribute{
 				MarkdownDescription: "Used to verify that a module has an in-toto attestation that is signed with the specified public key and an optional predicate type.",

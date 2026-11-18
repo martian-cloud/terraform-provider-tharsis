@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -106,8 +108,9 @@ type ApplyModuleModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource              = (*applyModuleResource)(nil)
-	_ resource.ResourceWithConfigure = (*applyModuleResource)(nil)
+	_ resource.Resource               = (*applyModuleResource)(nil)
+	_ resource.ResourceWithConfigure  = (*applyModuleResource)(nil)
+	_ resource.ResourceWithModifyPlan = (*applyModuleResource)(nil)
 
 	// This resource is deliberately not importable. It implements
 	// ResourceWithImportState only so that an import attempt returns an
@@ -152,17 +155,13 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description:         "The full path of the workspace.",
 				Optional:            true,
 				DeprecationMessage:  "Use workspace_id instead. This field will be removed in a future version.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				// Replacement is decided in ModifyPlan by the workspace named, not the text.
 			},
 			"workspace_id": schema.StringAttribute{
-				MarkdownDescription: "The ID or TRN of the workspace.",
-				Description:         "The ID or TRN of the workspace.",
+				MarkdownDescription: "The ID or TRN of the workspace. Moving to a different workspace forces replacement; switching between the ID, the TRN or workspace_path of the same workspace is an in-place update that starts no run.",
+				Description:         "The ID or TRN of the workspace. Moving to a different workspace forces replacement; switching between the ID, the TRN or workspace_path of the same workspace is an in-place update that starts no run.",
 				Optional:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				// Replacement is decided in ModifyPlan by the workspace named, not the text.
 			},
 			"module_source": schema.StringAttribute{
 				MarkdownDescription: "The source of the module.",
@@ -186,12 +185,14 @@ func (t *applyModuleResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Default:             booldefault.StaticBool(true),
 			},
 			"wait_timeout": schema.StringAttribute{
-				MarkdownDescription: "How long to wait for a run blocked on plan approval or a policy gate to be approved, " +
-					"overridden or discarded in the Tharsis UI, as a Go duration string (e.g. \"30m\", \"2h\"). " +
-					"The provider cannot approve a run itself, so it waits. Defaults to \"1h\".",
-				Description: "How long to wait for a run blocked on plan approval or a policy gate to be approved, " +
-					"overridden or discarded in the Tharsis UI, as a Go duration string (e.g. \"30m\", \"2h\"). " +
-					"The provider cannot approve a run itself, so it waits. Defaults to \"1h\".",
+				MarkdownDescription: "How long to wait for a run blocked on a policy gate to be approved, overridden or discarded in " +
+					"the Tharsis UI, as a Go duration string (e.g. \"30m\", \"2h\"). The run applies its plan " +
+					"without a separate approval, so only a policy gate can block it, and the provider cannot " +
+					"approve a gate itself. Defaults to \"1h\".",
+				Description: "How long to wait for a run blocked on a policy gate to be approved, overridden or discarded in " +
+					"the Tharsis UI, as a Go duration string (e.g. \"30m\", \"2h\"). The run applies its plan " +
+					"without a separate approval, so only a policy gate can block it, and the provider cannot " +
+					"approve a gate itself. Defaults to \"1h\".",
 				Optional: true,
 			},
 			"variables": schema.ListNestedAttribute{
@@ -473,6 +474,42 @@ func (t *applyModuleResource) Delete(ctx context.Context,
 // workspace and waiting for it to finish. Its id attribute is a UUID this
 // provider manufactures locally. With no stored remote object to look up, there
 // is nothing an import could read back.
+// ModifyPlan forces a replacement only when the run's target workspace changes. workspace_id
+// (an ID or a TRN) and the deprecated workspace_path are three ways to name it, so a switch
+// between them for the same workspace is an in-place update. Update then starts no run, since
+// nothing about the module or its variables changed. When the target can't be compared (a
+// value unknown until apply, or a failed lookup) it replaces, as RequiresReplace did.
+func (t *applyModuleResource) ModifyPlan(ctx context.Context,
+	req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse,
+) {
+	// Nothing to compare on create, nothing to plan on destroy.
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state, plan ApplyModuleModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	idChanged := !plan.WorkspaceID.Equal(state.WorkspaceID)
+	pathChanged := !plan.WorkspacePath.Equal(state.WorkspacePath)
+	if !idChanged && !pathChanged {
+		return
+	}
+
+	var changed []path.Path
+	if idChanged {
+		changed = append(changed, path.Root("workspace_id"))
+	}
+	if pathChanged {
+		changed = append(changed, path.Root("workspace_path"))
+	}
+	requireReplaceIfDifferentIDOrPathObject(ctx, t.client, resp,
+		idOrPath{ID: state.WorkspaceID, Path: state.WorkspacePath},
+		idOrPath{ID: plan.WorkspaceID, Path: plan.WorkspacePath}, trn.TypeWorkspace, changed...)
+}
+
 func (t *applyModuleResource) ImportState(_ context.Context,
 	_ resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
@@ -616,10 +653,10 @@ func parseWaitTimeout(v types.String) (time.Duration, error) {
 // has one, or the stage it failed at otherwise.
 func runFailureMessage(runID string, outcome *runpkg.Outcome) string {
 	msg := fmt.Sprintf("Run %q ended with status %s", runID, outcome.Run.Status.String())
-	if errMsg := outcome.Run.GetApply().GetErrorMessage(); errMsg != "" {
+	if errMsg := stripANSI(outcome.Run.GetApply().GetErrorMessage()); errMsg != "" {
 		return fmt.Sprintf("%s: apply failed: %s", msg, errMsg)
 	}
-	if errMsg := outcome.Run.GetPlan().GetErrorMessage(); errMsg != "" {
+	if errMsg := stripANSI(outcome.Run.GetPlan().GetErrorMessage()); errMsg != "" {
 		return fmt.Sprintf("%s: plan failed: %s", msg, errMsg)
 	}
 	if outcome.Stage.Name != "" {
@@ -627,6 +664,16 @@ func runFailureMessage(runID string, outcome *runpkg.Outcome) string {
 	}
 
 	return msg + "."
+}
+
+// ansiEscape matches ANSI CSI escape sequences, such as the colour codes ("\x1b[31m", "\x1b[0m")
+// in a plan or apply error: Tharsis's job executor runs Terraform with colour on and reports its
+// error output as it is.
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
+
+// stripANSI removes ANSI escape sequences, so an error shown by Terraform reads as plain text.
+func stripANSI(s string) string {
+	return ansiEscape.ReplaceAllString(s, "")
 }
 
 // getCurrentApplied returns an ApplyModuleModel reflecting what is currently applied.

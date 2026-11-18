@@ -144,7 +144,72 @@ func TestManagedIdentityAliasWithSourcePath(t *testing.T) {
 	})
 }
 
+// TestManagedIdentityAliasSourceFormSwitch: naming the same alias source by its ID, its TRN or
+// alias_source_path is an in-place update with no write calls, and a different source replaces.
+func TestManagedIdentityAliasSourceFormSwitch(t *testing.T) {
+	const addr = "tharsis_managed_identity_alias.tmi_alias"
+	sourcePath := testGroupPath + "/tmi_aws_name"
+	var id string
+	calls := newWriteCallLog(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testSharedProviderConfiguration() + testManagedIdentityAliasSourceConfiguration("alias_source_id = tharsis_managed_identity.tmi_aws.id"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCaptureAttr(addr, "id", &id),
+					calls.mark(),
+				),
+			},
+			{
+				Config: testSharedProviderConfiguration() + testManagedIdentityAliasSourceConfiguration("alias_source_id = "+quoted("trn:managed_identity:"+sourcePath)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged(addr, "id", &id),
+					resource.TestCheckResourceAttr(addr, "alias_source_id", "trn:managed_identity:"+sourcePath),
+					calls.checkNoneSinceMark(),
+				),
+			},
+			{
+				Config: testSharedProviderConfiguration() + testManagedIdentityAliasSourceConfiguration("alias_source_path = "+quoted(sourcePath)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged(addr, "id", &id),
+					resource.TestCheckResourceAttr(addr, "alias_source_path", sourcePath),
+					resource.TestCheckResourceAttr(addr, "alias_source_id", "trn:managed_identity:"+sourcePath),
+					calls.checkNoneSinceMark(),
+				),
+			},
+			{
+				Config: testSharedProviderConfiguration() + testManagedIdentityAliasSourceConfiguration("alias_source_id = tharsis_managed_identity.tmi_aws.id"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged(addr, "id", &id),
+					resource.TestCheckResourceAttrPair(addr, "alias_source_id", "tharsis_managed_identity.tmi_aws", "id"),
+					resource.TestCheckNoResourceAttr(addr, "alias_source_path"),
+					calls.checkNoneSinceMark(),
+				),
+			},
+			{
+				Config: testSharedProviderConfiguration() + testManagedIdentityAliasSourceConfiguration("alias_source_path = "+quoted(testGroupPath+"/tmi_azure_name")),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrChanged(addr, "id", &id),
+					resource.TestCheckResourceAttrPair(addr, "alias_source_id", "tharsis_managed_identity.tmi_azure", "id"),
+				),
+			},
+		},
+	})
+}
+
 func testManagedIdentityAliasConfiguration(sourceName string, withPath bool) string {
+	// Decide whether we're using path or ID for the alias source.
+	aliasSource := fmt.Sprintf("alias_source_id = tharsis_managed_identity.%s.id", sourceName)
+	if withPath {
+		aliasSource = fmt.Sprintf("alias_source_path = tharsis_managed_identity.%s.resource_path", sourceName)
+	}
+	return testManagedIdentityAliasSourceConfiguration(aliasSource)
+}
+
+// testManagedIdentityAliasSourceConfiguration names the alias source with the given line. A
+// literal TRN or path carries no dependency, so depends_on keeps the sources created first.
+func testManagedIdentityAliasSourceConfiguration(aliasSource string) string {
 	sourceIdentityAWSType := pb.ManagedIdentityType_aws_federated.String()
 	sourceIdentityAWSName := "tmi_aws_name"
 	sourceIdentityAWSDescription := "this is tmi_aws, a Tharsis managed identity of AWS type"
@@ -162,12 +227,6 @@ func testManagedIdentityAliasConfiguration(sourceName string, withPath bool) str
 
 	// Alias fields.
 	createAliasName := "tmi_test_alias"
-
-	// Decide whether we're using path or ID for the alias source.
-	aliasSource := fmt.Sprintf("alias_source_id = tharsis_managed_identity.%s.id", sourceName)
-	if withPath {
-		aliasSource = fmt.Sprintf("alias_source_path = tharsis_managed_identity.%s.resource_path", sourceName)
-	}
 
 	return fmt.Sprintf(`
 
@@ -199,6 +258,7 @@ resource "tharsis_managed_identity_alias" "tmi_alias" {
 	name = "%s"
 	group_path = tharsis_group.alias-group.full_path
 	%s
+	depends_on = [tharsis_managed_identity.tmi_aws, tharsis_managed_identity.tmi_azure]
 }
 
 	`, createRootGroup(testGroupPath, "this is a test root group"),

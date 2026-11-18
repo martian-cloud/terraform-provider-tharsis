@@ -3,12 +3,15 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"gitlab.com/infor-cloud/martian-cloud/tharsis/tharsis-api/pkg/client"
@@ -34,10 +37,11 @@ type RunnerModel struct {
 
 // Ensure provider defined types fully satisfy framework interfaces
 var (
-	_ resource.Resource                = (*runnerResource)(nil)
-	_ resource.ResourceWithConfigure   = (*runnerResource)(nil)
-	_ resource.ResourceWithImportState = (*runnerResource)(nil)
-	_ resource.ResourceWithModifyPlan  = (*runnerResource)(nil)
+	_ resource.Resource                   = (*runnerResource)(nil)
+	_ resource.ResourceWithConfigure      = (*runnerResource)(nil)
+	_ resource.ResourceWithImportState    = (*runnerResource)(nil)
+	_ resource.ResourceWithModifyPlan     = (*runnerResource)(nil)
+	_ resource.ResourceWithValidateConfig = (*runnerResource)(nil)
 )
 
 // NewRunnerResource is a helper function to simplify the provider implementation.
@@ -93,6 +97,9 @@ func (t *runnerResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Description:         "A description of the runner.",
 				Optional:            true,
 				Computed:            true,
+				// Without a Default, removing the description from the configuration would plan the
+				// prior value and leave it in Tharsis. "" is what Tharsis stores when none is set.
+				Default: stringdefault.StaticString(""),
 				// Can be updated in place, so no RequiresReplace plan modifier.
 			},
 			"group_id": schema.StringAttribute{
@@ -111,18 +118,21 @@ func (t *runnerResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Default:             booldefault.StaticBool(false),
 			},
 			"run_untagged_jobs": schema.BoolAttribute{
-				MarkdownDescription: "Whether the runner claims jobs that carry no tags. Defaults to false.",
-				Description:         "Whether the runner claims jobs that carry no tags. Defaults to false.",
+				MarkdownDescription: "Whether the runner claims jobs that carry no tags. Defaults to false. A runner with no tags must set this to true.",
+				Description:         "Whether the runner claims jobs that carry no tags. Defaults to false. A runner with no tags must set this to true.",
 				Optional:            true,
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 			},
 			"tags": schema.SetAttribute{
 				ElementType:         types.StringType,
-				MarkdownDescription: "Tags that route tagged jobs to this runner. Changing a non-empty set to empty forces replacement, because the API cannot clear tags through an update.",
-				Description:         "Tags that route tagged jobs to this runner. Changing a non-empty set to empty forces replacement, because the API cannot clear tags through an update.",
+				MarkdownDescription: "Tags that route tagged jobs to this runner. At least one is required unless run_untagged_jobs is true. Removing the tags, or changing a non-empty set to empty, forces replacement, because the API cannot clear tags through an update.",
+				Description:         "Tags that route tagged jobs to this runner. At least one is required unless run_untagged_jobs is true. Removing the tags, or changing a non-empty set to empty, forces replacement, because the API cannot clear tags through an update.",
 				Optional:            true,
 				Computed:            true,
+				// Without a Default, removing the tags from the configuration would plan the prior
+				// set and leave them in Tharsis. An empty set makes ModifyPlan replace the runner.
+				Default: setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{})),
 			},
 		},
 	}
@@ -175,6 +185,28 @@ func isClearingNonEmptySet(state, plan types.Set) bool {
 // isKnownSet reports whether s is neither null nor unknown.
 func isKnownSet(s types.Set) bool {
 	return !s.IsNull() && !s.IsUnknown()
+}
+
+// ValidateConfig rejects at plan time a runner that could never claim a job: no tags and
+// run_untagged_jobs not true. Tharsis refuses it too, but only at apply, after other resources
+// in the same apply may already have been changed. A value unknown until apply is not checked.
+func (t *runnerResource) ValidateConfig(ctx context.Context,
+	req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse,
+) {
+	var config RunnerModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if config.Tags.IsUnknown() || config.RunUntaggedJobs.IsUnknown() {
+		return
+	}
+	// Unset tags means none, and unset run_untagged_jobs means false (their defaults).
+	if len(config.Tags.Elements()) == 0 && !config.RunUntaggedJobs.ValueBool() {
+		resp.Diagnostics.AddAttributeError(path.Root("tags"), "Runner has no way to claim jobs",
+			"Set at least one tag in tags, or set run_untagged_jobs = true. Tharsis refuses a runner "+
+				"with neither, because it would never claim a job.")
+	}
 }
 
 func (t *runnerResource) Create(ctx context.Context,
@@ -343,7 +375,13 @@ func (t *runnerResource) copyRunner(ctx context.Context,
 	dest.Disabled = types.BoolValue(src.Disabled)
 	dest.RunUntaggedJobs = types.BoolValue(src.RunUntaggedJobs)
 
-	tagSet, d := types.SetValueFrom(ctx, types.StringType, src.Tags)
+	// No tags is an empty set, not null: it must match the empty-set default that an unset
+	// tags attribute plans.
+	tags := src.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+	tagSet, d := types.SetValueFrom(ctx, types.StringType, tags)
 	diags = append(diags, d...)
 	dest.Tags = tagSet
 

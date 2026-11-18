@@ -362,6 +362,30 @@ func TestRunFailureMessage(t *testing.T) {
 			want: `Run "run-1" ended with status ERRORED during Post-plan stage.`,
 		},
 		{
+			name: "apply error with Terraform's colour codes",
+			outcome: &runpkg.Outcome{
+				Run: &pb.Run{
+					Status: pb.RunStatus_ERRORED,
+					Plan:   &pb.Plan{},
+					Apply:  &pb.Apply{ErrorMessage: new("\x1b[31m╷\x1b[0m\x1b[0m\n\x1b[31m│\x1b[0m \x1b[0m\x1b[1m\x1b[31mError: \x1b[0m\x1b[0m\x1b[1mlocal-exec provisioner error\x1b[0m")},
+				},
+				Stage: runpkg.StageRef{Name: "Apply", Kind: runpkg.StageApply},
+			},
+			want: "Run \"run-1\" ended with status ERRORED: apply failed: ╷\n│ Error: local-exec provisioner error",
+		},
+		{
+			name: "plan error with Terraform's colour codes",
+			outcome: &runpkg.Outcome{
+				Run: &pb.Run{
+					Status: pb.RunStatus_ERRORED,
+					Plan:   &pb.Plan{ErrorMessage: new("\x1b[31mError: \x1b[0mInvalid reference")},
+					Apply:  &pb.Apply{},
+				},
+				Stage: runpkg.StageRef{Name: "Plan", Kind: runpkg.StagePlan},
+			},
+			want: `Run "run-1" ended with status ERRORED: plan failed: Error: Invalid reference`,
+		},
+		{
 			name: "no plan, apply or stage",
 			outcome: &runpkg.Outcome{
 				Run: &pb.Run{Status: pb.RunStatus_CANCELED},
@@ -542,8 +566,8 @@ func TestApplyModuleUpdateSkipsRunWhenOnlyWaitTimeoutChanges(t *testing.T) {
 func TestApplyModuleUpdateComparesEveryAttribute(t *testing.T) {
 	notCompared := map[string]string{
 		"id":                 "kept from state",
-		"workspace_path":     "requires replace",
-		"workspace_id":       "requires replace",
+		"workspace_path":     "another workspace replaces; the same one in another form needs no run",
+		"workspace_id":       "another workspace replaces; the same one in another form needs no run",
 		"wait_timeout":       "the attribute the skip is for",
 		"resolved_variables": "computed by the run",
 	}
@@ -565,4 +589,76 @@ func TestApplyModuleUpdateComparesEveryAttribute(t *testing.T) {
 			t.Errorf("attribute %q must be compared in applyModuleResource.Update's skip check, or listed in notCompared", name)
 		}
 	}
+}
+
+// TestApplyModuleWorkspaceFormSwitch is QA's finding on v0.18.0-alpha.6: switching the target
+// workspace between its ID, its TRN and workspace_path must be an in-place update that starts
+// no run, and moving to a different workspace must still replace.
+func TestApplyModuleWorkspaceFormSwitch(t *testing.T) {
+	const addr = "tharsis_apply_module.tam"
+	var id string
+	calls := newWriteCallLog(t)
+	wsTRN := quoted("trn:workspace:" + testGroupPath + "/workspace-1")
+	wsPath := quoted(testGroupPath + "/workspace-1")
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testApplyModuleWorkspaceConfiguration("workspace_id", "tharsis_workspace.tw1.id"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCaptureAttr(addr, "id", &id),
+					calls.mark(),
+				),
+			},
+			{
+				Config: testApplyModuleWorkspaceConfiguration("workspace_id", wsTRN),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged(addr, "id", &id),
+					resource.TestCheckResourceAttr(addr, "workspace_id", "trn:workspace:"+testGroupPath+"/workspace-1"),
+					calls.checkNoneSinceMark(),
+				),
+			},
+			{
+				Config: testApplyModuleWorkspaceConfiguration("workspace_path", wsPath),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged(addr, "id", &id),
+					resource.TestCheckResourceAttr(addr, "workspace_path", testGroupPath+"/workspace-1"),
+					resource.TestCheckNoResourceAttr(addr, "workspace_id"),
+					calls.checkNoneSinceMark(),
+				),
+			},
+			{
+				Config: testApplyModuleWorkspaceConfiguration("workspace_id", "tharsis_workspace.tw1.id"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged(addr, "id", &id),
+					resource.TestCheckResourceAttrPair(addr, "workspace_id", "tharsis_workspace.tw1", "id"),
+					calls.checkNoneSinceMark(),
+				),
+			},
+			{
+				Config: testApplyModuleWorkspaceConfiguration("workspace_id", "tharsis_workspace.tw2.id"),
+				Check:  testCheckAttrChanged(addr, "id", &id),
+			},
+		},
+	})
+}
+
+// testApplyModuleWorkspaceConfiguration names the target workspace with attr = ref. A literal
+// TRN or path carries no dependency, so depends_on keeps the workspaces created first and
+// destroyed last.
+func testApplyModuleWorkspaceConfiguration(attr, ref string) string {
+	return testApplyModuleConfigurationCreate() + fmt.Sprintf(`
+resource "tharsis_apply_module" "tam" {
+  %s = %s
+  module_source = "%s"
+  variables = [
+    {
+      value    = "form switch"
+      key      = "trigger_name"
+      category = "terraform"
+    }
+  ]
+  depends_on = [tharsis_workspace.tw1, tharsis_workspace.tw2]
+}
+`, attr, ref, moduleSource)
 }

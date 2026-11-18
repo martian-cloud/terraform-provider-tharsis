@@ -27,8 +27,8 @@
 - The `kubernetes_federated` managed identity type, with an `audience` attribute that must match the
   client ID of the cluster's OIDC identity provider configuration. (#59)
 - `tharsis_apply_module` now has an optional `wait_timeout` attribute (default `1h`) that sets how
-  long to wait for a run blocked on plan approval or a policy gate. The provider never prompts for
-  input, so a blocked run fails with an explanatory error once the timeout elapses. Changing only
+  long to wait for a run blocked on a policy gate. The provider never prompts for input, so a
+  blocked run fails with an explanatory error once the timeout elapses. Changing only
   `wait_timeout` updates state without starting a run.
 
 ### Changed
@@ -55,6 +55,29 @@
 
 ### Fixed
 
+- `tharsis_apply_module` was replaced, with a destroy run and a new apply run, when `workspace_id`
+  switched between the ID and the TRN of the same workspace, or between `workspace_path` and
+  `workspace_id`. That switch is now an in-place update that starts no run; moving to a different
+  workspace still replaces the resource.
+- Removing `description` or `tags` from a `tharsis_runner` configuration kept the old value in Tharsis.
+  An unset `description` now means `""`, and unset `tags` an empty set; removing the tags replaces
+  the runner, because the API can't clear tags through an update.
+- A `tharsis_runner` with no tags and `run_untagged_jobs` not `true` now fails at plan with an
+  explanation, instead of at apply with Tharsis's error. The `tags` and `run_untagged_jobs`
+  descriptions say that one of them is required.
+- Invalid `ascii_armor` on a `tharsis_gpg_key` now fails at plan, using the same rules Tharsis
+  applies. Before, the error only showed at apply, and changing a working key to invalid text
+  deleted the old key before the create failed, leaving the group without one.
+- `tharsis_apply_module` errors for a failed plan or apply showed Terraform's colour codes (for
+  example `[31m`), because Tharsis reports the job's coloured output. They are now removed.
+- `tharsis_managed_identity_alias` was replaced when its source switched between
+  `alias_source_path` and `alias_source_id` (or its TRN) of the same managed identity. That switch
+  is now an in-place update; a different source still replaces the alias.
+- Removing `verify_state_lineage` from a `tharsis_managed_identity_access_rule` configuration kept
+  the old value in Tharsis. An unset `verify_state_lineage` now means `false`.
+- A `tharsis_managed_identity` whose fields don't match its `type` (for example `azure_federated`
+  without `azure_client_id`) now fails at plan. Before, the error only showed at apply, and changing
+  the type of a working identity deleted it before the create failed.
 - `tharsis_gpg_key` failed on create with "Provider produced inconsistent result after apply" against
   Tharsis v0.113.0 and later, which store a key re-armored. The configured armor is now kept, and
   re-armoring of the same key (for example after an import) is an in-place update rather than a

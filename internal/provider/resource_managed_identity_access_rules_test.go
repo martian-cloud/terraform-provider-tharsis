@@ -188,3 +188,44 @@ func testManagedIdentityAccessRulesConfigurationUpdate() string {
 	updateStage := "apply"
 	return strings.Replace(testManagedIdentityAccessRulesConfigurationRule(), ruleStage, updateStage, 1)
 }
+
+// TestManagedIdentityAccessRuleVerifyStateLineageRemoved: removing verify_state_lineage from
+// the configuration sets it back to false in Tharsis, in place.
+func TestManagedIdentityAccessRuleVerifyStateLineageRemoved(t *testing.T) {
+	const addr = "tharsis_managed_identity_access_rule.rule_vsl"
+	var id string
+	config := func(extra string) string {
+		return testSharedProviderConfiguration() + testManagedIdentityAccessRulesConfigurationParent() + fmt.Sprintf(`
+resource "tharsis_managed_identity_access_rule" "rule_vsl" {
+	type                = "eligible_principals"
+	run_stage           = "plan"
+	managed_identity_id = tharsis_managed_identity.tmiar_parent.id
+	%s
+}
+`, extra)
+	}
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config("verify_state_lineage = true"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(addr, "verify_state_lineage", "true"),
+					testCaptureAttr(addr, "id", &id),
+				),
+			},
+			{
+				Config: config(""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckAttrUnchanged(addr, "id", &id),
+					resource.TestCheckResourceAttr(addr, "verify_state_lineage", "false"),
+				),
+			},
+			// A refresh reads the value back from Tharsis.
+			{
+				RefreshState: true,
+				Check:        resource.TestCheckResourceAttr(addr, "verify_state_lineage", "false"),
+			},
+		},
+	})
+}
